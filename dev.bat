@@ -1,24 +1,29 @@
 @echo off
 setlocal enabledelayedexpansion
 
-:: Windows CMD requires a specific escape character for ANSI colors
-set "ESC= "
-:: Note: To create the ESC character above, in most editors you press Ctrl+[
-:: If that doesn't work, we use the standard fallback below:
-for /F "tokens=1,2 delims=#" %%a in ('"prompt #$H#$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%b"
-
-:: Colors
-set "GREEN=%ESC%[0;32m"
-set "YELLOW=%ESC%[1;33m"
-set "NC=%ESC%[0m"
-
-echo %NC%╔════════════════════════════════════════════════════════╗
-echo ║   Bearfit Development Launcher (Auto-Setup Mode)       ║
+echo ╔════════════════════════════════════════════════════════╗
+echo ║   Bearfit Development Launcher (Universal LAN Fix)      ║
 echo ╚════════════════════════════════════════════════════════╝
 
-:: Auto-create backend .env if missing
-if not exist "backend\.env" (
-    echo %YELLOW%⚠️  backend/.env not found. Creating...%NC%
+:: --- Detect REAL Windows LAN IP (any private range 10.x.x.x, 172.16-31.x.x, 192.168.x.x) ---
+for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /R /C:"IPv4.*192\." /C:"IPv4.*172\." /C:"IPv4.*10\."') do (
+    set IP_ADDR=%%a
+    set IP_ADDR=!IP_ADDR: =!
+    goto :ipfound
+)
+
+:ipfound
+if "%IP_ADDR%"=="" (
+    echo Could not detect LAN IP. Falling back to localhost.
+    set IP_ADDR=localhost
+) else (
+    echo Detected LAN IP: %IP_ADDR%
+)
+
+:: --- Auto-create backend .env if missing ---
+if not exist backend\.env (
+    echo backend\.env not found. Creating...
+
     (
         echo DATABASE_URL=postgres://517ad6be03b766c898c174078fd5fc40df4e1837529c3d4ab17ff25da8d23425:sk_ToL0a-qeuyPoD2eKGywxJ@db.prisma.io:5432/postgres?sslmode=require
         echo REDIS_URL=redis://redis:6379
@@ -29,39 +34,26 @@ if not exist "backend\.env" (
         echo PORT=3001
         echo NODE_ENV=development
     ) > backend\.env
-    echo %GREEN%✅ backend/.env created%NC%
+
+    echo backend\.env created
 )
 
-:: Detect local IP address (Windows equivalent of hostname -I)
-set "IP_ADDR=localhost"
-for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /R /C:"IPv4 Address"') do (
-    set "temp_ip=%%a"
-    :: Remove leading space
-    set "IP_ADDR=!temp_ip:~1!"
-    :: Use the first one found and exit loop
-    goto :found_ip
-)
+:: --- Set environment variables for Expo ---
+set EXPO_PUBLIC_API_URL=http://%IP_ADDR%:3001/api
+set REACT_NATIVE_PACKAGER_HOSTNAME=%IP_ADDR%
+set EXPO_DEVTOOLS_LISTEN_ADDRESS=0.0.0.0
 
-:found_ip
-if "%IP_ADDR%"=="localhost" (
-    echo Could not detect local IP. Falling back to localhost.
-) else (
-    echo %GREEN%Detected LAN IP: !IP_ADDR!%NC%
-)
+echo Injecting API URL: %EXPO_PUBLIC_API_URL%
+echo Forcing Expo Host: %REACT_NATIVE_PACKAGER_HOSTNAME%
 
-:: Set the API URL for the current session
-set "EXPO_PUBLIC_API_URL=http://!IP_ADDR!:3001/api"
-set "REACT_NATIVE_PACKAGER_HOSTNAME=!IP_ADDR!"
+:: --- STEP 1: START CORE SERVICES ---
+echo Starting Database and Redis...
+docker-compose up -d redis backend
 
-echo %YELLOW%🚀 Injecting API URL: !EXPO_PUBLIC_API_URL!%NC%
+echo Waiting for Database to breathe...
+timeout /t 5 >nul
 
-echo Starting Docker containers...
-:: Use --build to ensure the frontend image bakes in the NEW IP address
-docker-compose up --build -d
-
-echo Waiting for services to be ready...
-timeout /t 5 /nobreak > nul
-
+:: --- STEP 2: DATA LAYER SETUP ---
 echo Syncing Prisma schema...
 docker-compose exec -T backend npx prisma db pull
 
@@ -71,10 +63,16 @@ docker-compose exec -T backend npx prisma generate
 echo Restarting backend to apply changes...
 docker-compose restart backend
 
-echo %GREEN%✅ All services ready!%NC%
+:: --- STEP 3: START FRONTEND ---
+echo Backend ready! Starting Frontend...
 echo ----------------------------------------------------------
 echo Backend:  http://localhost:3001
-echo Frontend: http://!IP_ADDR!:8081
+echo Frontend: http://%IP_ADDR%:8081
 echo ----------------------------------------------------------
-echo Tailing logs...
-docker-compose logs -f
+
+docker-compose up --build -d frontend
+
+echo Attaching to Frontend (Press Ctrl+P then Ctrl+Q to detach)
+echo ----------------------------------------------------------
+
+docker attach frontend-container

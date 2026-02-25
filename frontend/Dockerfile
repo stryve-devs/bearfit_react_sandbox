@@ -22,4 +22,4 @@ COPY . .
 EXPOSE 8081 19000 19001 19002
 
 # Added --clear to ensure Metro doesn't cache the old IP from your previous network
-CMD npx expo start --lan --clear
+CMD npx expo start --host lan --clear --port 8081
