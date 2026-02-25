@@ -52,13 +52,14 @@ export REACT_NATIVE_PACKAGER_HOSTNAME=$IP_ADDR
 
 echo -e "${YELLOW}🚀 Injecting API URL: $EXPO_PUBLIC_API_URL${NC}"
 
-echo "Starting Docker containers..."
-# Use --build to ensure the frontend image bakes in the NEW IP address
-docker-compose up --build -d
+# --- STEP 1: START CORE SERVICES ---
+echo "Starting Database and Redis..."
+docker-compose up -d redis backend
 
-echo "Waiting for services to be ready..."
+echo "Waiting for Database to breathe..."
 sleep 5
 
+# --- STEP 2: DATA LAYER SETUP ---
 echo "Syncing Prisma schema..."
 docker-compose exec -T backend npx prisma db pull
 
@@ -68,10 +69,20 @@ docker-compose exec -T backend npx prisma generate
 echo "Restarting backend to apply changes..."
 docker-compose restart backend
 
-echo -e "${GREEN}✅ All services ready!${NC}"
+# --- STEP 3: START FRONTEND & ATTACH ---
+echo -e "${GREEN}✅ Backend ready! Starting Frontend...${NC}"
 echo "----------------------------------------------------------"
 echo "Backend:  http://localhost:3001"
 echo "Frontend: http://$IP_ADDR:8081"
 echo "----------------------------------------------------------"
-echo "Tailing logs..."
-docker-compose logs -f
+
+# We start the frontend here. Because it starts NOW, it will see your
+# terminal window immediately and render the barcode correctly.
+docker-compose up --build -d frontend
+
+echo "Attaching to Frontend (Press 'r' to reload, 'a' for Android)"
+echo "To exit without stopping, press Ctrl+P then Ctrl+Q"
+echo "----------------------------------------------------------"
+
+# Use the service name to ensure we catch it as it boots
+docker attach frontend-container
