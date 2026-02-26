@@ -5,22 +5,62 @@ echo ╔════════════════════════
 echo ║   Bearfit Development Launcher (Universal LAN Fix)      ║
 echo ╚════════════════════════════════════════════════════════╝
 
-:: --- Detect REAL Windows LAN IP (any private range 10.x.x.x, 172.16-31.x.x, 192.168.x.x) ---
-for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /R /C:"IPv4.*192\." /C:"IPv4.*172\." /C:"IPv4.*10\."') do (
-    set IP_ADDR=%%a
-    set IP_ADDR=!IP_ADDR: =!
-    goto :ipfound
+:: ==========================================================
+:: --- STEP 0: DETECT WI-FI / WIRELESS LAN IP (IPv4) ---
+:: ==========================================================
+
+set IP_ADDR=
+
+:: Primary method: netsh wlan (works on most Windows versions)
+for /f "tokens=2 delims=:" %%A in ('netsh wlan show interfaces ^| findstr /R /C:"IPv4"') do (
+    set IP_ADDR=%%A
+)
+if defined IP_ADDR set IP_ADDR=!IP_ADDR: =!
+
+:: Fallback: parse ipconfig looking for wireless adapter
+if not defined IP_ADDR (
+    for /f "tokens=*" %%A in ('ipconfig') do (
+        set "LINE=%%A"
+
+        :: detect start of adapter section
+        echo !LINE! | findstr /I "adapter" >nul
+        if !errorlevel! == 0 (
+            set "IN_ADAPTER="
+            echo !LINE! | findstr /I "wireless" >nul && set "IN_ADAPTER=1"
+            echo !LINE! | findstr /I "wifi" >nul && set "IN_ADAPTER=1"
+            echo !LINE! | findstr /I "wlan" >nul && set "IN_ADAPTER=1"
+        )
+
+        :: skip disconnected adapters
+        if defined IN_ADAPTER (
+            echo !LINE! | findstr /I "Media disconnected" >nul && set "IN_ADAPTER="
+        )
+
+        :: extract IPv4
+        if defined IN_ADAPTER (
+            echo !LINE! | findstr /I "IPv4" >nul
+            if !errorlevel! == 0 (
+                for /f "tokens=2 delims=:" %%B in ("!LINE!") do (
+                    set IP_ADDR=%%B
+                    set IP_ADDR=!IP_ADDR: =!
+                )
+                set "IN_ADAPTER="
+            )
+        )
+    )
 )
 
-:ipfound
+:: final fallback to localhost
 if "%IP_ADDR%"=="" (
-    echo Could not detect LAN IP. Falling back to localhost.
+    echo Could not detect Wi-Fi/ wireless IPv4 address. Falling back to localhost.
     set IP_ADDR=localhost
 ) else (
-    echo Detected LAN IP: %IP_ADDR%
+    echo Detected Wi-Fi/ wireless IPv4: %IP_ADDR%
 )
 
-:: --- Auto-create backend .env if missing ---
+:: ==========================================================
+:: --- STEP 1: AUTO-CREATE BACKEND .ENV IF MISSING ---
+:: ==========================================================
 if not exist backend\.env (
     echo backend\.env not found. Creating...
 
@@ -38,7 +78,9 @@ if not exist backend\.env (
     echo backend\.env created
 )
 
-:: --- Set environment variables for Expo ---
+:: ==========================================================
+:: --- STEP 2: SET ENVIRONMENT VARIABLES FOR EXPO ---
+:: ==========================================================
 set EXPO_PUBLIC_API_URL=http://%IP_ADDR%:3001/api
 set REACT_NATIVE_PACKAGER_HOSTNAME=%IP_ADDR%
 set EXPO_DEVTOOLS_LISTEN_ADDRESS=0.0.0.0
@@ -46,14 +88,18 @@ set EXPO_DEVTOOLS_LISTEN_ADDRESS=0.0.0.0
 echo Injecting API URL: %EXPO_PUBLIC_API_URL%
 echo Forcing Expo Host: %REACT_NATIVE_PACKAGER_HOSTNAME%
 
-:: --- STEP 1: START CORE SERVICES ---
+:: ==========================================================
+:: --- STEP 3: START CORE SERVICES (DATABASE + REDIS) ---
+:: ==========================================================
 echo Starting Database and Redis...
 docker-compose up -d redis backend
 
 echo Waiting for Database to breathe...
 timeout /t 5 >nul
 
-:: --- STEP 2: DATA LAYER SETUP ---
+:: ==========================================================
+:: --- STEP 4: DATA LAYER SETUP (PRISMA) ---
+:: ==========================================================
 echo Syncing Prisma schema...
 docker-compose exec -T backend npx prisma db pull
 
@@ -63,7 +109,9 @@ docker-compose exec -T backend npx prisma generate
 echo Restarting backend to apply changes...
 docker-compose restart backend
 
-:: --- STEP 3: START FRONTEND ---
+:: ==========================================================
+:: --- STEP 5: START FRONTEND ---
+:: ==========================================================
 echo Backend ready! Starting Frontend...
 echo ----------------------------------------------------------
 echo Backend:  http://localhost:3001
