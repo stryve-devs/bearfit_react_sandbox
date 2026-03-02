@@ -5,7 +5,7 @@ import { AppColors } from '../../constants/colors';
 export default function WorkoutScreen() {
     return (
         <View style={styles.container}>
-            <Text style={styles.title}>Workouts</Text>
+            <Text style={styles.title}>anything</Text>
         </View>
     );
 }
