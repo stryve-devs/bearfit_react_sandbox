@@ -2,10 +2,10 @@
 
 set -e
 
-# --- Function to detect Windows LAN IP from WSL ---
-get_wsl_win_ip() {
-    WIN_IP=$(powershell.exe -Command "(Get-NetIPAddress -AddressFamily IPv4 | Where-Object { \$_.IPAddress -like '192.168.*' -and \$_.PrefixLength -eq 24 } | Select-Object -First 1).IPAddress" | tr -d '\r')
-    echo "$WIN_IP"
+# --- Function to detect Windows Wi-Fi LAN IP from WSL ---
+get_wsl_wifi_ip() {
+    WIN_WIFI_IP=$(ipconfig.exe | grep -A 10 "Wireless LAN adapter Wi-Fi" | grep "IPv4 Address" | awk -F': ' '{print $2}' | tr -d '\r')
+    echo "$WIN_WIFI_IP"
 }
 
 # --- Colors ---
@@ -33,14 +33,14 @@ EOF
     echo -e "${GREEN}✅ backend/.env created${NC}"
 fi
 
-# --- Detect Windows LAN IP ---
-IP=$(get_wsl_win_ip)
+# --- Detect Windows Wi-Fi LAN IP ---
+IP=$(get_wsl_wifi_ip)
 
 if [ -z "$IP" ]; then
-    echo -e "${YELLOW}Could not detect Windows LAN IP. Falling back to localhost.${NC}"
+    echo -e "${YELLOW}⚠️ Could not detect Windows Wi-Fi LAN IP. Falling back to localhost.${NC}"
     export IP_ADDR="localhost"
 else
-    echo -e "${GREEN}Detected LAN IP for phone: $IP${NC}"
+    echo -e "${GREEN}✅ Detected Wi-Fi LAN IP for phone: $IP${NC}"
     export IP_ADDR=$IP
 fi
 
