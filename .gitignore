@@ -1,5 +1,6 @@
 # Root .gitignore for Bearfit Monorepo
-
+/package-lock.json
+/node_modules/
 # Dependencies - Block at all levels
 node_modules/
 backend/node_modules/
