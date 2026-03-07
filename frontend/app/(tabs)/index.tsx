@@ -1,24 +1,16 @@
-import { View, Text, StyleSheet } from 'react-native';
-import { AppColors } from '../../src/constants/colors';
+import { useEffect } from 'react';
+import { useRouter } from 'expo-router';
 
-export default function HomeScreen() {
-    return (
-        <View style={styles.container}>
-            <Text style={styles.title}>Welcome to app</Text>
-        </View>
-    );
+// This file handles the route "/(tabs)" and immediately redirects to "/(tabs)/home".
+// We explicitly declare it in _layout.tsx with href: null to prevent it appearing
+// in the tab bar.
+
+export default function TabsIndexRedirect() {
+    const router = useRouter();
+
+    useEffect(() => {
+        router.replace('/(tabs)/home');
+    }, []);
+
+    return null;
 }
-
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: AppColors.black,
-    },
-    title: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        color: AppColors.white,
-    },
-});
