@@ -1,0 +1,215 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model progress {
+  progress_id         Int      @id @default(autoincrement())
+  user_id             Int?
+  date                DateTime @db.Date
+  weight              Decimal? @db.Decimal(5, 2)
+  body_fat_percentage Decimal? @db.Decimal(5, 2)
+  chest               Decimal? @db.Decimal(5, 2)
+  waist               Decimal? @db.Decimal(5, 2)
+  hips                Decimal? @db.Decimal(5, 2)
+  arms                Decimal? @db.Decimal(5, 2)
+  legs                Decimal? @db.Decimal(5, 2)
+  progress_photo_url  String?
+  users               users?   @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model users {
+  user_id        Int              @id @default(autoincrement())
+  name           String           @db.VarChar(150)
+  username       String?          @unique @db.VarChar(150)
+  email          String           @unique @db.VarChar(320)
+  password_hash  String
+  is_active      Boolean          @default(true)
+  email_verified Boolean          @default(false)
+  gender         String?          @db.VarChar(10)
+  date_of_birth  DateTime?        @db.Date
+  height         Decimal?         @db.Decimal(5, 2)
+  weight         Decimal?         @db.Decimal(5, 2)
+  activity_level String?          @db.VarChar(30)
+  goal           String?          @db.VarChar(50)
+  created_at     DateTime         @default(now())
+  updated_at     DateTime         @updatedAt
+  deleted_at     DateTime?
+  theme          ThemePreference  @default(SYSTEM)
+  role           Role             @default(USER)
+  Food           Food[]
+  Meal           Meal[]
+  PersonalRecord PersonalRecord[]
+  Routine        Routine[]
+  progress       progress[]
+  refresh_tokens refresh_tokens[]
+  workouts       workouts[]
+
+  @@index([email])
+}
+
+model refresh_tokens {
+  id         Int      @id @default(autoincrement())
+  token      String   @unique
+  user_id    Int
+  expires_at DateTime @db.Timestamp(0)
+  revoked    Boolean  @default(false)
+  created_at DateTime @default(now()) @db.Timestamp(0)
+  users      users    @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+}
+
+model workout_exercises {
+  workout_exercise_id Int       @id @default(autoincrement())
+  workout_id          Int?
+  exercise_id         Int?
+  sets                Int?
+  reps                Int?
+  weight              Decimal?  @db.Decimal(6, 2)
+  distance            Decimal?  @db.Decimal(6, 2)
+  time                Decimal?  @db.Decimal(6, 2)
+  exercises           Exercise? @relation(fields: [exercise_id], references: [exercise_id], onDelete: Cascade, onUpdate: NoAction)
+  workouts            workouts? @relation(fields: [workout_id], references: [workout_id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model workouts {
+  workout_id        Int                 @id @default(autoincrement())
+  user_id           Int?
+  date              DateTime            @db.Date
+  type              String?             @db.VarChar(30)
+  duration_minutes  Int?
+  calories_burned   Decimal?            @db.Decimal(6, 2)
+  notes             String?
+  workout_exercises workout_exercises[]
+  users             users?              @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model Exercise {
+  exercise_id           Int                     @id @default(autoincrement())
+  name                  String                  @db.VarChar(150)
+  category              String?                 @db.VarChar(100)
+  equipment_id          Int?
+  Equipment             Equipment?              @relation(fields: [equipment_id], references: [equipment_id])
+  PersonalRecord        PersonalRecord[]
+  RoutineExercise       RoutineExercise[]
+  ExerciseToMuscleGroup ExerciseToMuscleGroup[]
+  workout_exercises     workout_exercises[]
+}
+
+model MuscleGroup {
+  id                    Int                     @id @default(autoincrement())
+  name                  String                  @unique @db.VarChar(100)
+  ExerciseToMuscleGroup ExerciseToMuscleGroup[]
+}
+
+model Equipment {
+  equipment_id Int        @id @default(autoincrement())
+  name         String     @unique @db.VarChar(100)
+  Exercise     Exercise[]
+}
+
+model Food {
+  food_id      Int        @id @default(autoincrement())
+  name         String     @db.VarChar(255)
+  brand        String?    @db.VarChar(150)
+  calories     Decimal    @db.Decimal(7, 2)
+  protein      Decimal    @db.Decimal(7, 2)
+  carbs        Decimal    @db.Decimal(7, 2)
+  fat          Decimal    @db.Decimal(7, 2)
+  fiber        Decimal?   @db.Decimal(7, 2)
+  serving_size Decimal    @db.Decimal(7, 2)
+  serving_unit String     @db.VarChar(50)
+  is_global    Boolean    @default(true)
+  created_by   Int?
+  users        users?     @relation(fields: [created_by], references: [user_id])
+  MealItem     MealItem[]
+
+  @@index([name])
+}
+
+model Meal {
+  meal_id     Int        @id @default(autoincrement())
+  user_id     Int
+  name        String     @db.VarChar(150)
+  meal_type   String?    @db.VarChar(50)
+  is_template Boolean    @default(false)
+  date        DateTime   @default(now())
+  users       users      @relation(fields: [user_id], references: [user_id])
+  MealItem    MealItem[]
+
+  @@index([user_id])
+}
+
+model MealItem {
+  id       Int     @id @default(autoincrement())
+  meal_id  Int
+  food_id  Int
+  quantity Decimal @db.Decimal(7, 2)
+  Food     Food    @relation(fields: [food_id], references: [food_id])
+  Meal     Meal    @relation(fields: [meal_id], references: [meal_id], onDelete: Cascade)
+}
+
+model PersonalRecord {
+  pr_id       Int      @id @default(autoincrement())
+  user_id     Int
+  exercise_id Int
+  date        DateTime @default(now())
+  weight      Decimal? @db.Decimal(6, 2)
+  reps        Int?
+  time        Decimal? @db.Decimal(10, 2)
+  distance    Decimal? @db.Decimal(10, 2)
+  one_rep_max Decimal? @db.Decimal(6, 2)
+  Exercise    Exercise @relation(fields: [exercise_id], references: [exercise_id])
+  users       users    @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+  @@index([user_id, exercise_id])
+}
+
+model Routine {
+  routine_id      Int               @id @default(autoincrement())
+  user_id         Int
+  name            String            @db.VarChar(150)
+  description     String?
+  created_at      DateTime          @default(now())
+  users           users             @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  RoutineExercise RoutineExercise[]
+
+  @@index([user_id])
+}
+
+model RoutineExercise {
+  id          Int      @id @default(autoincrement())
+  routine_id  Int
+  exercise_id Int
+  order       Int
+  target_sets Int?
+  target_reps Int?
+  notes       String?
+  Exercise    Exercise @relation(fields: [exercise_id], references: [exercise_id])
+  Routine     Routine  @relation(fields: [routine_id], references: [routine_id], onDelete: Cascade)
+}
+
+model ExerciseToMuscleGroup {
+  A           Int
+  B           Int
+  Exercise    Exercise    @relation(fields: [A], references: [exercise_id], onDelete: Cascade)
+  MuscleGroup MuscleGroup @relation(fields: [B], references: [id], onDelete: Cascade)
+
+  @@id([A, B], map: "_ExerciseToMuscleGroup_AB_pkey")
+  @@index([B], map: "_ExerciseToMuscleGroup_B_index")
+  @@map("_ExerciseToMuscleGroup")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum ThemePreference {
+  SYSTEM
+  LIGHT
+  DARK
+}

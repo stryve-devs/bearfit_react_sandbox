@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",                  // Latest JavaScript features
+    "module": "CommonJS",                // Module format for Node.js
+    "outDir": "./dist",                  // Output directory of compiled .js files
+    "rootDir": "./src",                  // Source files are in 'src/' folder
+    "strict": true,
+    "esModuleInterop": true,             // Ensure compatibility with CommonJS modules
+    "skipLibCheck": true                 // For faster builds
+  },
+  "include": ["src/**/*"],               // Compile everything in 'src/'
+  "exclude": ["node_modules"]            // Exclude dependencies
+}

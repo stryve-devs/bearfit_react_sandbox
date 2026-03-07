@@ -1,0 +1,44 @@
+# Root .gitignore for Bearfit Monorepo
+
+# Dependencies - Block at all levels
+node_modules/
+backend/node_modules/
+frontend/node_modules/
+
+# Environment / Secrets (Crucial for your startup)
+.env
+backend/.env
+frontend/.env
+*.pem
+*.key
+
+# Expo / Frontend Specific
+frontend/.expo/
+frontend/dist/
+frontend/web-build/
+frontend/expo-env.d.ts
+
+# Prisma Generated Client
+backend/node_modules/.prisma/
+backend/node_modules/@prisma/client/
+
+# Native (Android/iOS) folders
+/frontend/ios/
+/frontend/android/
+*.jks
+*.p8
+*.p12
+*.mobileprovision
+
+# macOS & IDEs
+.DS_Store
+.idea/
+.vscode/
+
+# Debug logs
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# TypeScript build info
+*.tsbuildinfo

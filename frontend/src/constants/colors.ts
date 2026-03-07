@@ -1,0 +1,15 @@
+export const AppColors = {
+    black: '#000000',
+    white: '#FFFFFF',
+    orange: '#FF6B35',
+    grey: '#9E9E9E',
+    lightGrey: '#BDBDBD',
+    darkGrey: '#2D2C2C',
+    darkBg: '#161515',
+    inputBg: '#2D2C2C',
+    green: '#4CAF50',
+    red: '#D32F2F',
+    errorRed: '#D22B2B',
+    disabledButton: '#666666',
+    borderGrey: '#555555',
+};

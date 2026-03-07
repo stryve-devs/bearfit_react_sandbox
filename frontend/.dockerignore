@@ -1,0 +1,9 @@
+node_modules
+.expo
+dist
+.env
+npm-debug.log
+Dockerfile
+.git
+.vscode
+*.log

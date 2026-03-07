@@ -1,0 +1,15 @@
+{
+  "name": "bearfit-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "dev": "./dev.sh",
+    "install-all": "npm install",
+    "be:prisma": "npm run prisma:generate -w backend",
+    "fe:start": "npm start -w frontend"
+  }
+}
