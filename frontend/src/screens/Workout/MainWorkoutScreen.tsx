@@ -35,7 +35,7 @@ export default function MainWorkoutScreen() {
                     {/* Add Exercise Button */}
                     <TouchableOpacity
                         style={styles.addExerciseButton}
-                       // onPress={() => router.push('/(tabs)/workouts/log')}
+                        onPress={() => router.push('/(tabs)/Workout/log')}
                         activeOpacity={0.7}
                     >
                         <Ionicons name="add" size={20} color={AppColors.white} />
@@ -55,7 +55,7 @@ export default function MainWorkoutScreen() {
                         {/* New Routine Card */}
                         <TouchableOpacity
                             style={[styles.card, styles.cardFlex]}
-                           // onPress={() => router.push('/(tabs)/workouts/routine')}
+                            onPress={() => router.push('/(tabs)/Workout/routine')}
                             activeOpacity={0.7}
                         >
                             <Text style={styles.cardLabel}>New Routine</Text>
@@ -68,7 +68,7 @@ export default function MainWorkoutScreen() {
                         {/* Explore Routines Card */}
                         <TouchableOpacity
                             style={[styles.card, styles.cardFlex]}
-                          //  onPress={() => router.push('/(tabs)/workouts/explore')}
+                            onPress={() => router.push('/(tabs)/Workout/explore')}
                             activeOpacity={0.7}
                         >
                             <Text style={styles.cardLabel}>Explore Routines</Text>
@@ -96,16 +96,64 @@ const styles = StyleSheet.create({
         paddingBottom: 20,
     },
     header: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: AppColors.darkBg,
+        height: 56,
         paddingHorizontal: 12,
-        paddingTop: 16,
-        paddingBottom: 8,
-        borderBottomWidth: 1,
-        borderBottomColor: AppColors.darkGrey,
     },
+
+    headerLeft: {
+        width: 60,
+        justifyContent: 'center',
+        alignItems: 'flex-start',
+    },
+
     headerTitle: {
-        fontSize: 28,
+        flex: 1,
+        textAlign: 'center',
+        fontSize: 18,
         fontWeight: '700',
-        color: AppColors.white,
+        color: AppColors.orange,
+    },
+
+    headerRight: {
+        width: 60,
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+        alignItems: 'center',
+        gap: 8,
+    },
+
+    iconButton: {
+        marginRight: 8,
+    },
+
+    finishButton: {
+        backgroundColor: AppColors.black,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 10,
+    },
+
+    finishButtonText: {
+        color: AppColors.orange,
+        fontWeight: '700',
+        fontSize: 14,
+    },
+
+    saveButton: {
+        backgroundColor: AppColors.black,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 10,
+    },
+
+    saveButtonText: {
+        color: AppColors.orange,
+        fontWeight: '700',
+        fontSize: 14,
     },
     section: {
         paddingHorizontal: 12,
@@ -162,10 +210,10 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     cardGap: {
-    height: 12,  
+        height: 12,
     },
     cardLabel: {
-        fontSize: 16,  
+        fontSize: 16,
         fontWeight: '700',
         color: AppColors.white,
         fontFamily: 'Quicksand',

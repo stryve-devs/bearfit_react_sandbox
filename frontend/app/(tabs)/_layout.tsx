@@ -2,19 +2,23 @@ import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { AppColors } from '../../src/constants/colors';
 
+
 export default function TabLayout() {
+
     return (
         <Tabs
             screenOptions={{
+                headerShown: true,
                 headerStyle: {
-                    backgroundColor: AppColors.black,
+                    backgroundColor: AppColors.darkBg,
+                    borderBottomWidth: 0,
                 },
-                headerTintColor: AppColors.white,
                 headerTitleStyle: {
                     color: AppColors.orange,
-                    fontWeight: '600',
+                    fontSize: 18,
+                    fontWeight: '700',
                 },
-                headerShadowVisible: false,
+                headerTitleAlign: 'center',
                 tabBarStyle: {
                     backgroundColor: AppColors.black,
                     borderTopColor: AppColors.darkGrey,
@@ -23,34 +27,34 @@ export default function TabLayout() {
                 tabBarInactiveTintColor: AppColors.grey,
             }}
         >
-            <Tabs.Screen
-                name="index"
-                options={{
-                    title: 'Home',
-                    tabBarIcon: ({ color, size }) => (
-                        <Ionicons name="home" size={size} color={color} />
-                    ),
-                }}
-            />
-            <Tabs.Screen
-                name="workouts"
-                options={{
-                    title: 'Workout',
-                    headerTitle: 'Workout',
-                    tabBarIcon: ({ color, size }) => (
-                        <Ionicons name="barbell-outline" size={size} color={color} />
-                    ),
-                }}
-            />
-            <Tabs.Screen
-                name="profile"
-                options={{
-                    title: 'Profile',
-                    tabBarIcon: ({ color, size }) => (
-                        <Ionicons name="person" size={size} color={color} />
-                    ),
-                }}
-            />
-        </Tabs>
-    );
-}
+
+                <Tabs.Screen
+                    name="index"
+                    options={{
+                        title: 'Home',
+                        tabBarIcon: ({ color, size }) => (
+                            <Ionicons name="home" size={size} color={color} />
+                        ),
+                    }}
+                />
+                <Tabs.Screen
+                    name="Workout"
+                    options={{
+                        title: 'Workout',
+                        tabBarIcon: ({ color, size }) => (
+                            <Ionicons name="barbell-outline" size={size} color={color} />
+                        ),
+                    }}
+                />
+                <Tabs.Screen
+                    name="profile"
+                    options={{
+                        title: 'Profile',
+                        tabBarIcon: ({ color, size }) => (
+                            <Ionicons name="person" size={size} color={color} />
+                        ),
+                    }}
+                />
+            </Tabs>
+        );
+    }

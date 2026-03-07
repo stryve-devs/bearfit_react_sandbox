@@ -1,22 +1,16 @@
 import { Stack } from 'expo-router';
-import { AppColors } from '../../../src/constants/colors';
 
 export default function WorkoutLayout() {
     return (
-        <Stack
-            screenOptions={{
+        <Stack screenOptions={{
                 headerShown: false,
-                contentStyle: { backgroundColor: AppColors.black },
             }}
         >
-            <Stack.Screen
-                name="index"
-                options={{
-                    title: 'Workout',
-                    headerTitle: 'Workout',
-                    headerShown: false,
-                }}
-            />
+            <Stack.Screen name="index" />
+            <Stack.Screen name="routine" />
+            <Stack.Screen name="log" />
+            <Stack.Screen name="addexercise" />
+            <Stack.Screen name="explore" />
         </Stack>
     );
 }

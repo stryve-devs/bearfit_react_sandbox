@@ -1,5 +1,7 @@
 import { Stack } from 'expo-router';
 import { AuthProvider } from '../src/context/AuthContext';
+import { WorkoutProvider } from '../src/context/WorkoutContext';
+import { RoutineProvider } from '../src/context/RoutineContext';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
@@ -21,12 +23,16 @@ export default function RootLayout() {
 
     return (
         <AuthProvider>
-            <Stack
-                screenOptions={{
-                    headerShown: false,
-                    contentStyle: { backgroundColor: '#000000' },
-                }}
-            />
+            <WorkoutProvider>
+                <RoutineProvider>
+                    <Stack
+                        screenOptions={{
+                            headerShown: false,
+                            contentStyle: { backgroundColor: '#000000' },
+                        }}
+                    />
+                </RoutineProvider>
+            </WorkoutProvider>
         </AuthProvider>
     );
 }
