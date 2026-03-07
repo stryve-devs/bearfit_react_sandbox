@@ -21,7 +21,7 @@ export default function ProfileScreen() {
     >
       {/* ===== TOP USER HEADER ===== */}
       <View style={styles.topHeader}>
-        <Text style={styles.topName}>Butterfly</Text>
+        <Text style={styles.topName}>Arthika</Text>
 
         <View style={styles.topIconRow}>
           <TouchableOpacity onPress={() => alert("Edit pressed")}>
@@ -52,7 +52,7 @@ export default function ProfileScreen() {
         />
 
         <View style={styles.userInfoColumn}>
-          <Text style={styles.username}>Butterfly</Text>
+          <Text style={styles.username}>Arthika</Text>
 
           <View style={styles.statsRow}>
             <View style={styles.statBlock}>

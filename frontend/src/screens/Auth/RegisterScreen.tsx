@@ -68,7 +68,7 @@ export default function RegisterScreen() {
             console.log('✅ Calling register function...');
             await register({ username, email, password });
             console.log('✅ Registration successful!');
-            router.replace('/(tabs)');
+            router.replace('/(onboarding)/select-units');
         } catch (error: any) {
             console.error('❌ Registration error:', error);
             const errorMessage = error.response?.data?.message || error.message || 'Something went wrong';
@@ -178,6 +178,18 @@ export default function RegisterScreen() {
                         </View>
                     )}
 
+                    {/* Terms text */}
+                    <Text style={styles.termsText}>
+                        By clicking Create Account, you agree to our{" "}
+                        <Text
+                            style={styles.termsLink}
+                            onPress={() => router.push('/(auth)/terms')}
+                        >
+                            Terms of Service
+                        </Text>
+                    </Text>
+
+
                     {/* Sign Up Button */}
                     <PrimaryButton
                         label="Create Account"
@@ -279,5 +291,16 @@ const styles = StyleSheet.create({
     signInLink: {
         color: AppColors.orange,
         fontWeight: '600',
+    },
+    termsText: {
+        color: AppColors.grey,
+        fontSize: 12,
+        textAlign: "center",
+        marginBottom: 12,
+    },
+
+    termsLink: {
+        color: AppColors.orange,
+        fontWeight: "600",
     },
 });
