@@ -4,7 +4,10 @@ set -e
 
 # --- Function to detect Windows Wi-Fi LAN IP from WSL ---
 get_wsl_wifi_ip() {
-    WIN_WIFI_IP=$(ipconfig.exe | grep -A 10 "Wireless LAN adapter Wi-Fi" | grep "IPv4 Address" | awk -F': ' '{print $2}' | tr -d '\r')
+    # Using robust awk method to detect Wi-Fi IPv4
+    WIN_WIFI_IP=$(/mnt/c/Windows/System32/ipconfig.exe \
+        | tr -d '\r' \
+        | awk 'BEGIN{IGNORECASE=1; found=0} /Wireless LAN adapter Wi[- ]?Fi/ {found=1; next} found && /IPv4 Address/ {print $NF; exit}')
     echo "$WIN_WIFI_IP"
 }
 
