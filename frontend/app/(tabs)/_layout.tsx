@@ -1,24 +1,24 @@
-import { Tabs } from 'expo-router';
+import { Tabs, useRouter, usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { AppColors } from '../../src/constants/colors';
-
+import { useEffect } from 'react';
 
 export default function TabLayout() {
+    const router = useRouter();
+    const pathname = usePathname();
+
+    useEffect(() => {
+        if (pathname === '/(tabs)') {
+            router.replace('/(tabs)/home');
+        }
+    }, [pathname]);
 
     return (
         <Tabs
+            // start on the home tab and don't render a separate header at the tab level
+            initialRouteName="home"
             screenOptions={{
-                headerShown: true,
-                headerStyle: {
-                    backgroundColor: AppColors.darkBg,
-                    borderBottomWidth: 0,
-                },
-                headerTitleStyle: {
-                    color: AppColors.orange,
-                    fontSize: 18,
-                    fontWeight: '700',
-                },
-                headerTitleAlign: 'center',
+                headerShown: false,
                 tabBarStyle: {
                     backgroundColor: AppColors.black,
                     borderTopColor: AppColors.darkGrey,
@@ -27,34 +27,42 @@ export default function TabLayout() {
                 tabBarInactiveTintColor: AppColors.grey,
             }}
         >
-
-                <Tabs.Screen
-                    name="index"
-                    options={{
-                        title: 'Home',
-                        tabBarIcon: ({ color, size }) => (
-                            <Ionicons name="home" size={size} color={color} />
-                        ),
-                    }}
-                />
-                <Tabs.Screen
-                    name="Workout"
-                    options={{
-                        title: 'Workout',
-                        tabBarIcon: ({ color, size }) => (
-                            <Ionicons name="barbell-outline" size={size} color={color} />
-                        ),
-                    }}
-                />
-                <Tabs.Screen
-                    name="profile"
-                    options={{
-                        title: 'Profile',
-                        tabBarIcon: ({ color, size }) => (
-                            <Ionicons name="person" size={size} color={color} />
-                        ),
-                    }}
-                />
-            </Tabs>
-        );
-    }
+            <Tabs.Screen
+                name="index"
+                options={{
+                    headerShown: false,
+                    href: null,
+                }}
+            />
+            <Tabs.Screen
+                name="home"
+                options={{
+                    headerShown: false,
+                    title: 'Home',
+                    tabBarIcon: ({ color, size }) => (
+                        <Ionicons name="home" size={size} color={color} />
+                    ),
+                }}
+            />
+            <Tabs.Screen
+                name="Workout"
+                options={{
+                    title: 'Workouts',
+                    headerShown: false,
+                    tabBarIcon: ({ color, size }) => (
+                        <Ionicons name="barbell" size={size} color={color} />
+                    ),
+                }}
+            />
+            <Tabs.Screen
+                name="profile"
+                options={{
+                    title: 'Profile',
+                    tabBarIcon: ({ color, size }) => (
+                        <Ionicons name="person" size={size} color={color} />
+                    ),
+                }}
+            />
+        </Tabs>
+    );
+}
