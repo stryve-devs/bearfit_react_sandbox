@@ -46,13 +46,14 @@ export default function ExploreRoutinesScreen() {
         });
     };
 
+
     const handleCreateRoutine = () => {
         router.push('/(tabs)/Workout/routine');
     };
 
+    /*
     return (
         <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-            {/* Header */}
             <View style={styles.header}>
                 <View style={styles.headerLeft}>
                     <TouchableOpacity onPress={() => router.back()}>
@@ -65,14 +66,20 @@ export default function ExploreRoutinesScreen() {
                 <View style={styles.headerRight} />
             </View>
 
-            <ScrollView
+    */
+
+    return (
+        <SafeAreaView style={styles.container} edges={['bottom','left','right']}>
+
+        <ScrollView
                 style={styles.scrollView}
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
             >
+            <View style={styles.topSpacing} />
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>Saved Routines</Text>
-                    <View style={styles.spacing} />
+                    <View style={styles.mediumSpacing} />
 
                     {loading ? (
                         <View style={styles.loadingContainer}>
@@ -198,10 +205,21 @@ const styles = StyleSheet.create({
     },
     sectionTitle: {
         fontSize: 16,
-        fontWeight: '700',
+        fontWeight: '400',
         color: AppColors.orange,
     },
-    spacing: { height: 12 },
+    topSpacing: {
+        height: 10
+    },
+    spacing: {
+        height: 12,
+    },
+    mediumSpacing: {
+        height: 22,
+    },
+    largeSpacing: {
+        height: 40,
+    },
     loadingContainer: {
         paddingVertical: 40,
         alignItems: 'center',

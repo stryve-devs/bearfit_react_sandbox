@@ -30,7 +30,7 @@ export default function MainWorkoutScreen() {
                 {/* Quick Start Section */}
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>Quick Start</Text>
-                    <View style={styles.spacing} />
+                    <View style={styles.mediumSpacing} />
 
                     {/* Add Exercise Button */}
                     <TouchableOpacity
@@ -39,7 +39,7 @@ export default function MainWorkoutScreen() {
                         activeOpacity={0.7}
                     >
                         <Ionicons name="add" size={20} color={AppColors.white} />
-                        <Text style={styles.addExerciseText}>Add Exercise</Text>
+                        <Text style={styles.addExerciseText}>Start Empty Workout</Text>
                     </TouchableOpacity>
                 </View>
 
@@ -48,7 +48,7 @@ export default function MainWorkoutScreen() {
                 {/* Routines Section */}
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>Routines</Text>
-                    <View style={styles.spacing} />
+                    <View style={styles.mediumSpacing} />
 
                     {/* Two Cards Row */}
                     <View style={styles.cardsRow}>
@@ -166,7 +166,7 @@ const styles = StyleSheet.create({
         marginBottom: 0,
     },
     spacing: {
-        height: 22,
+        height: 12,
     },
     mediumSpacing: {
         height: 22,

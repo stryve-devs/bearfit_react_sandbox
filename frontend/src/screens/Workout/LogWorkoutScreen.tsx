@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import {View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal,} from 'react-native';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import {View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Pressable} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,10 +8,13 @@ import { Routine, SetEntry, ExerciseLog } from '../../types/workout.types';
 import Toast from '../../components/workout/Toast';
 import AlertDialog from '../../components/workout/AlertDialog';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useNavigation } from '@react-navigation/native';
+import { setHeaderActions } from '../../../app/(tabs)/Workout/_layout';
 
 export default function LogWorkoutScreen() {
     const router = useRouter();
     const routeParams = useLocalSearchParams();
+    const navigation = useNavigation();
 
     const [elapsed, setElapsed] = useState(0);
     const [exercises, setLocalExercises] = useState<ExerciseLog[]>([]);
@@ -25,6 +28,7 @@ export default function LogWorkoutScreen() {
     const [routineUpdatedToastVisible, setRoutineUpdatedToastVisible] = useState(false);
     const [chooseRoutineVisible, setChooseRoutineVisible] = useState(false);
     const [savedRoutines, setSavedRoutines] = useState<Routine[]>([]);
+    const [saveRoutineVisible, setSaveRoutineVisible] = useState(false);
     const elapsedTimerRef = useRef<NodeJS.Timeout | null>(null);
     const restTimersRef = useRef<{ [key: number]: NodeJS.Timeout }>({});
 
@@ -54,7 +58,6 @@ export default function LogWorkoutScreen() {
 
     useFocusEffect(
         React.useCallback(() => {
-            // Check if we're coming back from AddExerciseScreen with a new exercise
             if (routeParams?.addExerciseName && typeof routeParams.addExerciseName === 'string') {
                 const exerciseName = routeParams.addExerciseName;
 
@@ -71,7 +74,6 @@ export default function LogWorkoutScreen() {
                 };
 
                 setLocalExercises(prev => [...prev, newExercise]);
-                // Clear the param
                 router.setParams({ addExerciseName: undefined } as any);
             }
         }, [routeParams?.addExerciseName, router])
@@ -126,9 +128,9 @@ export default function LogWorkoutScreen() {
         return exercises.reduce((sum, ex) => sum + ex.sets.length, 0);
     };
 
-    const handleBack = () => {
+    const handleBack = useCallback(() => {
         setWorkoutInProgressVisible(true);
-    };
+    }, []);
 
     const handleDiscardWorkout = () => {
         setWorkoutInProgressVisible(false);
@@ -140,12 +142,30 @@ export default function LogWorkoutScreen() {
         router.push('/(tabs)/Workout');
     };
 
-    const handleFinish = () => {
+    const handleFinish = useCallback(() => {
         if (exercises.length === 0) {
             setNoExercisestoastVisible(true);
             return;
         }
-        router.push('/(tabs)/Workout/explore');
+
+        if (currentRoutine) {
+            router.push('/(tabs)/Workout');
+        } else {
+            setSaveRoutineVisible(true);
+        }
+    }, [exercises.length, currentRoutine, router]);
+
+    const handleSaveAsRoutine = () => {
+        setSaveRoutineVisible(false);
+        router.push({
+            pathname: '/(tabs)/Workout/routine',
+            params: { exercisesFromWorkout: JSON.stringify(exercises) },
+        });
+    };
+
+    const handleSkipSaveRoutine = () => {
+        setSaveRoutineVisible(false);
+        router.push('/(tabs)/Workout');
     };
 
     const handleAddExercise = () => {
@@ -272,35 +292,33 @@ export default function LogWorkoutScreen() {
         setLocalExercises(updatedExercises);
     };
 
+    // Set header actions
+    useEffect(() => {
+        setHeaderActions({
+            openClock: () => setClockOverlayVisible(true),
+            finishWorkout: handleFinish,
+            saveRoutine: () => {},
+            handleBack: handleBack,
+        });
+
+        return () => {
+            setHeaderActions({
+                openClock: () => {},
+                finishWorkout: () => {},
+                saveRoutine: () => {},
+                handleBack: () => {},
+            });
+        };
+    }, [handleFinish, handleBack]);
+
     return (
-        <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-            {/* Header */}
-            <View style={styles.header}>
-                <View style={styles.headerLeft}>
-                    <TouchableOpacity onPress={handleBack}>
-                        <Ionicons name="arrow-back" size={24} color={AppColors.orange} />
-                    </TouchableOpacity>
-                </View>
-
-                <Text style={styles.headerTitle}>Log Workout</Text>
-
-                <View style={styles.headerRight}>
-                    <TouchableOpacity onPress={() => setClockOverlayVisible(true)} style={styles.iconButton}>
-                        <Ionicons name="time" size={24} color={AppColors.orange} />
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={handleFinish} style={styles.finishButton}>
-                        <Text style={styles.finishButtonText}>Finish</Text>
-                    </TouchableOpacity>
-                </View>
-            </View>
-
-
+        <SafeAreaView style={styles.container} edges={['bottom','left','right']}>
             <ScrollView
                 style={styles.scrollView}
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
             >
-                {/* Metrics */}
+                <View style={styles.topSpacing} />
                 <View style={styles.metricsRow}>
                     <View style={styles.metricBlock}>
                         <Text style={styles.metricLabel}>Duration</Text>
@@ -318,7 +336,6 @@ export default function LogWorkoutScreen() {
 
                 <View style={styles.spacing} />
 
-                {/* Current Routine Name */}
                 {currentRoutine && (
                     <>
                         <TouchableOpacity
@@ -332,7 +349,6 @@ export default function LogWorkoutScreen() {
                     </>
                 )}
 
-                {/* Add Exercise Button */}
                 <TouchableOpacity
                     style={styles.addExerciseButton}
                     onPress={handleAddExercise}
@@ -341,9 +357,8 @@ export default function LogWorkoutScreen() {
                     <Text style={styles.addExerciseButtonText}>Add Exercise</Text>
                 </TouchableOpacity>
 
-                <View style={styles.mediumSpacing} />
+                <View style={styles.spacing} />
 
-                {/* Exercises List */}
                 {exercises.map((exercise, exerciseIndex) => (
                     <ExerciseCard
                         key={`${exercise.name}-${exerciseIndex}`}
@@ -357,9 +372,8 @@ export default function LogWorkoutScreen() {
                     />
                 ))}
 
-                <View style={styles.mediumSpacing} />
+                <View style={styles.spacing} />
 
-                {/* Update Routine Button - Only show if from workout */}
                 {currentRoutine && (
                     <>
                         <TouchableOpacity
@@ -371,11 +385,10 @@ export default function LogWorkoutScreen() {
                             </Text>
                         </TouchableOpacity>
 
-                        <View style={styles.spacing} />
+                        <View style={styles.mediumSpacing} />
                     </>
                 )}
 
-                {/* Settings & Discard Row */}
                 <View style={styles.actionButtonsRow}>
                     <TouchableOpacity style={[styles.actionButton, styles.settingsButton]}>
                         <Text style={styles.actionButtonText}>Settings</Text>
@@ -391,27 +404,23 @@ export default function LogWorkoutScreen() {
                 <View style={styles.largeSpacing} />
             </ScrollView>
 
-            {/* Clock Overlay */}
             <ClockOverlay
                 visible={clockOverlayVisible}
                 onClose={() => setClockOverlayVisible(false)}
             />
 
-            {/* Workout In Progress Sheet */}
             <WorkoutInProgressSheet
                 visible={workoutInProgressVisible}
                 onResume={() => setWorkoutInProgressVisible(false)}
                 onDiscard={handleDiscardWorkout}
             />
 
-            {/* Rest Complete Overlay */}
             <RestCompleteOverlay
                 visible={restCompleteVisible}
                 exerciseName={restCompleteExercise}
                 onClose={() => setRestCompleteVisible(false)}
             />
 
-            {/* No Exercises Toast */}
             <Toast
                 visible={noExercisestoastVisible}
                 message="Add an exercise first"
@@ -420,7 +429,6 @@ export default function LogWorkoutScreen() {
                 buttonText="OK"
             />
 
-            {/* Routine Updated Toast */}
             <Modal visible={routineUpdatedToastVisible} transparent animationType="fade">
                 <TouchableOpacity
                     style={styles.toastBackdrop}
@@ -433,7 +441,6 @@ export default function LogWorkoutScreen() {
                 </TouchableOpacity>
             </Modal>
 
-            {/* Choose Routine Modal */}
             <Modal visible={chooseRoutineVisible} transparent animationType="fade" onRequestClose={() => setChooseRoutineVisible(false)}>
                 <TouchableOpacity
                     style={styles.modalBackdrop}
@@ -474,7 +481,6 @@ export default function LogWorkoutScreen() {
                 </TouchableOpacity>
             </Modal>
 
-            {/* Discard Confirmation Alert */}
             <AlertDialog
                 visible={discardConfirmAlertVisible}
                 title="Discard Workout?"
@@ -492,11 +498,28 @@ export default function LogWorkoutScreen() {
                     },
                 ]}
             />
+
+            <AlertDialog
+                visible={saveRoutineVisible}
+                title="Save as Routine?"
+                message="Would you like to save this workout as a routine?"
+                buttons={[
+                    {
+                        text: 'Yes',
+                        onPress: handleSaveAsRoutine,
+                        style: 'default',
+                    },
+                    {
+                        text: 'No',
+                        onPress: handleSkipSaveRoutine,
+                        style: 'destructive',
+                    },
+                ]}
+            />
         </SafeAreaView>
     );
 }
 
-// Exercise Card Component
 function ExerciseCard({
                           exercise,
                           exerciseIndex,
@@ -510,7 +533,6 @@ function ExerciseCard({
 
     return (
         <View style={styles.exerciseCard}>
-            {/* Exercise Title & Rest */}
             <View style={styles.exerciseHeader}>
                 <Text style={styles.exerciseName}>{exercise.name}</Text>
                 <TouchableOpacity
@@ -526,7 +548,6 @@ function ExerciseCard({
                 </TouchableOpacity>
             </View>
 
-            {/* Active Rest Countdown */}
             {exercise.restRemaining > 0 && (
                 <View style={styles.restCountdown}>
                     <Text style={styles.restCountdownText}>
@@ -538,7 +559,6 @@ function ExerciseCard({
 
             <View style={styles.exerciseSpacing} />
 
-            {/* Table Headers */}
             <View style={styles.tableHeaderRow}>
                 <Text style={[styles.tableHeaderCell, { flex: 0.5 }]}>Set</Text>
                 <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Weight</Text>
@@ -548,7 +568,6 @@ function ExerciseCard({
 
             <View style={styles.exerciseSpacing} />
 
-            {/* Sets Rows */}
             {exercise.sets.map((set: SetEntry, setIndex: number) => (
                 <View key={setIndex} style={styles.tableDataRow}>
                     <Text style={[styles.tableCell, { flex: 0.5 }]}>{setIndex + 1}</Text>
@@ -587,7 +606,6 @@ function ExerciseCard({
 
             <View style={styles.exerciseSpacing} />
 
-            {/* Add Set Button */}
             <TouchableOpacity
                 style={styles.addSetButton}
                 onPress={() => onAddSet(exerciseIndex)}
@@ -595,7 +613,6 @@ function ExerciseCard({
                 <Text style={styles.addSetButtonText}>+ Add Set</Text>
             </TouchableOpacity>
 
-            {/* Rest Picker Modal */}
             <RestPickerSheet
                 visible={restPickerVisible}
                 initial={exercise.restSeconds}
@@ -609,7 +626,6 @@ function ExerciseCard({
     );
 }
 
-// Rest Picker Sheet Component
 function RestPickerSheet({ visible, initial, onSelect, onClose }: any) {
     const generateRestOptions = (): number[] => {
         const options: number[] = [];
@@ -672,7 +688,6 @@ function RestPickerSheet({ visible, initial, onSelect, onClose }: any) {
     );
 }
 
-// Clock Overlay Component
 function ClockOverlay({ visible, onClose }: any) {
     const [isTimer, setIsTimer] = useState(true);
     const [timerDuration, setTimerDuration] = useState(0);
@@ -724,8 +739,13 @@ function ClockOverlay({ visible, onClose }: any) {
     };
 
     return (
-        <Modal visible={visible} transparent animationType="fade">
-            <View style={styles.overlayBackdrop}>
+        <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+            <View style={styles.clockBackdrop}>
+                <TouchableOpacity
+                    style={StyleSheet.absoluteFill}
+                    activeOpacity={1}
+                    onPress={onClose}
+                />
                 <View style={styles.clockOverlay}>
                     <View style={styles.clockHeader}>
                         <View style={{ width: 24 }} />
@@ -818,65 +838,106 @@ function ClockOverlay({ visible, onClose }: any) {
     );
 }
 
-// Duration Picker Modal Component
 function DurationPickerModal({ visible, onSelect, onClose }: any) {
     const [minutes, setMinutes] = useState(0);
     const [seconds, setSeconds] = useState(0);
+
+    const ITEM_HEIGHT = 40;
 
     const handleConfirm = () => {
         const totalSeconds = minutes * 60 + seconds;
         onSelect(totalSeconds);
     };
 
+    const minutesList = Array.from({ length: 60 }, (_, i) => i);
+    const secondsList = Array.from({ length: 60 }, (_, i) => i);
+
     return (
         <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-            <TouchableOpacity
-                style={styles.pickerBackdrop}
-                activeOpacity={1}
-                onPress={onClose}
-            >
-                <TouchableOpacity
-                    style={styles.durationPickerSheet}
-                    activeOpacity={1}
-                    onPress={() => {}}
-                >
+            <View style={styles.pickerBackdrop}>
+                <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+
+                <View style={styles.durationPickerSheet}>
                     <View style={styles.sheetHandle} />
                     <Text style={styles.durationPickerTitle}>Select duration</Text>
 
                     <View style={styles.durationInputRow}>
-                        <View style={styles.durationPickerColumn}>
-                            <TouchableOpacity
-                                style={styles.durationIncrementButton}
-                                onPress={() => setMinutes(Math.min(59, minutes + 1))}
-                            >
-                                <Ionicons name="chevron-up" size={24} color={AppColors.orange} />
-                            </TouchableOpacity>
-                            <Text style={styles.durationValue}>{String(minutes).padStart(2, '0')}</Text>
-                            <TouchableOpacity
-                                style={styles.durationIncrementButton}
-                                onPress={() => setMinutes(Math.max(0, minutes - 1))}
-                            >
-                                <Ionicons name="chevron-down" size={24} color={AppColors.orange} />
-                            </TouchableOpacity>
-                        </View>
+                        <ScrollView
+                            style={{ height: ITEM_HEIGHT * 3 }}
+                            showsVerticalScrollIndicator={false}
+                            snapToInterval={ITEM_HEIGHT}
+                            decelerationRate="fast"
+                            contentContainerStyle={{ paddingVertical: ITEM_HEIGHT }}
+                            onMomentumScrollEnd={(e) => {
+                                const index = Math.round(
+                                    e.nativeEvent.contentOffset.y / ITEM_HEIGHT
+                                );
+                                setMinutes(index);
+                            }}
+                        >
+                            {minutesList.map((m) => (
+                                <View
+                                    key={m}
+                                    style={{
+                                        height: ITEM_HEIGHT,
+                                        justifyContent: "center",
+                                        alignItems: "center",
+                                    }}
+                                >
+                                    <Text style={styles.durationValue}>
+                                        {String(m).padStart(2, "0")}
+                                    </Text>
+                                </View>
+                            ))}
+                        </ScrollView>
 
                         <Text style={styles.durationSeparator}>:</Text>
 
-                        <View style={styles.durationPickerColumn}>
-                            <TouchableOpacity
-                                style={styles.durationIncrementButton}
-                                onPress={() => setSeconds(Math.min(59, seconds + 1))}
-                            >
-                                <Ionicons name="chevron-up" size={24} color={AppColors.orange} />
-                            </TouchableOpacity>
-                            <Text style={styles.durationValue}>{String(seconds).padStart(2, '0')}</Text>
-                            <TouchableOpacity
-                                style={styles.durationIncrementButton}
-                                onPress={() => setSeconds(Math.max(0, seconds - 1))}
-                            >
-                                <Ionicons name="chevron-down" size={24} color={AppColors.orange} />
-                            </TouchableOpacity>
-                        </View>
+                        <ScrollView
+                            style={{ height: ITEM_HEIGHT * 3 }}
+                            showsVerticalScrollIndicator={false}
+                            snapToInterval={ITEM_HEIGHT}
+                            decelerationRate="fast"
+                            contentContainerStyle={{ paddingVertical: ITEM_HEIGHT }}
+                            onMomentumScrollEnd={(e) => {
+                                const index = Math.round(
+                                    e.nativeEvent.contentOffset.y / ITEM_HEIGHT
+                                );
+                                setSeconds(index);
+                            }}
+                        >
+                            {secondsList.map((s) => (
+                                <View
+                                    key={s}
+                                    style={{
+                                        height: ITEM_HEIGHT,
+                                        justifyContent: "center",
+                                        alignItems: "center",
+                                    }}
+                                >
+                                    <Text style={styles.durationValue}>
+                                        {String(s).padStart(2, "0")}
+                                    </Text>
+                                </View>
+                            ))}
+                        </ScrollView>
+
+                        <View
+                            pointerEvents="none"
+                            style={{
+                                position: "absolute",
+                                top: ITEM_HEIGHT,
+                                bottom: ITEM_HEIGHT,
+                                left: 15,
+                                right: 15,
+                                borderTopWidth: 1,
+                                borderRadius: 10,
+                                borderBottomWidth: 1,
+                                borderLeftWidth: 1,
+                                borderRightWidth: 1,
+                                borderColor: AppColors.lightGrey
+                            }}
+                        />
                     </View>
 
                     <View style={styles.durationButtonsRow}>
@@ -886,6 +947,7 @@ function DurationPickerModal({ visible, onSelect, onClose }: any) {
                         >
                             <Text style={styles.durationButtonText}>Cancel</Text>
                         </TouchableOpacity>
+
                         <TouchableOpacity
                             style={[styles.durationButton, styles.durationOKButton]}
                             onPress={handleConfirm}
@@ -893,13 +955,12 @@ function DurationPickerModal({ visible, onSelect, onClose }: any) {
                             <Text style={styles.durationOKButtonText}>OK</Text>
                         </TouchableOpacity>
                     </View>
-                </TouchableOpacity>
-            </TouchableOpacity>
+                </View>
+            </View>
         </Modal>
     );
 }
 
-// Workout In Progress Sheet Component
 function WorkoutInProgressSheet({ visible, onResume, onDiscard }: any) {
     return (
         <Modal visible={visible} transparent animationType="slide" onRequestClose={onResume}>
@@ -936,7 +997,6 @@ function WorkoutInProgressSheet({ visible, onResume, onDiscard }: any) {
     );
 }
 
-// Rest Complete Overlay Component
 function RestCompleteOverlay({ visible, exerciseName, onClose }: any) {
     useEffect(() => {
         if (visible) {
@@ -972,60 +1032,6 @@ const styles = StyleSheet.create({
         paddingHorizontal: 12,
         paddingBottom: 20,
     },
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        backgroundColor: AppColors.darkBg,
-        height: 56,
-        paddingHorizontal: 12,
-    },
-
-    headerLeft: {
-        width: 60,
-        justifyContent: 'center',
-        alignItems: 'flex-start',
-    },
-
-    headerTitle: {
-        flex: 1,
-        textAlign: 'center',
-        fontSize: 18,
-        fontWeight: '700',
-        color: AppColors.orange,
-    },
-
-    headerRight: {
-        width: 60,
-        flexDirection: 'row',
-        justifyContent: 'flex-end',
-        alignItems: 'center',
-        gap: 8,
-    },
-
-    iconButton: {
-        marginRight: 8,
-    },
-
-    finishButton: {
-        backgroundColor: AppColors.orange,
-        paddingHorizontal: 8,
-        paddingVertical: 6,
-        borderRadius: 10,
-    },
-
-    finishButtonText: {
-        color: AppColors.black,
-        fontWeight: '700',
-        fontSize: 14,
-    },
-
-
-    headerActions: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-    },
     metricsRow: {
         flexDirection: 'row',
         gap: 12,
@@ -1046,9 +1052,18 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         color: AppColors.white,
     },
-    spacing: { height: 12 },
-    mediumSpacing: { height: 20 },
-    largeSpacing: { height: 40 },
+    topSpacing : {
+        height: 20
+    },
+    spacing: {
+        height: 12,
+    },
+    mediumSpacing: {
+        height: 22,
+    },
+    largeSpacing: {
+        height: 40,
+    },
     routineButton: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -1211,14 +1226,14 @@ const styles = StyleSheet.create({
         backgroundColor: AppColors.darkBg,
     },
     actionButtonText: {
-        fontSize: 14,
+        fontSize: 16,
         fontWeight: '700',
         color: AppColors.orange,
         textAlign: 'center',
     },
     overlayBackdrop: {
         flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -1239,6 +1254,12 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         color: AppColors.white,
         textAlign: 'center',
+    },
+    clockBackdrop: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     clockOverlay: {
         backgroundColor: AppColors.darkBg,
@@ -1332,6 +1353,9 @@ const styles = StyleSheet.create({
         backgroundColor: AppColors.black,
         borderTopLeftRadius: 20,
         borderTopRightRadius: 20,
+        borderWidth: 1.5,
+        borderColor: AppColors.orange,
+        borderBottomWidth: 0,
         paddingHorizontal: 12,
         paddingVertical: 16,
     },
@@ -1355,12 +1379,6 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         marginBottom: 20,
-    },
-    durationPickerColumn: {
-        alignItems: 'center',
-    },
-    durationIncrementButton: {
-        padding: 8,
     },
     durationValue: {
         fontSize: 24,
@@ -1405,7 +1423,7 @@ const styles = StyleSheet.create({
     },
     sheetBackdrop: {
         flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        backgroundColor: 'rgba(0,0,0,0.5)',
         justifyContent: 'flex-end',
     },
     workoutInProgressSheet: {
@@ -1448,7 +1466,7 @@ const styles = StyleSheet.create({
         color: AppColors.orange,
     },
     restCompleteOverlay: {
-        backgroundColor: AppColors.darkBg,
+        backgroundColor: 'rgba(0,0,0,0.5)',
         borderRadius: 20,
         paddingHorizontal: 24,
         paddingVertical: 16,
@@ -1496,7 +1514,7 @@ const styles = StyleSheet.create({
     },
     modalBackdrop: {
         flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+        backgroundColor: AppColors.darkBg,
         justifyContent: 'center',
         alignItems: 'center',
     },

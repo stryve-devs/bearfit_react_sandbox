@@ -1,35 +1,66 @@
-import React, { useState } from 'react';
-import {
-    View,
-    Text,
-    StyleSheet,
-    ScrollView,
-    TouchableOpacity,
-    TextInput,
-    Modal,
-} from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import {View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal,} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { AppColors } from '../../constants/colors';
-import { ExerciseTarget, Routine } from '../../types/workout.types';
+import { ExerciseTarget, Routine, ExerciseLog } from '../../types/workout.types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Toast from '../../components/workout/Toast';
 import AlertDialog from '../../components/workout/AlertDialog';
 import { useRoutine } from '../../context/RoutineContext';
+import { setHeaderActions } from '../../../app/(tabs)/Workout/_layout';
+
+import { useNavigation } from '@react-navigation/native';
 
 export default function RoutineEditorScreen() {
     const router = useRouter();
     const routeParams = useLocalSearchParams();
     const { routineTitle, setRoutineTitle, targets, addTarget, updateTarget, removeTarget, clearRoutine } = useRoutine();
 
+    const navigation = useNavigation();
+
     const [editingTitle, setEditingTitle] = useState(false);
     const [emptyRoutineToastVisible, setEmptyRoutineToastVisible] = useState(false);
     const [routineSavedToastVisible, setRoutineSavedToastVisible] = useState(false);
     const [saving, setSaving] = useState(false);
     const [savedRoutine, setSavedRoutine] = useState<Routine | null>(null);
+    const [isFromWorkout, setIsFromWorkout] = useState(false);
 
-    React.useEffect(() => {
+    useEffect(() => {
+        if (routeParams?.exercisesFromWorkout) {
+            try {
+                const exercisesFromWorkout = JSON.parse(routeParams.exercisesFromWorkout as string) as ExerciseLog[];
+                setIsFromWorkout(true);
+
+                exercisesFromWorkout.forEach((exercise) => {
+                    const newTarget: ExerciseTarget = {
+                        name: exercise.name,
+                        sets: exercise.sets.length,
+                        targetWeightKg: exercise.sets[0]?.weightKg || 0,
+                        targetReps: exercise.sets[0]?.reps || 0,
+                        restSeconds: exercise.restSeconds,
+                    };
+                    addTarget(newTarget);
+                });
+            } catch (error) {
+                console.error('Error parsing exercises:', error);
+            }
+        }
+    }, [routeParams?.exercisesFromWorkout]);
+
+    useEffect(() => {
+        const listener = navigation.addListener('event', (e: any) => {
+            const type = e.data?.type;
+            if (type === 'saveRoutine') {
+                handleSave();
+            }
+        });
+
+        return () => listener?.();
+    }, []);
+
+    useEffect(() => {
         if (routeParams?.exerciseName && typeof routeParams.exerciseName === 'string') {
             const exerciseName = routeParams.exerciseName;
 
@@ -46,7 +77,7 @@ export default function RoutineEditorScreen() {
         }
     }, [routeParams?.exerciseName]);
 
-    const handleSave = async () => {
+    const handleSave = useCallback(async () => {
         if (targets.length === 0) {
             setEmptyRoutineToastVisible(true);
             return;
@@ -72,7 +103,23 @@ export default function RoutineEditorScreen() {
         } finally {
             setSaving(false);
         }
-    };
+    }, [targets, routineTitle]);
+
+    useEffect(() => {
+        setHeaderActions({
+            openClock: () => {},
+            finishWorkout: () => {},
+            saveRoutine: handleSave,
+        });
+
+        return () => {
+            setHeaderActions({
+                openClock: () => {},
+                finishWorkout: () => {},
+                saveRoutine: () => {},
+            });
+        };
+    }, [handleSave]);
 
     const handleStartWorkout = () => {
         if (savedRoutine) {
@@ -113,30 +160,13 @@ export default function RoutineEditorScreen() {
     };
 
     return (
-        <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-            {/* Header */}
-            <View style={styles.header}>
-                <View style={styles.headerLeft}>
-                    <TouchableOpacity onPress={handleBack}>
-                        <Ionicons name="arrow-back" size={24} color={AppColors.orange} />
-                    </TouchableOpacity>
-                </View>
-
-                <Text style={styles.headerTitle}>Create Routine</Text>
-
-                <View style={styles.headerRight}>
-                    <TouchableOpacity onPress={handleSave} style={styles.saveButton} disabled={saving}>
-                        <Text style={styles.saveButtonText}>{saving ? '...' : 'Save'}</Text>
-                    </TouchableOpacity>
-                </View>
-            </View>
-
+        <SafeAreaView style={styles.container} edges={['bottom','left','right']}>
             <ScrollView
                 style={styles.scrollView}
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
             >
-                <View style={styles.spacing} />
+                <View style={styles.topSpacing} />
 
                 {/* Routine Title */}
                 <View style={styles.section}>
@@ -159,7 +189,7 @@ export default function RoutineEditorScreen() {
                         />
                     )}
 
-                    <View style={styles.mediumSpacing} />
+                    <View style={styles.spacing} />
 
                     {/* Muscle Icon */}
                     <View style={styles.iconContainer}>
@@ -207,7 +237,7 @@ export default function RoutineEditorScreen() {
             <AlertDialog
                 visible={routineSavedToastVisible}
                 title="Routine saved successfully!"
-                message="What would you like to do?"
+                message={isFromWorkout ? "What would you like to do?" : "What would you like to do?"}
                 buttons={[
                     {
                         text: 'Start Workout',
@@ -462,20 +492,30 @@ const styles = StyleSheet.create({
     scrollContent: {
         paddingBottom: 20,
     },
-    spacing: { height: 12 },
-    mediumSpacing: { height: 16 },
-    largeSpacing: { height: 40 },
+    topSpacing : {
+        height: 20
+    },
+    spacing: {
+        height: 12,
+    },
+    mediumSpacing: {
+        height: 22,
+    },
+    largeSpacing: {
+        height: 40,
+    },
     targetSpacing: { height: 10 },
+    smallSpacing: { height: 40 },
     section: {
         paddingHorizontal: 12,
     },
     routineTitle: {
-        fontSize: 18,
+        fontSize: 16,
         fontWeight: '700',
         color: AppColors.orange,
     },
     routineTitleInput: {
-        fontSize: 18,
+        fontSize: 16,
         fontWeight: '700',
         color: AppColors.orange,
         paddingVertical: 8,
@@ -563,7 +603,7 @@ const styles = StyleSheet.create({
     },
     sheetBackdrop: {
         flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        backgroundColor: AppColors.darkBg,
         justifyContent: 'flex-end',
     },
     restPickerSheet: {

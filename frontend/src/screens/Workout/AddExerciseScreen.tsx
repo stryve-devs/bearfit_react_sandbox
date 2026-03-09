@@ -91,10 +91,9 @@ export default function AddExerciseScreen() {
         setSelectedMuscle(muscle === 'All Muscles' ? null : muscle);
         setMuscleSheetVisible(false);
     };
-
+/*
     return (
         <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-            {/* Header */}
             <View style={styles.header}>
                 <View style={styles.headerLeft}>
                     <TouchableOpacity onPress={() => router.back()}>
@@ -106,8 +105,11 @@ export default function AddExerciseScreen() {
 
                 <View style={styles.headerRight} />
             </View>
-
-            <ScrollView
+*/
+    return (
+        <SafeAreaView style={styles.container} edges={['bottom','left','right']}>
+            <View style={styles.spacing} />
+        <ScrollView
                 style={styles.scrollView}
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
@@ -126,7 +128,7 @@ export default function AddExerciseScreen() {
                     />
                 </View>
 
-                <View style={styles.smallSpacing} />
+                <View style={styles.spacing} />
 
                 {/* Filter Buttons */}
                 <View style={styles.filterRow}>
@@ -163,7 +165,7 @@ export default function AddExerciseScreen() {
                 {/* Popular Exercises Label */}
                 <Text style={styles.popularLabel}>Popular Exercises</Text>
 
-                <View style={styles.smallSpacing} />
+                <View style={styles.spacing} />
 
                 {/* Exercises List */}
                 {filteredExercises.length > 0 ? (
@@ -333,9 +335,15 @@ const styles = StyleSheet.create({
         paddingHorizontal: 12,
         paddingBottom: 20,
     },
-    spacing: { height: 12 },
-    smallSpacing: { height: 9 },
-    largeSpacing: { height: 40 },
+    spacing: {
+        height: 12,
+    },
+    mediumSpacing: {
+        height: 22,
+    },
+    largeSpacing: {
+        height: 40,
+    },
     searchContainer: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -419,7 +427,7 @@ const styles = StyleSheet.create({
     },
     sheetBackdrop: {
         flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        backgroundColor: 'rgba(0,0,0,0.5)',
         justifyContent: 'flex-end',
     },
     filterSheet: {
