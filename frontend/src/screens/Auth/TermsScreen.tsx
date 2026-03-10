@@ -2,13 +2,14 @@ import React from "react";
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { AppColors } from "../../constants/colors";
 
 export default function TermsScreen() {
     const router = useRouter();
 
     return (
-        <View style={styles.container}>
+        <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
 
             {/* HEADER */}
             <View style={styles.header}>
@@ -22,6 +23,7 @@ export default function TermsScreen() {
             {/* CONTENT */}
             <ScrollView
                 style={styles.scroll}
+                contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
             >
                 <Text style={styles.text}>
@@ -59,7 +61,7 @@ export default function TermsScreen() {
                 </Text>
             </ScrollView>
 
-        </View>
+        </SafeAreaView>
     );
 }
 
@@ -93,11 +95,14 @@ const styles = StyleSheet.create({
         paddingHorizontal: 24,
     },
 
+    scrollContent: {
+        paddingBottom: 60,
+    },
+
     text: {
         color: "#D3D3D3",
         fontSize: 15,
         lineHeight: 24,
-        paddingBottom: 60,
     },
 
 });

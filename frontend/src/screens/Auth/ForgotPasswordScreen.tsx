@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, TextInput } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { AppColors } from "../../constants/colors";
@@ -9,7 +10,7 @@ export default function ForgotPasswordScreen() {
     const [email, setEmail] = useState("");
 
     return (
-        <View style={styles.container}>
+        <SafeAreaView style={styles.container} edges={["top","bottom"]}>
 
             {/* HEADER */}
             <View style={styles.header}>
@@ -42,7 +43,8 @@ export default function ForgotPasswordScreen() {
                 </TouchableOpacity>
 
             </View>
-        </View>
+
+        </SafeAreaView>
     );
 }
 

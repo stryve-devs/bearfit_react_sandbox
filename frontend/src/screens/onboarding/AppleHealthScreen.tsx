@@ -1,5 +1,6 @@
 import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { AppColors } from "../../constants/colors";
 
@@ -12,24 +13,32 @@ export default function AppleHealthScreen() {
     };
 
     return (
-        <View style={styles.container}>
+        <SafeAreaView style={styles.container} edges={["top","bottom"]}>
 
-            <Text style={styles.title}>Apple Health</Text>
+            <View style={styles.content}>
 
-            <Text style={styles.description}>
-                Enable permissions to Apple Health so BearFit can read and report data
-                about your workouts and measurements.
-            </Text>
+                <Text style={styles.title}>Apple Health</Text>
 
-            <TouchableOpacity style={styles.primaryButton} onPress={handleNext}>
-                <Text style={styles.primaryText}>Enable Apple Health</Text>
-            </TouchableOpacity>
+                <Text style={styles.description}>
+                    Enable permissions to Apple Health so BearFit can read and report data
+                    about your workouts and measurements.
+                </Text>
 
-            <TouchableOpacity style={styles.secondaryButton} onPress={handleNext}>
-                <Text style={styles.secondaryText}>Not now</Text>
-            </TouchableOpacity>
+            </View>
 
-        </View>
+            <View style={styles.buttonContainer}>
+
+                <TouchableOpacity style={styles.primaryButton} onPress={handleNext}>
+                    <Text style={styles.primaryText}>Enable Apple Health</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.secondaryButton} onPress={handleNext}>
+                    <Text style={styles.secondaryText}>Not now</Text>
+                </TouchableOpacity>
+
+            </View>
+
+        </SafeAreaView>
     );
 }
 
@@ -37,8 +46,12 @@ const styles = StyleSheet.create({
 
     container:{
         flex:1,
-        backgroundColor: AppColors.black,
-        padding:24,
+        backgroundColor: AppColors.black
+    },
+
+    content:{
+        flex:1,
+        paddingHorizontal:24,
         justifyContent:"center"
     },
 
@@ -53,6 +66,11 @@ const styles = StyleSheet.create({
         color:"#ccc",
         textAlign:"center",
         marginBottom:60
+    },
+
+    buttonContainer:{
+        paddingHorizontal:24,
+        paddingBottom:20
     },
 
     primaryButton:{

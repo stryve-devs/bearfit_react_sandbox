@@ -1,5 +1,6 @@
 import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { AppColors } from "../../constants/colors";
 
@@ -13,30 +14,38 @@ export default function EmailPermissionScreen(){
 
     return(
 
-        <View style={styles.container}>
+        <SafeAreaView style={styles.container} edges={["top","bottom"]}>
 
-            <Text style={styles.title}>Can we send you emails?</Text>
+            <View style={styles.content}>
 
-            <Text style={styles.description}>
-                No spam, promise. We hate it too.
-            </Text>
+                <Text style={styles.title}>Can we send you emails?</Text>
 
-            <View style={styles.list}>
-                <Text style={styles.item}>✓ Tips for getting the most out of BearFit</Text>
-                <Text style={styles.item}>✓ New feature announcements</Text>
-                <Text style={styles.item}>✓ Promotion offers</Text>
-                <Text style={styles.item}>✓ Opt out anytime</Text>
+                <Text style={styles.description}>
+                    No spam, promise. We hate it too.
+                </Text>
+
+                <View style={styles.list}>
+                    <Text style={styles.item}>✓ Tips for getting the most out of BearFit</Text>
+                    <Text style={styles.item}>✓ New feature announcements</Text>
+                    <Text style={styles.item}>✓ Promotion offers</Text>
+                    <Text style={styles.item}>✓ Opt out anytime</Text>
+                </View>
+
             </View>
 
-            <TouchableOpacity style={styles.primaryButton} onPress={finishOnboarding}>
-                <Text style={styles.primaryText}>Sure</Text>
-            </TouchableOpacity>
+            <View style={styles.buttonContainer}>
 
-            <TouchableOpacity style={styles.secondaryButton} onPress={finishOnboarding}>
-                <Text style={styles.secondaryText}>No, thanks</Text>
-            </TouchableOpacity>
+                <TouchableOpacity style={styles.primaryButton} onPress={finishOnboarding}>
+                    <Text style={styles.primaryText}>Sure</Text>
+                </TouchableOpacity>
 
-        </View>
+                <TouchableOpacity style={styles.secondaryButton} onPress={finishOnboarding}>
+                    <Text style={styles.secondaryText}>No, thanks</Text>
+                </TouchableOpacity>
+
+            </View>
+
+        </SafeAreaView>
     );
 }
 
@@ -44,8 +53,12 @@ const styles = StyleSheet.create({
 
     container:{
         flex:1,
-        backgroundColor:AppColors.black,
-        padding:24,
+        backgroundColor:AppColors.black
+    },
+
+    content:{
+        flex:1,
+        paddingHorizontal:24,
         justifyContent:"center"
     },
 
@@ -63,12 +76,17 @@ const styles = StyleSheet.create({
     },
 
     list:{
-        marginBottom:60
+        marginBottom:20
     },
 
     item:{
         color:"#ddd",
         marginBottom:8
+    },
+
+    buttonContainer:{
+        paddingHorizontal:24,
+        paddingBottom:20
     },
 
     primaryButton:{

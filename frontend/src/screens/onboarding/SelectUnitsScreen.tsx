@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { AppColors } from "../../constants/colors";
 
@@ -16,7 +17,7 @@ export default function SelectUnitsScreen() {
     };
 
     return (
-        <View style={styles.container}>
+        <SafeAreaView style={styles.container} edges={["top","bottom"]}>
 
             {/* HEADER */}
             <View style={styles.header}>
@@ -77,11 +78,13 @@ export default function SelectUnitsScreen() {
             </View>
 
             {/* CONTINUE BUTTON */}
-            <TouchableOpacity style={styles.continueButton} onPress={handleContinue}>
-                <Text style={styles.continueText}>Continue</Text>
-            </TouchableOpacity>
+            <View style={styles.buttonContainer}>
+                <TouchableOpacity style={styles.continueButton} onPress={handleContinue}>
+                    <Text style={styles.continueText}>Continue</Text>
+                </TouchableOpacity>
+            </View>
 
-        </View>
+        </SafeAreaView>
     );
 }
 
@@ -119,6 +122,7 @@ const styles = StyleSheet.create({
     },
 
     content: {
+        flex: 1,
         paddingHorizontal: 24,
         marginTop: 40,
     },
@@ -157,11 +161,12 @@ const styles = StyleSheet.create({
         fontWeight: "600",
     },
 
+    buttonContainer: {
+        paddingHorizontal: 24,
+        paddingBottom: 20,
+    },
+
     continueButton: {
-        position: "absolute",
-        bottom: 40,
-        left: 24,
-        right: 24,
         backgroundColor: AppColors.orange,
         paddingVertical: 16,
         borderRadius: 10,

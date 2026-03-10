@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { AppColors } from "../../constants/colors";
 
@@ -26,43 +27,57 @@ export default function ReferralScreen() {
 
     return (
 
-        <View style={styles.container}>
+        <SafeAreaView style={styles.container} edges={["top","bottom"]}>
 
-            <TouchableOpacity style={styles.skip} onPress={finishOnboarding}>
-                <Text style={styles.skipText}>Skip</Text>
-            </TouchableOpacity>
+            {/* Header */}
+            <View style={styles.header}>
+                <TouchableOpacity style={styles.skip} onPress={finishOnboarding}>
+                    <Text style={styles.skipText}>Skip</Text>
+                </TouchableOpacity>
+            </View>
 
-            <Text style={styles.title}>How did you hear about BearFit?</Text>
+            {/* Content */}
+            <View style={styles.content}>
 
-            <ScrollView style={styles.optionsContainer}>
+                <Text style={styles.title}>How did you hear about BearFit?</Text>
 
-                {options.map((option) => (
-                    <TouchableOpacity
-                        key={option}
-                        style={[
-                            styles.option,
-                            selected === option && styles.selectedOption
-                        ]}
-                        onPress={() => setSelected(option)}
-                    >
-                        <Text style={styles.optionText}>{option}</Text>
-                    </TouchableOpacity>
-                ))}
+                <ScrollView
+                    style={styles.optionsContainer}
+                    showsVerticalScrollIndicator={false}
+                >
 
-            </ScrollView>
+                    {options.map((option) => (
+                        <TouchableOpacity
+                            key={option}
+                            style={[
+                                styles.option,
+                                selected === option && styles.selectedOption
+                            ]}
+                            onPress={() => setSelected(option)}
+                        >
+                            <Text style={styles.optionText}>{option}</Text>
+                        </TouchableOpacity>
+                    ))}
 
-            <TouchableOpacity
-                style={[
-                    styles.continueButton,
-                    selected ? styles.activeButton : styles.disabledButton
-                ]}
-                disabled={!selected}
-                onPress={finishOnboarding}
-            >
-                <Text style={styles.continueText}>Continue</Text>
-            </TouchableOpacity>
+                </ScrollView>
 
-        </View>
+            </View>
+
+            {/* Bottom Button */}
+            <View style={styles.buttonContainer}>
+                <TouchableOpacity
+                    style={[
+                        styles.continueButton,
+                        selected ? styles.activeButton : styles.disabledButton
+                    ]}
+                    disabled={!selected}
+                    onPress={finishOnboarding}
+                >
+                    <Text style={styles.continueText}>Continue</Text>
+                </TouchableOpacity>
+            </View>
+
+        </SafeAreaView>
     );
 }
 
@@ -70,8 +85,11 @@ const styles = StyleSheet.create({
 
     container: {
         flex: 1,
-        backgroundColor: AppColors.black,
-        padding: 24
+        backgroundColor: AppColors.black
+    },
+
+    header: {
+        paddingHorizontal: 24
     },
 
     skip: {
@@ -82,6 +100,11 @@ const styles = StyleSheet.create({
     skipText: {
         color: AppColors.orange,
         fontWeight: "600"
+    },
+
+    content: {
+        flex: 1,
+        paddingHorizontal: 24
     },
 
     title: {
@@ -111,11 +134,15 @@ const styles = StyleSheet.create({
         color: "white"
     },
 
+    buttonContainer: {
+        paddingHorizontal: 24,
+        paddingBottom: 20
+    },
+
     continueButton: {
         padding: 16,
         borderRadius: 10,
-        alignItems: "center",
-        marginBottom: 30
+        alignItems: "center"
     },
 
     disabledButton: {
