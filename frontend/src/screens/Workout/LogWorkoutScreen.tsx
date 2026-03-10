@@ -1183,15 +1183,16 @@ const styles = StyleSheet.create({
         backgroundColor: AppColors.orange,
     },
     addSetButton: {
-        backgroundColor: AppColors.black,
-        paddingVertical: 10,
+        backgroundColor: AppColors.orange,
+        paddingVertical: 12,
+        paddingHorizontal:12,
         borderRadius: 12,
         alignItems: 'center',
     },
     addSetButtonText: {
         fontSize: 16,
         fontWeight: '700',
-        color: AppColors.orange,
+        color: AppColors.white,
     },
     updateRoutineButton: {
         backgroundColor: AppColors.darkBg,
@@ -1575,3 +1576,4 @@ const styles = StyleSheet.create({
         color: AppColors.orange,
     },
 });
+
