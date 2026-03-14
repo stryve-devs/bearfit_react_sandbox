@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useRouter, useSegments } from 'expo-router';
 import { authService } from '../api/services/auth.service';
+import { getGoogleAuthPayload } from '../services/auth/googleSignIn';
 import type { User, LoginRequest, RegisterRequest } from '../types/auth.types';
 
 interface AuthContextType {
@@ -9,6 +10,8 @@ interface AuthContextType {
     isAuthenticated: boolean;
     login: (credentials: LoginRequest) => Promise<void>;
     register: (data: RegisterRequest) => Promise<void>;
+    googleLogin: () => Promise<void>;
+    googleRegister: () => Promise<void>;
     logout: () => Promise<void>;
 }
 
@@ -88,6 +91,32 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
     };
 
+    const googleLogin = async () => {
+        console.log('🔐 Logging in with Google...');
+        try {
+            const googlePayload = await getGoogleAuthPayload();
+            const response = await authService.googleAuth(googlePayload);
+            console.log('✅ Google login successful:', response.user.username || response.user.email);
+            setUser(response.user);
+        } catch (error: any) {
+            console.error('❌ Google login failed:', error.response?.data?.message || error.message);
+            throw error;
+        }
+    };
+
+    const googleRegister = async () => {
+        console.log('📝 Registering with Google...');
+        try {
+            const googlePayload = await getGoogleAuthPayload();
+            const response = await authService.googleAuth(googlePayload);
+            console.log('✅ Google registration successful:', response.user.username || response.user.email);
+            setUser(response.user);
+        } catch (error: any) {
+            console.error('❌ Google registration failed:', error.response?.data?.message || error.message);
+            throw error;
+        }
+    };
+
     const logout = async () => {
         console.log('👋 Logging out...');
         setLoading(true);
@@ -112,6 +141,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         isAuthenticated: !!user,
         login,
         register,
+        googleLogin,
+        googleRegister,
         logout,
     };
 

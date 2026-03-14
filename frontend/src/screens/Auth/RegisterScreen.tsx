@@ -17,7 +17,7 @@ export default function RegisterScreen() {
     const [confirmPassword, setConfirmPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const router = useRouter();
-    const { register } = useAuth();
+    const { register, googleRegister } = useAuth();
 
     // Username validation
     const isValidUsername = (username: string) => {
@@ -78,8 +78,17 @@ export default function RegisterScreen() {
         }
     };
 
-    const handleGoogleSignIn = () => {
-        Alert.alert('Coming Soon', 'Google Sign-In will be available soon!');
+    const handleGoogleSignIn = async () => {
+        setLoading(true);
+        try {
+            await googleRegister();
+            router.replace('/(tabs)');
+        } catch (error: any) {
+            const errorMessage = error.response?.data?.message || error.message || 'Unable to continue with Google';
+            Alert.alert('Google Sign-Up Failed', errorMessage);
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleAppleSignIn = () => {

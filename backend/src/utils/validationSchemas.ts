@@ -31,9 +31,14 @@ export const refreshTokenSchema = z.object({
   refreshToken: z.string().min(1, 'Refresh token is required'),
 });
 
-export const googleAuthSchema = z.object({
-  idToken: z.string().min(1, 'ID token is required'),
-});
+export const googleAuthSchema = z
+  .object({
+    idToken: z.string().min(1, 'ID token is required').optional(),
+    accessToken: z.string().min(1, 'Access token is required').optional(),
+  })
+  .refine((data) => !!data.idToken || !!data.accessToken, {
+    message: 'Either idToken or accessToken is required',
+  });
 
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;

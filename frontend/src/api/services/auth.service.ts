@@ -1,27 +1,30 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../client';
-import type { LoginRequest, RegisterRequest, AuthResponse, User } from '@/types/auth.types';
+import type { LoginRequest, RegisterRequest, AuthResponse, User, GoogleAuthRequest } from '@/types/auth.types';
+
+const persistAuthSession = async (responseData: AuthResponse) => {
+    const { accessToken, refreshToken, user } = responseData;
+    await AsyncStorage.setItem('accessToken', accessToken);
+    await AsyncStorage.setItem('refreshToken', refreshToken);
+    await AsyncStorage.setItem('user', JSON.stringify(user));
+};
 
 export const authService = {
     async register(data: RegisterRequest): Promise<AuthResponse> {
         const response = await api.post('/auth/register', data);
-        const { accessToken, refreshToken, user } = response.data;
-
-        await AsyncStorage.setItem('accessToken', accessToken);
-        await AsyncStorage.setItem('refreshToken', refreshToken);
-        await AsyncStorage.setItem('user', JSON.stringify(user));
-
+        await persistAuthSession(response.data);
         return response.data;
     },
 
     async login(credentials: LoginRequest): Promise<AuthResponse> {
         const response = await api.post('/auth/login', credentials);
-        const { accessToken, refreshToken, user } = response.data;
+        await persistAuthSession(response.data);
+        return response.data;
+    },
 
-        await AsyncStorage.setItem('accessToken', accessToken);
-        await AsyncStorage.setItem('refreshToken', refreshToken);
-        await AsyncStorage.setItem('user', JSON.stringify(user));
-
+    async googleAuth(data: GoogleAuthRequest): Promise<AuthResponse> {
+        const response = await api.post('/auth/google', data);
+        await persistAuthSession(response.data);
         return response.data;
     },
 

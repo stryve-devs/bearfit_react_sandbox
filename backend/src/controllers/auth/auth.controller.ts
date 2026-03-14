@@ -171,22 +171,48 @@ export const refresh = async (req: Request, res: Response) => {
 ======================= */
 export const googleAuth = async (req: Request, res: Response) => {
   try {
-    const { idToken } = req.body as { idToken: string };
-    const googleClientId = process.env.GOOGLE_CLIENT_ID;
+    const { idToken, accessToken } = req.body as { idToken?: string; accessToken?: string };
 
-    if (!googleClientId) {
-      return res.status(500).json({ message: 'GOOGLE_CLIENT_ID is not configured' });
+    let email: string | undefined;
+    let googleId: string | undefined;
+    let name = '';
+
+    if (idToken) {
+      const googleClientId = process.env.GOOGLE_CLIENT_ID;
+      if (!googleClientId) {
+        return res.status(500).json({ message: 'GOOGLE_CLIENT_ID is not configured' });
+      }
+
+      const ticket = await googleClient.verifyIdToken({
+        idToken,
+        audience: googleClientId,
+      });
+      const payload = ticket.getPayload();
+
+      email = payload?.email || undefined;
+      googleId = payload?.sub || undefined;
+      name = payload?.name || '';
+    } else if (accessToken) {
+      const tokenInfo = await googleClient.getTokenInfo(accessToken);
+      const androidClientId = process.env.GOOGLE_ANDROID_CLIENT_ID;
+
+      if (androidClientId && tokenInfo.aud !== androidClientId) {
+        return res.status(401).json({ message: 'Google access token audience mismatch' });
+      }
+
+      const userInfoResponse = await googleClient.request<{
+        sub?: string;
+        email?: string;
+        name?: string;
+      }>({
+        url: 'https://www.googleapis.com/oauth2/v3/userinfo',
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+
+      email = userInfoResponse.data?.email;
+      googleId = userInfoResponse.data?.sub;
+      name = userInfoResponse.data?.name || '';
     }
-
-    const ticket = await googleClient.verifyIdToken({
-      idToken,
-      audience: googleClientId,
-    });
-    const payload = ticket.getPayload();
-
-    const email = payload?.email;
-    const googleId = payload?.sub;
-    const name = payload?.name || '';
 
     if (!email || !googleId) {
       return res.status(400).json({ message: 'Invalid Google token payload' });

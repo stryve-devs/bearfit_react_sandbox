@@ -11,6 +11,7 @@ export default function RootLayout() {
         'CalSans': require('../assets/fonts/CalSans-Regular.ttf'),
     });
 
+
     useEffect(() => {
         if (fontsLoaded) {
             SplashScreen.hideAsync();

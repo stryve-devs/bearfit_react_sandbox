@@ -13,7 +13,7 @@ export default function LoginScreen() {
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const router = useRouter();
-    const { login } = useAuth();
+    const { login, googleLogin } = useAuth();
 
     const handleLogin = async () => {
         if (!email || !password) {
@@ -32,8 +32,16 @@ export default function LoginScreen() {
         }
     };
 
-    const handleGoogleSignIn = () => {
-        Alert.alert('Coming Soon', 'Google Sign-In will be available soon!');
+    const handleGoogleSignIn = async () => {
+        setLoading(true);
+        try {
+            await googleLogin();
+            router.replace('/(tabs)');
+        } catch (error: any) {
+            Alert.alert('Google Sign-In Failed', error.response?.data?.message || error.message || 'Unable to sign in with Google');
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleAppleSignIn = () => {
@@ -146,6 +154,9 @@ const styles = StyleSheet.create({
     },
     fit: {
         color: '#FF7825',
+    },
+    formSection: {
+        // Keeps structure consistent with register layout.
     },
     forgotPassword: {
         alignSelf: 'flex-end',
