@@ -1,3 +1,5 @@
+echo "docker compose down running"
+docker compose down
 
 echo "Cleaning old backend images..."
 docker rmi $(docker images -q backend-app) 2>/dev/null || true
