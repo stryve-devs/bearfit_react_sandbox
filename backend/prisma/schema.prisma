@@ -27,7 +27,7 @@ model users {
   name           String           @db.VarChar(150)
   username       String?          @unique @db.VarChar(150)
   email          String           @unique @db.VarChar(320)
-  password_hash  String
+  password_hash  String?
   is_active      Boolean          @default(true)
   email_verified Boolean          @default(false)
   gender         String?          @db.VarChar(10)
@@ -41,6 +41,7 @@ model users {
   deleted_at     DateTime?
   theme          ThemePreference  @default(SYSTEM)
   role           Role             @default(USER)
+  googleId       String?          @unique @db.VarChar(191)
   Food           Food[]
   Meal           Meal[]
   PersonalRecord PersonalRecord[]
@@ -56,9 +57,9 @@ model refresh_tokens {
   id         Int      @id @default(autoincrement())
   token      String   @unique
   user_id    Int
-  expires_at DateTime
+  expires_at DateTime @db.Timestamp(0)
   revoked    Boolean  @default(false)
-  created_at DateTime @default(now())
+  created_at DateTime @default(now()) @db.Timestamp(0)
   users      users    @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 }
 
