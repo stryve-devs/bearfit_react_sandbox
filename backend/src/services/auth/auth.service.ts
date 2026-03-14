@@ -22,7 +22,6 @@ interface RegisterInput {
 export const registerUser = async (data: RegisterInput) => {
   const { name, email, password, username } = data;
 
-  // 1️⃣ Check if user already exists
   const existingUser = await prisma.users.findUnique({
     where: { email },
     select: { user_id: true },
@@ -32,13 +31,11 @@ export const registerUser = async (data: RegisterInput) => {
     throw new Error("User exists");
   }
 
-  // 2️⃣ Hash password
   const hashedPassword = await hashPassword(password);
 
-// 3️⃣ Create user
   const user = await prisma.users.create({
     data: {
-      name: name || "", // 👈 CHANGE THIS from '?? null' to '|| ""'
+      name: name || "",
       email,
       password_hash: hashedPassword,
       username: username || null,
@@ -67,7 +64,6 @@ interface LoginInput {
 export const loginUser = async (data: LoginInput) => {
   const { email, password } = data;
 
-  // 1️⃣ Find user
   const user = await prisma.users.findUnique({
     where: { email },
     select: {
@@ -84,25 +80,22 @@ export const loginUser = async (data: LoginInput) => {
     throw new Error("Invalid email or password");
   }
 
-  // 2️⃣ Compare password
-  const isValidPassword = await comparePassword(password, user.password_hash);
+  const isValidPassword = await comparePassword(password, user.password_hash!);
 
   if (!isValidPassword) {
     throw new Error("Invalid email or password");
   }
 
-  // 3️⃣ JWT payload
+  // ✅ FIX: Added ! to ensure these are treated as strings for the JWT
   const payload: JwtPayload = {
     userId: user.user_id,
-    email: user.email,
+    email: user.email!,
     role: 'USER',
   };
 
-  // 4️⃣ Generate tokens
   const accessToken = generateAccessToken(payload);
   const refreshToken = generateRefreshToken(payload);
 
-  // 5️⃣ Store refresh token in DB
   await prisma.refresh_tokens.create({
     data: {
       token: refreshToken,
@@ -111,7 +104,6 @@ export const loginUser = async (data: LoginInput) => {
     },
   });
 
-  // 6️⃣ Return response
   return {
     accessToken,
     refreshToken,
@@ -144,9 +136,10 @@ export const refreshAccessToken = async (refreshToken: string) => {
     throw new Error("Refresh token expired");
   }
 
+  // ✅ FIX: Added ! to decoded email
   const payload: JwtPayload = {
     userId: decoded.userId,
-    email: decoded.email,
+    email: decoded.email!,
     role: decoded.role,
   };
 
@@ -212,19 +205,14 @@ export const googleSignIn = async (idToken: string, opts?: { username?: string; 
         password_hash: hashedPassword,
         username: opts?.username,
       },
-      select: {
-        user_id: true,
-        name: true,
-        email: true,
-        username: true,
-        created_at: true,
-      },
+      select: { user_id: true, name: true, email: true, username: true, created_at: true },
     });
   }
 
+  // ✅ FIX: Added ! to user.email
   const payloadJwt: JwtPayload = {
     userId: user.user_id,
-    email: user.email,
+    email: user.email!,
     role: 'USER',
   };
 

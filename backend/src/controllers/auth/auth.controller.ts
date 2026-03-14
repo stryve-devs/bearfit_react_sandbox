@@ -15,7 +15,6 @@ import otpService from '../../services/auth/otp.service';
 
 /* =======================
    CHECK USERNAME EXISTS
-   GET /auth/username-exists?username=...
 ======================= */
 export const checkUsernameExists = async (req: Request, res: Response) => {
   try {
@@ -30,8 +29,7 @@ export const checkUsernameExists = async (req: Request, res: Response) => {
       select: { user_id: true }
     });
 
-    const exists = !!user;
-    return res.status(200).json({ exists });
+    return res.status(200).json({ exists: !!user });
   } catch (error: any) {
     console.error('❌ Database check error:', error);
     return res.status(500).json({ message: 'Failed to check username' });
@@ -54,7 +52,7 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
     const usernameRegex = /^[a-zA-Z0-9_-]{3,20}$/;
     if (!usernameRegex.test(username)) {
       return res.status(400).json({
-        message: "Username must be 3-20 characters and contain only letters, numbers, underscores, or hyphens",
+        message: "Username must be 3-20 characters (letters, numbers, _, -)",
       });
     }
 
@@ -63,12 +61,9 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
     });
 
     if (existingUsername) {
-      return res.status(400).json({
-        message: "Username already taken",
-      });
+      return res.status(400).json({ message: "Username already taken" });
     }
 
-    // 1️⃣ Create the user in DB
     const user = await registerUser({
       name: name || username || email.split('@')[0],
       email,
@@ -76,12 +71,10 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
       username,
     });
 
-    // 2️⃣ Generate JWT Tokens
-    const payload = { userId: user.user_id, email: user.email, role: 'USER' };
-    const accessToken = generateAccessToken(payload as any);
-    const refreshToken = generateRefreshToken(payload as any);
+    const payload = { userId: user.user_id, email: user.email!, role: 'USER' };
+    const accessToken = generateAccessToken(payload);
+    const refreshToken = generateRefreshToken(payload);
 
-    // 3️⃣ Store refresh token in DB
     await prisma.refresh_tokens.create({
       data: {
         token: refreshToken,
@@ -90,7 +83,6 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
       },
     });
 
-    // 🚀 4️⃣ Return success response (Fixes the timeout)
     return res.status(201).json({
       message: "Registration successful",
       accessToken,
@@ -117,23 +109,14 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
 export const login = async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
-
     if (!email || !password) {
-      return res.status(400).json({
-        message: "email and password are required",
-      });
+      return res.status(400).json({ message: "email and password are required" });
     }
 
     const result = await loginUser({ email, password });
-
-    return res.status(200).json({
-      message: "Login successful",
-      ...result,
-    });
+    return res.status(200).json({ message: "Login successful", ...result });
   } catch (error: any) {
-    return res.status(401).json({
-      message: error.message || "Login failed",
-    });
+    return res.status(401).json({ message: error.message || "Login failed" });
   }
 };
 
@@ -143,23 +126,12 @@ export const login = async (req: Request, res: Response) => {
 export const refresh = async (req: Request, res: Response) => {
   try {
     const { refreshToken } = req.body;
-
-    if (!refreshToken) {
-      return res.status(400).json({
-        message: "refreshToken is required",
-      });
-    }
+    if (!refreshToken) return res.status(400).json({ message: "refreshToken is required" });
 
     const tokens = await refreshAccessToken(refreshToken);
-
-    return res.status(200).json({
-      message: "Token refreshed successfully",
-      ...tokens,
-    });
+    return res.status(200).json({ message: "Token refreshed successfully", ...tokens });
   } catch (error: any) {
-    return res.status(401).json({
-      message: error.message || "Invalid refresh token",
-    });
+    return res.status(401).json({ message: error.message || "Invalid refresh token" });
   }
 };
 
@@ -168,19 +140,24 @@ export const refresh = async (req: Request, res: Response) => {
 ======================= */
 export const googleAuth = async (req: Request, res: Response) => {
   try {
-    const { idToken, username, name, email } = req.body as { idToken?: string; username?: string; name?: string; email?: string };
+    const { idToken, username, name, email } = req.body;
 
     if (idToken) {
+      // ✅ Matches Service definition: googleSignIn(idToken, { username, name })
       const result = await googleSignIn(idToken, { username, name });
       return res.status(200).json({ message: 'Google sign-in successful', ...result });
     }
 
     if (email) {
-      const existing = await prisma.users.findUnique({ where: { email }, select: { user_id: true, name: true, email: true, username: true } });
+      const existing = await prisma.users.findUnique({
+        where: { email },
+        select: { user_id: true, name: true, email: true, username: true }
+      });
+
       if (existing) {
-        const payload = { userId: existing.user_id, email: existing.email, role: 'USER' };
-        const accessToken = generateAccessToken(payload as any);
-        const refreshToken = generateRefreshToken(payload as any);
+        const payload = { userId: existing.user_id, email: existing.email!, role: 'USER' };
+        const accessToken = generateAccessToken(payload);
+        const refreshToken = generateRefreshToken(payload);
 
         await prisma.refresh_tokens.create({
           data: {
@@ -190,11 +167,21 @@ export const googleAuth = async (req: Request, res: Response) => {
           },
         });
 
-        return res.status(200).json({ message: 'Google sign-in (email fallback) successful', accessToken, refreshToken, user: existing });
+        return res.status(200).json({
+          message: 'Google sign-in (email fallback) successful',
+          accessToken,
+          refreshToken,
+          user: existing
+        });
       }
 
       const randomPassword = Math.random().toString(36) + Date.now().toString(36);
-      await registerUser({ name: name || email.split('@')[0], email, password: randomPassword, username });
+      await registerUser({
+        name: name || email.split('@')[0],
+        email,
+        password: randomPassword,
+        username
+      });
 
       const loginResult = await loginUser({ email, password: randomPassword });
       return res.status(200).json({ message: 'Google fallback registration successful', ...loginResult });
@@ -212,7 +199,7 @@ export const googleAuth = async (req: Request, res: Response) => {
 ======================= */
 export const registerGoogle = async (req: Request, res: Response) => {
   try {
-    const { idToken, email, username, name } = req.body as { idToken?: string; email?: string; username?: string; name?: string };
+    const { idToken, email, username, name } = req.body;
 
     if (idToken) {
       const result = await googleSignIn(idToken, { username, name });
@@ -240,26 +227,22 @@ export const registerGoogle = async (req: Request, res: Response) => {
 export const checkEmailExists = async (req: Request, res: Response) => {
   try {
     const email = String(req.query.email || '').trim();
-    if (!email) {
-      return res.status(400).json({ message: 'email query parameter is required' });
-    }
+    if (!email) return res.status(400).json({ message: 'email is required' });
 
     const user = await prisma.users.findUnique({ where: { email }, select: { user_id: true } });
     return res.status(200).json({ exists: !!user });
   } catch (error: any) {
-    console.error('checkEmailExists error', error);
     return res.status(500).json({ message: 'Failed to check email' });
   }
 };
 
 /* =======================
-   SEND OTP
+   OTP SERVICES
 ======================= */
 export const sendOtp = async (req: Request, res: Response) => {
   try {
     const { email } = req.body;
     if (!email) return res.status(400).json({ message: 'email is required' });
-
     await otpService.sendOtpToEmail(String(email).trim());
     return res.status(200).json({ message: 'OTP sent' });
   } catch (error: any) {
@@ -267,19 +250,14 @@ export const sendOtp = async (req: Request, res: Response) => {
   }
 };
 
-/* =======================
-   VERIFY OTP
-======================= */
 export const verifyOtp = async (req: Request, res: Response) => {
   try {
     const { email, code } = req.body;
-    if (!email || !code) return res.status(400).json({ message: 'email and code are required' });
-
+    if (!email || !code) return res.status(400).json({ message: 'email and code required' });
     const ok = await otpService.verifyOtpForEmail(String(email).trim(), String(code).trim());
     if (!ok) return res.status(400).json({ message: 'Invalid or expired code' });
     return res.status(200).json({ message: 'OTP verified' });
   } catch (error: any) {
-    console.error('verifyOtp error', error);
     return res.status(500).json({ message: 'Failed to verify OTP' });
   }
 };
