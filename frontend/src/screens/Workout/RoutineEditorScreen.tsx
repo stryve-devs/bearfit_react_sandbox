@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import {View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal,} from 'react-native';
+import {View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -258,6 +258,8 @@ export default function RoutineEditorScreen() {
 // Target Card Component
 function TargetCard({ target, index, onTargetChange, onRemove }: any) {
     const [restPickerVisible, setRestPickerVisible] = useState(false);
+    const [numberPadVisible, setNumberPadVisible] = useState(false);
+    const [numberPadMode, setNumberPadMode] = useState<'sets' | 'weight' | 'reps' | null>(null);
 
     return (
         <View style={styles.targetCard}>
@@ -306,53 +308,41 @@ function TargetCard({ target, index, onTargetChange, onRemove }: any) {
             <View style={styles.tableRow}>
                 {/* Sets */}
                 <View style={styles.tableColumn}>
-                    <View style={styles.inputGroup}>
-                        <TouchableOpacity
-                            onPress={() => onTargetChange(index, 'sets', Math.max(1, target.sets - 1))}
-                        >
-                            <Text style={styles.iconButtonText}>−</Text>
-                        </TouchableOpacity>
+                    <TouchableOpacity
+                        style={styles.inputTouchableArea}
+                        onPress={() => {
+                            setNumberPadMode('sets');
+                            setNumberPadVisible(true);
+                        }}
+                    >
                         <Text style={styles.inputValue}>{target.sets}</Text>
-                        <TouchableOpacity
-                            onPress={() => onTargetChange(index, 'sets', Math.min(999, target.sets + 1))}
-                        >
-                            <Text style={styles.iconButtonText}>+</Text>
-                        </TouchableOpacity>
-                    </View>
+                    </TouchableOpacity>
                 </View>
 
                 {/* Weight */}
                 <View style={styles.tableColumn}>
-                    <View style={styles.inputGroup}>
-                        <TouchableOpacity
-                            onPress={() => onTargetChange(index, 'targetWeightKg', Math.max(0, target.targetWeightKg - 1))}
-                        >
-                            <Text style={styles.iconButtonText}>−</Text>
-                        </TouchableOpacity>
+                    <TouchableOpacity
+                        style={styles.inputTouchableArea}
+                        onPress={() => {
+                            setNumberPadMode('weight');
+                            setNumberPadVisible(true);
+                        }}
+                    >
                         <Text style={styles.inputValue}>{target.targetWeightKg.toFixed(0)} kg</Text>
-                        <TouchableOpacity
-                            onPress={() => onTargetChange(index, 'targetWeightKg', target.targetWeightKg + 1)}
-                        >
-                            <Text style={styles.iconButtonText}>+</Text>
-                        </TouchableOpacity>
-                    </View>
+                    </TouchableOpacity>
                 </View>
 
                 {/* Reps */}
                 <View style={styles.tableColumn}>
-                    <View style={styles.inputGroup}>
-                        <TouchableOpacity
-                            onPress={() => onTargetChange(index, 'targetReps', Math.max(1, target.targetReps - 1))}
-                        >
-                            <Text style={styles.iconButtonText}>−</Text>
-                        </TouchableOpacity>
+                    <TouchableOpacity
+                        style={styles.inputTouchableArea}
+                        onPress={() => {
+                            setNumberPadMode('reps');
+                            setNumberPadVisible(true);
+                        }}
+                    >
                         <Text style={styles.inputValue}>{target.targetReps}</Text>
-                        <TouchableOpacity
-                            onPress={() => onTargetChange(index, 'targetReps', Math.min(999, target.targetReps + 1))}
-                        >
-                            <Text style={styles.iconButtonText}>+</Text>
-                        </TouchableOpacity>
-                    </View>
+                    </TouchableOpacity>
                 </View>
             </View>
 
@@ -365,6 +355,25 @@ function TargetCard({ target, index, onTargetChange, onRemove }: any) {
                     setRestPickerVisible(false);
                 }}
                 onClose={() => setRestPickerVisible(false)}
+            />
+
+            <NumberPadModal
+                visible={numberPadVisible}
+                mode={numberPadMode}
+                onSelect={(value: number) => {
+                    if (numberPadMode === 'sets') {
+                        onTargetChange(index, 'sets', Math.max(1, Math.min(999, value)));
+                    } else if (numberPadMode === 'weight') {
+                        onTargetChange(index, 'targetWeightKg', Math.max(0, value));
+                    } else if (numberPadMode === 'reps') {
+                        onTargetChange(index, 'targetReps', Math.max(1, Math.min(999, value)));
+                    }
+                    setNumberPadMode(null);
+                }}
+                onClose={() => {
+                    setNumberPadVisible(false);
+                    setNumberPadMode(null);
+                }}
             />
         </View>
     );
@@ -429,6 +438,108 @@ function RestPickerSheet({ visible, initial, onSelect, onClose }: any) {
                     </ScrollView>
                 </TouchableOpacity>
             </TouchableOpacity>
+        </Modal>
+    );
+}
+
+function NumberPadModal({ visible, onSelect, onClose, mode }: any) {
+    const [inputValue, setInputValue] = useState('');
+
+    const handleNumberPress = (num: string) => {
+        setInputValue(prev => prev + num);
+    };
+
+    const handleBackspace = () => {
+        setInputValue(prev => prev.slice(0, -1));
+    };
+
+    const handleConfirm = () => {
+        const value = parseInt(inputValue) || 0;
+        onSelect(value);
+        setInputValue('');
+        onClose();
+    };
+
+    const handleCancel = () => {
+        setInputValue('');
+        onClose();
+    };
+
+    return (
+        <Modal visible={visible} transparent animationType="fade" onRequestClose={handleCancel}>
+            <View style={styles.numberPadBackdrop}>
+                <TouchableOpacity
+                    style={StyleSheet.absoluteFill}
+                    activeOpacity={1}
+                    onPress={handleCancel}
+                />
+                <View style={styles.numberPadContainer}>
+                    <View style={styles.numberPadHeader}>
+                        <Text style={styles.numberPadTitle}>
+                            {mode === 'sets' ? 'Sets' : mode === 'weight' ? 'Weight (kg)' : 'Reps'}
+                        </Text>
+                        <TouchableOpacity onPress={handleCancel}>
+                            <Ionicons name="close" size={24} color={AppColors.orange} />
+                        </TouchableOpacity>
+                    </View>
+
+                    <View style={styles.numberPadDisplay}>
+                        <Text style={styles.numberPadDisplayText}>
+                            {inputValue || '0'}
+                        </Text>
+                    </View>
+
+                    <View style={styles.numberPadGrid}>
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
+                            <TouchableOpacity
+                                key={num}
+                                style={styles.numberPadButton}
+                                onPress={() => handleNumberPress(num.toString())}
+                            >
+                                <Text style={styles.numberPadButtonText}>{num}</Text>
+                            </TouchableOpacity>
+                        ))}
+                        <TouchableOpacity
+                            style={styles.numberPadButton}
+                            onPress={() => handleNumberPress('0')}
+                        >
+                            <Text style={styles.numberPadButtonText}>0</Text>
+                        </TouchableOpacity>
+                        {mode === 'weight' && (
+                            <TouchableOpacity
+                                style={styles.numberPadButton}
+                                onPress={() => handleNumberPress('.')}
+                            >
+                                <Text style={styles.numberPadButtonText}>.</Text>
+                            </TouchableOpacity>
+                        )}
+                        {mode !== 'weight' && (
+                            <View style={[styles.numberPadButton, { backgroundColor: 'transparent', borderColor: 'transparent' }]} />
+                        )}
+                        <TouchableOpacity
+                            style={[styles.numberPadButton, styles.numberPadBackspaceButton]}
+                            onPress={handleBackspace}
+                        >
+                            <Ionicons name="backspace" size={20} color={AppColors.white} />
+                        </TouchableOpacity>
+                    </View>
+
+                    <View style={styles.numberPadButtonsRow}>
+                        <TouchableOpacity
+                            style={[styles.numberPadActionButton, styles.numberPadCancelButton]}
+                            onPress={handleCancel}
+                        >
+                            <Text style={styles.numberPadActionButtonText}>Cancel</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.numberPadActionButton, styles.numberPadConfirmButton]}
+                            onPress={handleConfirm}
+                        >
+                            <Text style={styles.numberPadConfirmButtonText}>OK</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </View>
         </Modal>
     );
 }
@@ -516,7 +627,7 @@ const styles = StyleSheet.create({
     },
     routineTitleInput: {
         fontSize: 16,
-        fontWeight: '700',
+        fontWeight: '400',
         color: AppColors.orange,
         paddingVertical: 8,
     },
@@ -648,5 +759,101 @@ const styles = StyleSheet.create({
     pickerOptionText: {
         fontSize: 16,
         color: AppColors.white,
+    },
+    inputTouchableArea: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 4,
+    },
+    numberPadBackdrop: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    numberPadContainer: {
+        backgroundColor: AppColors.darkBg,
+        borderRadius: 20,
+        paddingHorizontal: 20,
+        paddingVertical: 20,
+        width: '85%',
+        maxWidth: 350,
+    },
+    numberPadHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 16,
+    },
+    numberPadTitle: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: AppColors.white,
+        flex: 1,
+    },
+    numberPadDisplay: {
+        backgroundColor: AppColors.black,
+        borderRadius: 12,
+        paddingVertical: 16,
+        marginBottom: 16,
+        alignItems: 'center',
+    },
+    numberPadDisplayText: {
+        fontSize: 32,
+        fontWeight: '700',
+        color: AppColors.orange,
+    },
+    numberPadGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        marginBottom: 16,
+    },
+    numberPadButton: {
+        width: '33.33%',
+        aspectRatio: 1,
+        backgroundColor: AppColors.black,
+        justifyContent: 'center',
+        alignItems: 'center',
+        margin: 4,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: AppColors.orange,
+    },
+    numberPadButtonText: {
+        fontSize: 20,
+        fontWeight: '700',
+        color: AppColors.orange,
+    },
+    numberPadBackspaceButton: {
+        backgroundColor: AppColors.orange,
+    },
+    numberPadButtonsRow: {
+        flexDirection: 'row',
+        gap: 12,
+    },
+    numberPadActionButton: {
+        flex: 1,
+        paddingVertical: 12,
+        borderRadius: 12,
+        alignItems: 'center',
+    },
+    numberPadCancelButton: {
+        backgroundColor: AppColors.black,
+        borderWidth: 1.5,
+        borderColor: AppColors.orange,
+    },
+    numberPadConfirmButton: {
+        backgroundColor: AppColors.orange,
+    },
+    numberPadActionButtonText: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: AppColors.orange,
+    },
+    numberPadConfirmButtonText: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: AppColors.black,
     },
 });

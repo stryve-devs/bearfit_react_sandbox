@@ -68,7 +68,7 @@ export default function LogWorkoutScreen() {
                         { weightKg: 0, reps: 0, done: false },
                         { weightKg: 0, reps: 0, done: false },
                     ],
-                    restSeconds: 60,
+                    restSeconds: 0,
                     restRemaining: 0,
                     restTimerRef: null,
                 };
@@ -99,7 +99,7 @@ export default function LogWorkoutScreen() {
             return {
                 name: target.name,
                 sets: initialSets,
-                restSeconds: target.restSeconds,
+                restSeconds: target.restSeconds || 0,
                 restRemaining: 0,
                 restTimerRef: null,
             };
@@ -258,21 +258,15 @@ export default function LogWorkoutScreen() {
         setLocalExercises(updatedExercises);
     };
 
-    const handleSetWeightChange = (exerciseIndex: number, setIndex: number, delta: number) => {
+    const handleSetWeightChange = (exerciseIndex: number, setIndex: number, newValue: number) => {
         const updatedExercises = [...exercises];
-        updatedExercises[exerciseIndex].sets[setIndex].weightKg = Math.max(
-            0,
-            updatedExercises[exerciseIndex].sets[setIndex].weightKg + delta
-        );
+        updatedExercises[exerciseIndex].sets[setIndex].weightKg = Math.max(0, newValue);
         setLocalExercises(updatedExercises);
     };
 
-    const handleSetRepsChange = (exerciseIndex: number, setIndex: number, delta: number) => {
+    const handleSetRepsChange = (exerciseIndex: number, setIndex: number, newValue: number) => {
         const updatedExercises = [...exercises];
-        updatedExercises[exerciseIndex].sets[setIndex].reps = Math.max(
-            0,
-            updatedExercises[exerciseIndex].sets[setIndex].reps + delta
-        );
+        updatedExercises[exerciseIndex].sets[setIndex].reps = Math.max(0, newValue);
         setLocalExercises(updatedExercises);
     };
 
@@ -292,7 +286,6 @@ export default function LogWorkoutScreen() {
         setLocalExercises(updatedExercises);
     };
 
-    // Set header actions
     useEffect(() => {
         setHeaderActions({
             openClock: () => setClockOverlayVisible(true),
@@ -530,6 +523,9 @@ function ExerciseCard({
                           onRestTimeChange,
                       }: any) {
     const [restPickerVisible, setRestPickerVisible] = useState(false);
+    const [numberPadVisible, setNumberPadVisible] = useState(false);
+    const [numberPadMode, setNumberPadMode] = useState<'weight' | 'reps' | null>(null);
+    const [numberPadSetIndex, setNumberPadSetIndex] = useState<number | null>(null);
 
     return (
         <View style={styles.exerciseCard}>
@@ -539,7 +535,7 @@ function ExerciseCard({
                     style={styles.restButton}
                     onPress={() => setRestPickerVisible(true)}
                 >
-                    <Ionicons name="timer" size={18} color={AppColors.orange} />
+                    <Ionicons name="timer-outline" size={18} color={AppColors.orange} />
                     <Text style={styles.restButtonText}>
                         Rest: {exercise.restSeconds >= 60
                         ? `${Math.floor(exercise.restSeconds / 60)}m`
@@ -573,22 +569,28 @@ function ExerciseCard({
                     <Text style={[styles.tableCell, { flex: 0.5 }]}>{setIndex + 1}</Text>
 
                     <View style={[styles.tableCellContainer, { flex: 1.5 }]}>
-                        <TouchableOpacity onPress={() => onWeightChange(exerciseIndex, setIndex, -1)}>
-                            <Text style={styles.iconButtonText}>−</Text>
-                        </TouchableOpacity>
-                        <Text style={styles.tableCell}>{set.weightKg.toFixed(0)} kg</Text>
-                        <TouchableOpacity onPress={() => onWeightChange(exerciseIndex, setIndex, 1)}>
-                            <Text style={styles.iconButtonText}>+</Text>
+                        <TouchableOpacity
+                            onPress={() => {
+                                setNumberPadMode('weight');
+                                setNumberPadSetIndex(setIndex);
+                                setNumberPadVisible(true);
+                            }}
+                            style={styles.inputTouchable}
+                        >
+                            <Text style={styles.tableCell}>{set.weightKg.toFixed(0)} kg</Text>
                         </TouchableOpacity>
                     </View>
 
                     <View style={[styles.tableCellContainer, { flex: 1 }]}>
-                        <TouchableOpacity onPress={() => onRepsChange(exerciseIndex, setIndex, -1)}>
-                            <Text style={styles.iconButtonText}>−</Text>
-                        </TouchableOpacity>
-                        <Text style={styles.tableCell}>{set.reps}</Text>
-                        <TouchableOpacity onPress={() => onRepsChange(exerciseIndex, setIndex, 1)}>
-                            <Text style={styles.iconButtonText}>+</Text>
+                        <TouchableOpacity
+                            onPress={() => {
+                                setNumberPadMode('reps');
+                                setNumberPadSetIndex(setIndex);
+                                setNumberPadVisible(true);
+                            }}
+                            style={styles.inputTouchable}
+                        >
+                            <Text style={styles.tableCell}>{set.reps}</Text>
                         </TouchableOpacity>
                     </View>
 
@@ -599,8 +601,13 @@ function ExerciseCard({
                                 set.done && styles.doneCheckboxChecked,
                             ]}
                             onPress={() => onSetDone(exerciseIndex, setIndex)}
-                        />
+                        >
+                            {set.done && (
+                                <Ionicons name="checkmark" size={20} color={AppColors.white} />
+                            )}
+                        </TouchableOpacity>
                     </View>
+
                 </View>
             ))}
 
@@ -621,6 +628,27 @@ function ExerciseCard({
                     setRestPickerVisible(false);
                 }}
                 onClose={() => setRestPickerVisible(false)}
+            />
+
+            <NumberPadModal
+                visible={numberPadVisible}
+                mode={numberPadMode}
+                onSelect={(value: number) => {
+                    if (numberPadSetIndex !== null) {
+                        if (numberPadMode === 'weight') {
+                            onWeightChange(exerciseIndex, numberPadSetIndex, value);
+                        } else if (numberPadMode === 'reps') {
+                            onRepsChange(exerciseIndex, numberPadSetIndex, value);
+                        }
+                    }
+                    setNumberPadMode(null);
+                    setNumberPadSetIndex(null);
+                }}
+                onClose={() => {
+                    setNumberPadVisible(false);
+                    setNumberPadMode(null);
+                    setNumberPadSetIndex(null);
+                }}
             />
         </View>
     );
@@ -684,6 +712,103 @@ function RestPickerSheet({ visible, initial, onSelect, onClose }: any) {
                     </ScrollView>
                 </TouchableOpacity>
             </TouchableOpacity>
+        </Modal>
+    );
+}
+
+function NumberPadModal({ visible, onSelect, onClose, mode }: any) {
+    const [inputValue, setInputValue] = useState('');
+
+    const handleNumberPress = (num: string) => {
+        setInputValue(prev => prev + num);
+    };
+
+    const handleBackspace = () => {
+        setInputValue(prev => prev.slice(0, -1));
+    };
+
+    const handleConfirm = () => {
+        const value = parseFloat(inputValue) || 0;
+        onSelect(value);
+        setInputValue('');
+        onClose();
+    };
+
+    const handleCancel = () => {
+        setInputValue('');
+        onClose();
+    };
+
+    return (
+        <Modal visible={visible} transparent animationType="fade" onRequestClose={handleCancel}>
+            <View style={styles.numberPadBackdrop}>
+                <TouchableOpacity
+                    style={StyleSheet.absoluteFill}
+                    activeOpacity={1}
+                    onPress={handleCancel}
+                />
+                <View style={styles.numberPadContainer}>
+                    <View style={styles.numberPadHeader}>
+                        <Text style={styles.numberPadTitle}>
+                            Enter {mode === 'weight' ? 'Weight (kg)' : 'Reps'}
+                        </Text>
+                        <TouchableOpacity onPress={handleCancel}>
+                            <Ionicons name="close" size={24} color={AppColors.orange} />
+                        </TouchableOpacity>
+                    </View>
+
+                    <View style={styles.numberPadDisplay}>
+                        <Text style={styles.numberPadDisplayText}>
+                            {inputValue || '0'}
+                        </Text>
+                    </View>
+
+                    <View style={styles.numberPadGrid}>
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
+                            <TouchableOpacity
+                                key={num}
+                                style={styles.numberPadButton}
+                                onPress={() => handleNumberPress(num.toString())}
+                            >
+                                <Text style={styles.numberPadButtonText}>{num}</Text>
+                            </TouchableOpacity>
+                        ))}
+                        <TouchableOpacity
+                            style={styles.numberPadButton}
+                            onPress={() => handleNumberPress('0')}
+                        >
+                            <Text style={styles.numberPadButtonText}>0</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={styles.numberPadButton}
+                            onPress={() => handleNumberPress('.')}
+                        >
+                            <Text style={styles.numberPadButtonText}>.</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.numberPadButton, styles.numberPadBackspaceButton]}
+                            onPress={handleBackspace}
+                        >
+                            <Ionicons name="backspace" size={20} color={AppColors.white} />
+                        </TouchableOpacity>
+                    </View>
+
+                    <View style={styles.numberPadButtonsRow}>
+                        <TouchableOpacity
+                            style={[styles.numberPadActionButton, styles.numberPadCancelButton]}
+                            onPress={handleCancel}
+                        >
+                            <Text style={styles.numberPadActionButtonText}>Cancel</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.numberPadActionButton, styles.numberPadConfirmButton]}
+                            onPress={handleConfirm}
+                        >
+                            <Text style={styles.numberPadConfirmButtonText}>OK</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </View>
         </Modal>
     );
 }
@@ -1180,7 +1305,8 @@ const styles = StyleSheet.create({
         borderRadius: 4,
     },
     doneCheckboxChecked: {
-        backgroundColor: AppColors.orange,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     addSetButton: {
         backgroundColor: AppColors.orange,
@@ -1575,5 +1701,100 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         color: AppColors.orange,
     },
+    inputTouchable: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 4,
+    },
+    numberPadBackdrop: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    numberPadContainer: {
+        backgroundColor: AppColors.darkBg,
+        borderRadius: 20,
+        paddingHorizontal: 20,
+        paddingVertical: 20,
+        width: '85%',
+        maxWidth: 350,
+    },
+    numberPadHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 16,
+    },
+    numberPadTitle: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: AppColors.white,
+        flex: 1,
+    },
+    numberPadDisplay: {
+        backgroundColor: AppColors.black,
+        borderRadius: 12,
+        paddingVertical: 16,
+        marginBottom: 16,
+        alignItems: 'center',
+    },
+    numberPadDisplayText: {
+        fontSize: 32,
+        fontWeight: '700',
+        color: AppColors.orange,
+    },
+    numberPadGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        marginBottom: 16,
+    },
+    numberPadButton: {
+        width: '33.33%',
+        aspectRatio: 1,
+        backgroundColor: AppColors.black,
+        justifyContent: 'center',
+        alignItems: 'center',
+        margin: 4,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: AppColors.orange,
+    },
+    numberPadButtonText: {
+        fontSize: 20,
+        fontWeight: '700',
+        color: AppColors.orange,
+    },
+    numberPadBackspaceButton: {
+        backgroundColor: AppColors.orange,
+    },
+    numberPadButtonsRow: {
+        flexDirection: 'row',
+        gap: 12,
+    },
+    numberPadActionButton: {
+        flex: 1,
+        paddingVertical: 12,
+        borderRadius: 12,
+        alignItems: 'center',
+    },
+    numberPadCancelButton: {
+        backgroundColor: AppColors.black,
+        borderWidth: 1.5,
+        borderColor: AppColors.orange,
+    },
+    numberPadConfirmButton: {
+        backgroundColor: AppColors.orange,
+    },
+    numberPadActionButtonText: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: AppColors.orange,
+    },
+    numberPadConfirmButtonText: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: AppColors.black,
+    },
 });
-

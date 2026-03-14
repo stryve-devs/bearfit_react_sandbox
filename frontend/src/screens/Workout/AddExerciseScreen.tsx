@@ -67,7 +67,7 @@ export default function AddExerciseScreen() {
         } else {
             const newTarget: ExerciseTarget = {
                 name: exercise.name,
-                sets: 3,
+                sets: 0,
                 targetWeightKg: 0,
                 targetReps: 0,
                 restSeconds: 60,

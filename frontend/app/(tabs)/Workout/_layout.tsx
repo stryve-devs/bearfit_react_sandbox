@@ -22,7 +22,7 @@ export default function WorkoutLayout() {
         <Stack
             screenOptions={{
                 headerShown: true,
-                headerStyle: { backgroundColor: AppColors.black },
+                headerStyle: { backgroundColor: AppColors.darkBg },
                 headerTintColor: AppColors.white,
                 headerTitleStyle: { color: AppColors.orange, fontWeight: 'bold', fontSize: 18 },
                 headerTitleAlign: 'center',
