@@ -29,14 +29,14 @@ export default function HomeLayout() {
                 options={{ title: 'Discover' }}
             />
 
-            <Stack.Screen 
-            name="post-detail" 
+            <Stack.Screen
+            name="post-detail"
             options={{ title: "Post Detail" }}
              />
-             
+
             <Stack.Screen
-                name="home17" 
-                options={{ title: "Media" }} 
+                name="home17"
+                options={{ title: "Media" }}
             />
 
             {/* ✅ Added for Contacts */}
