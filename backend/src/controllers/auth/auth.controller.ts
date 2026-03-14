@@ -3,7 +3,7 @@ import {
   registerUser,
   loginUser,
   refreshAccessToken,
-  googleSignIn,
+  googleAuth as googleAuthService,
 } from "../../services/auth/auth.service";
 import {
   generateAccessToken,
@@ -12,6 +12,9 @@ import {
 } from "../../utils/jwtUtils";
 import prisma from '../../config/prismaClient';
 import otpService from '../../services/auth/otp.service';
+import { OAuth2Client } from 'google-auth-library';
+
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 /* =======================
    CHECK USERNAME EXISTS
@@ -168,69 +171,35 @@ export const refresh = async (req: Request, res: Response) => {
 ======================= */
 export const googleAuth = async (req: Request, res: Response) => {
   try {
-    const { idToken, username, name, email } = req.body as { idToken?: string; username?: string; name?: string; email?: string };
+    const { idToken } = req.body as { idToken: string };
+    const googleClientId = process.env.GOOGLE_CLIENT_ID;
 
-    if (idToken) {
-      const result = await googleSignIn(idToken, { username, name });
-      return res.status(200).json({ message: 'Google sign-in successful', ...result });
+    if (!googleClientId) {
+      return res.status(500).json({ message: 'GOOGLE_CLIENT_ID is not configured' });
     }
 
-    if (email) {
-      const existing = await prisma.users.findUnique({ where: { email }, select: { user_id: true, name: true, email: true, username: true } });
-      if (existing) {
-        const payload = { userId: existing.user_id, email: existing.email, role: 'USER' };
-        const accessToken = generateAccessToken(payload as any);
-        const refreshToken = generateRefreshToken(payload as any);
+    const ticket = await googleClient.verifyIdToken({
+      idToken,
+      audience: googleClientId,
+    });
+    const payload = ticket.getPayload();
 
-        await prisma.refresh_tokens.create({
-          data: {
-            token: refreshToken,
-            user_id: existing.user_id,
-            expires_at: new Date(Date.now() + REFRESH_TOKEN_EXPIRES_IN_MS),
-          },
-        });
+    const email = payload?.email;
+    const googleId = payload?.sub;
+    const name = payload?.name || '';
 
-        return res.status(200).json({ message: 'Google sign-in (email fallback) successful', accessToken, refreshToken, user: existing });
-      }
-
-      const randomPassword = Math.random().toString(36) + Date.now().toString(36);
-      await registerUser({ name: name || email.split('@')[0], email, password: randomPassword, username });
-
-      const loginResult = await loginUser({ email, password: randomPassword });
-      return res.status(200).json({ message: 'Google fallback registration successful', ...loginResult });
+    if (!email || !googleId) {
+      return res.status(400).json({ message: 'Invalid Google token payload' });
     }
 
-    return res.status(400).json({ message: 'Either idToken or email is required' });
+    const result = await googleAuthService(googleId, email, name);
+    return res.status(200).json({
+      message: 'Google sign-in successful',
+      ...result,
+    });
   } catch (error: any) {
     console.error('[authController] googleAuth error', error);
-    return res.status(400).json({ message: error.message || "Google auth failed" });
-  }
-};
-
-/* =======================
-   REGISTER (GOOGLE COMPLETE)
-======================= */
-export const registerGoogle = async (req: Request, res: Response) => {
-  try {
-    const { idToken, email, username, name } = req.body as { idToken?: string; email?: string; username?: string; name?: string };
-
-    if (idToken) {
-      const result = await googleSignIn(idToken, { username, name });
-      return res.status(200).json({ message: 'Google registration successful', ...result });
-    }
-
-    if (!email) return res.status(400).json({ message: 'email is required' });
-
-    const existing = await prisma.users.findUnique({ where: { email }, select: { user_id: true } });
-    if (existing) return res.status(409).json({ message: 'User already exists' });
-
-    const randomPassword = Math.random().toString(36) + Date.now().toString(36);
-    await registerUser({ name: name || email.split('@')[0], email, password: randomPassword, username });
-
-    const loginResult = await loginUser({ email, password: randomPassword });
-    return res.status(201).json({ message: 'Google registration successful', ...loginResult });
-  } catch (error: any) {
-    return res.status(400).json({ message: error.message || 'Google registration failed' });
+    return res.status(401).json({ message: error.message || 'Google auth failed' });
   }
 };
 

@@ -31,15 +31,9 @@ export const refreshTokenSchema = z.object({
   refreshToken: z.string().min(1, 'Refresh token is required'),
 });
 
-const googleAuthBase = z.object({
-  username: z.string().min(3).max(20).optional(),
-  name: z.string().max(150).optional().or(z.literal("")),
+export const googleAuthSchema = z.object({
+  idToken: z.string().min(1, 'ID token is required'),
 });
-
-export const googleAuthSchema = z.union([
-  googleAuthBase.extend({ idToken: z.string().min(1, 'ID token is required') }),
-  googleAuthBase.extend({ email: z.string().email().min(1) }),
-]);
 
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;

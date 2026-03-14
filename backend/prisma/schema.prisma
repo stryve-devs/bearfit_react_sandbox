@@ -27,7 +27,7 @@ model users {
   name           String           @db.VarChar(150)
   username       String?          @unique @db.VarChar(150)
   email          String           @unique @db.VarChar(320)
-  password_hash  String
+  passwordHash   String?          @map("password_hash")
   is_active      Boolean          @default(true)
   email_verified Boolean          @default(false)
   gender         String?          @db.VarChar(10)
@@ -41,6 +41,7 @@ model users {
   deleted_at     DateTime?
   theme          ThemePreference  @default(SYSTEM)
   role           Role             @default(USER)
+  googleId       String?          @unique @db.VarChar(191)
   Food           Food[]
   Meal           Meal[]
   PersonalRecord PersonalRecord[]

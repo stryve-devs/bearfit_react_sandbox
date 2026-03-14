@@ -40,7 +40,7 @@ export const registerUser = async (data: RegisterInput) => {
     data: {
       name: name || "", // 👈 CHANGE THIS from '?? null' to '|| ""'
       email,
-      password_hash: hashedPassword,
+      passwordHash: hashedPassword,
       username: username || null,
     },
     select: {
@@ -75,7 +75,7 @@ export const loginUser = async (data: LoginInput) => {
       name: true,
       email: true,
       username: true,
-      password_hash: true,
+      passwordHash: true,
       is_active: true,
     },
   });
@@ -84,8 +84,12 @@ export const loginUser = async (data: LoginInput) => {
     throw new Error("Invalid email or password");
   }
 
+  if (!user.passwordHash) {
+    throw new Error("This account uses Google sign-in. Please continue with Google.");
+  }
+
   // 2️⃣ Compare password
-  const isValidPassword = await comparePassword(password, user.password_hash);
+  const isValidPassword = await comparePassword(password, user.passwordHash);
 
   if (!isValidPassword) {
     throw new Error("Invalid email or password");
@@ -178,46 +182,63 @@ export const refreshAccessToken = async (refreshToken: string) => {
    GOOGLE SIGN-IN
 ======================= */
 
-export const googleSignIn = async (idToken: string, opts?: { username?: string; name?: string }) => {
-  if (!idToken) throw new Error('idToken is required');
-
-  const parts = idToken.split('.');
-  if (parts.length < 2) throw new Error('Invalid idToken format');
-  const payload = JSON.parse(Buffer.from(parts[1].replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8'));
-
-  const email: string | undefined = payload.email;
-  const tokenName: string | undefined = payload.name || payload.given_name;
-
-  if (!email) throw new Error('Google token does not contain an email');
-
+export const googleAuth = async (googleId: string, email: string, name?: string) => {
   let user = await prisma.users.findUnique({
-    where: { email },
-    select: { user_id: true, name: true, email: true, username: true },
+    where: { googleId },
+    select: {
+      user_id: true,
+      name: true,
+      email: true,
+      username: true,
+      googleId: true,
+    },
   });
 
   if (!user) {
-    if (opts?.username) {
-      const existingByUsername = await prisma.users.findUnique({ where: { username: opts.username }, select: { user_id: true } });
-      if (existingByUsername) {
-        throw new Error('Username already taken');
-      }
+    const byEmail = await prisma.users.findUnique({
+      where: { email },
+      select: {
+        user_id: true,
+        name: true,
+        email: true,
+        username: true,
+        googleId: true,
+      },
+    });
+
+    if (byEmail?.googleId && byEmail.googleId !== googleId) {
+      throw new Error('Google account does not match this email');
     }
 
-    const randomPassword = Math.random().toString(36) + Date.now().toString(36);
-    const hashedPassword = await hashPassword(randomPassword);
+    user = byEmail;
+  }
+
+  if (!user) {
     user = await prisma.users.create({
       data: {
-        name: opts?.name || tokenName || email.split('@')[0],
+        name: name || email.split('@')[0],
         email,
-        password_hash: hashedPassword,
-        username: opts?.username,
+        googleId,
+        passwordHash: null,
       },
       select: {
         user_id: true,
         name: true,
         email: true,
         username: true,
-        created_at: true,
+        googleId: true,
+      },
+    });
+  } else if (!user.googleId) {
+    user = await prisma.users.update({
+      where: { user_id: user.user_id },
+      data: { googleId },
+      select: {
+        user_id: true,
+        name: true,
+        email: true,
+        username: true,
+        googleId: true,
       },
     });
   }
@@ -247,6 +268,7 @@ export const googleSignIn = async (idToken: string, opts?: { username?: string; 
       name: user.name,
       email: user.email,
       username: user.username,
+      googleId: user.googleId || undefined,
       role: 'USER',
     },
   };

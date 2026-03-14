@@ -5,7 +5,6 @@ import {
     login,
     refresh,
     googleAuth,
-    registerGoogle,
     checkEmailExists,
     checkUsernameExists,
     sendOtp,
@@ -28,7 +27,6 @@ router.post('/refresh', validate(refreshTokenSchema), refresh);
 
 // Google Auth
 router.post('/google', validate(googleAuthSchema), googleAuth);
-router.post('/register-google', validate(googleAuthSchema), registerGoogle);
 
 // Utility Checks
 router.get('/exists', checkEmailExists);
