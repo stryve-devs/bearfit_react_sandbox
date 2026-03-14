@@ -51,22 +51,6 @@ export default function ExploreRoutinesScreen() {
         router.push('/(tabs)/Workout/routine');
     };
 
-    /*
-    return (
-        <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-            <View style={styles.header}>
-                <View style={styles.headerLeft}>
-                    <TouchableOpacity onPress={() => router.back()}>
-                        <Ionicons name="arrow-back" size={24} color={AppColors.orange} />
-                    </TouchableOpacity>
-                </View>
-
-                <Text style={styles.headerTitle}>Routines</Text>
-
-                <View style={styles.headerRight} />
-            </View>
-
-    */
 
     return (
         <SafeAreaView style={styles.container} edges={['bottom','left','right']}>
@@ -128,7 +112,7 @@ function RoutineCard({ routine, onSelect }: any) {
             onPress={onSelect}
         >
             <View style={styles.routineCardLeft}>
-                <Ionicons name="list" size={24} color={AppColors.white} />
+                <Ionicons name="star" size={24} color={AppColors.white} />
                 <View style={styles.routineCardText}>
                     <Text style={styles.routineCardTitle}>{routine.title}</Text>
                     <Text style={styles.routineCardSubtitle}>

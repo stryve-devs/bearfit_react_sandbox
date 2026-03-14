@@ -65,8 +65,6 @@ export default function LogWorkoutScreen() {
                     name: exerciseName,
                     sets: [
                         { weightKg: 0, reps: 0, done: false },
-                        { weightKg: 0, reps: 0, done: false },
-                        { weightKg: 0, reps: 0, done: false },
                     ],
                     restSeconds: 0,
                     restRemaining: 0,
@@ -280,6 +278,12 @@ export default function LogWorkoutScreen() {
         setLocalExercises(updatedExercises);
     };
 
+    const handleDeleteSet = (exerciseIndex: number, setIndex: number) => {
+        const updatedExercises = [...exercises];
+        updatedExercises[exerciseIndex].sets.splice(setIndex, 1);
+        setLocalExercises(updatedExercises);
+    };
+
     const handleRestTimeChange = (exerciseIndex: number, seconds: number) => {
         const updatedExercises = [...exercises];
         updatedExercises[exerciseIndex].restSeconds = seconds;
@@ -335,7 +339,7 @@ export default function LogWorkoutScreen() {
                             style={styles.routineButton}
                             onPress={handleChooseRoutine}
                         >
-                            <Ionicons name="menu" size={20} color={AppColors.orange} />
+                            <Ionicons name="list" size={20} color={AppColors.orange} />
                             <Text style={styles.routineButtonText}>{currentRoutine.title}</Text>
                         </TouchableOpacity>
                         <View style={styles.spacing} />
@@ -361,6 +365,7 @@ export default function LogWorkoutScreen() {
                         onWeightChange={handleSetWeightChange}
                         onRepsChange={handleSetRepsChange}
                         onAddSet={handleAddSet}
+                        onDeleteSet={handleDeleteSet}
                         onRestTimeChange={handleRestTimeChange}
                     />
                 ))}
@@ -453,7 +458,6 @@ export default function LogWorkoutScreen() {
                                     style={styles.routineItemButton}
                                     onPress={() => handleSelectRoutine(routine)}
                                 >
-                                    <Ionicons name="list" size={20} color={AppColors.orange} />
                                     <View style={styles.routineItemText}>
                                         <Text style={styles.routineItemTitle}>{routine.title}</Text>
                                         <Text style={styles.routineItemSubtitle}>
@@ -520,6 +524,7 @@ function ExerciseCard({
                           onWeightChange,
                           onRepsChange,
                           onAddSet,
+                          onDeleteSet,
                           onRestTimeChange,
                       }: any) {
     const [restPickerVisible, setRestPickerVisible] = useState(false);
@@ -613,12 +618,23 @@ function ExerciseCard({
 
             <View style={styles.exerciseSpacing} />
 
-            <TouchableOpacity
-                style={styles.addSetButton}
-                onPress={() => onAddSet(exerciseIndex)}
-            >
-                <Text style={styles.addSetButtonText}>+ Add Set</Text>
-            </TouchableOpacity>
+            <View style={styles.setButtonsRow}>
+                <TouchableOpacity
+                    style={styles.addSetButton}
+                    onPress={() => onAddSet(exerciseIndex)}
+                >
+                    <Text style={styles.addSetButtonText}>+ Add Set</Text>
+                </TouchableOpacity>
+
+                {exercise.sets.length > 1 && (
+                    <TouchableOpacity
+                        style={styles.deleteSetButton}
+                        onPress={() => onDeleteSet(exerciseIndex, exercise.sets.length - 1)}
+                    >
+                        <Text style={styles.deleteSetButtonText}>- Delete Set</Text>
+                    </TouchableOpacity>
+                )}
+            </View>
 
             <RestPickerSheet
                 visible={restPickerVisible}
@@ -775,16 +791,17 @@ function NumberPadModal({ visible, onSelect, onClose, mode }: any) {
                         ))}
                         <TouchableOpacity
                             style={styles.numberPadButton}
-                            onPress={() => handleNumberPress('0')}
-                        >
-                            <Text style={styles.numberPadButtonText}>0</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={styles.numberPadButton}
                             onPress={() => handleNumberPress('.')}
                         >
                             <Text style={styles.numberPadButtonText}>.</Text>
                         </TouchableOpacity>
+                        <TouchableOpacity
+                            style={styles.numberPadButton}
+                            onPress={() => handleNumberPress('0')}
+                        >
+                            <Text style={styles.numberPadButtonText}>0</Text>
+                        </TouchableOpacity>
+
                         <TouchableOpacity
                             style={[styles.numberPadButton, styles.numberPadBackspaceButton]}
                             onPress={handleBackspace}
@@ -1308,14 +1325,32 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
+    setButtonsRow: {
+        flexDirection: 'row',
+        gap: 12,
+    },
     addSetButton: {
+        flex: 1,
         backgroundColor: AppColors.orange,
         paddingVertical: 12,
-        paddingHorizontal:12,
+        paddingHorizontal: 12,
         borderRadius: 12,
         alignItems: 'center',
     },
     addSetButtonText: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: AppColors.white,
+    },
+    deleteSetButton: {
+        flex: 1,
+        backgroundColor: AppColors.orange,
+        paddingVertical: 12,
+        paddingHorizontal: 12,
+        borderRadius: 12,
+        alignItems: 'center',
+    },
+    deleteSetButtonText: {
         fontSize: 16,
         fontWeight: '700',
         color: AppColors.white,
@@ -1641,7 +1676,7 @@ const styles = StyleSheet.create({
     },
     modalBackdrop: {
         flex: 1,
-        backgroundColor: AppColors.darkBg,
+        backgroundColor: 'rgba(0,0,0,0.5)',
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -1680,7 +1715,7 @@ const styles = StyleSheet.create({
     routineItemTitle: {
         fontSize: 14,
         fontWeight: '700',
-        color: AppColors.white,
+        color: AppColors.orange,
         marginBottom: 4,
     },
     routineItemSubtitle: {
@@ -1717,9 +1752,11 @@ const styles = StyleSheet.create({
         backgroundColor: AppColors.darkBg,
         borderRadius: 20,
         paddingHorizontal: 20,
+        alignItems: 'center',
         paddingVertical: 20,
         width: '85%',
         maxWidth: 350,
+
     },
     numberPadHeader: {
         flexDirection: 'row',
@@ -1738,20 +1775,23 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         paddingVertical: 16,
         marginBottom: 16,
+        paddingHorizontal: 20,
         alignItems: 'center',
     },
     numberPadDisplayText: {
-        fontSize: 32,
+        fontSize: 20,
         fontWeight: '700',
         color: AppColors.orange,
+
     },
     numberPadGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
+        justifyContent: 'center',
         marginBottom: 16,
     },
     numberPadButton: {
-        width: '33.33%',
+        width: '25%',
         aspectRatio: 1,
         backgroundColor: AppColors.black,
         justifyContent: 'center',
@@ -1762,7 +1802,7 @@ const styles = StyleSheet.create({
         borderColor: AppColors.orange,
     },
     numberPadButtonText: {
-        fontSize: 20,
+        fontSize: 18,
         fontWeight: '700',
         color: AppColors.orange,
     },
@@ -1775,7 +1815,7 @@ const styles = StyleSheet.create({
     },
     numberPadActionButton: {
         flex: 1,
-        paddingVertical: 12,
+        padding: 10,
         borderRadius: 12,
         alignItems: 'center',
     },
@@ -1786,6 +1826,8 @@ const styles = StyleSheet.create({
     },
     numberPadConfirmButton: {
         backgroundColor: AppColors.orange,
+        borderWidth: 1.5,
+        borderColor: AppColors.orange,
     },
     numberPadActionButtonText: {
         fontSize: 16,

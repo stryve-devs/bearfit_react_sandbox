@@ -66,10 +66,10 @@ export default function RoutineEditorScreen() {
 
             const newTarget: ExerciseTarget = {
                 name: exerciseName,
-                sets: 0,
+                sets: 1,
                 targetWeightKg: 0,
                 targetReps: 0,
-                restSeconds: 60,
+                restSeconds: 0,
             };
 
             addTarget(newTarget);
@@ -768,7 +768,7 @@ const styles = StyleSheet.create({
     },
     numberPadBackdrop: {
         flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -776,9 +776,11 @@ const styles = StyleSheet.create({
         backgroundColor: AppColors.darkBg,
         borderRadius: 20,
         paddingHorizontal: 20,
+        alignItems: 'center',
         paddingVertical: 20,
         width: '85%',
         maxWidth: 350,
+
     },
     numberPadHeader: {
         flexDirection: 'row',
@@ -797,20 +799,23 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         paddingVertical: 16,
         marginBottom: 16,
+        paddingHorizontal: 20,
         alignItems: 'center',
     },
     numberPadDisplayText: {
-        fontSize: 32,
+        fontSize: 20,
         fontWeight: '700',
         color: AppColors.orange,
+
     },
     numberPadGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
+        justifyContent: 'center',
         marginBottom: 16,
     },
     numberPadButton: {
-        width: '33.33%',
+        width: '25%',
         aspectRatio: 1,
         backgroundColor: AppColors.black,
         justifyContent: 'center',
@@ -821,7 +826,7 @@ const styles = StyleSheet.create({
         borderColor: AppColors.orange,
     },
     numberPadButtonText: {
-        fontSize: 20,
+        fontSize: 18,
         fontWeight: '700',
         color: AppColors.orange,
     },
@@ -834,7 +839,7 @@ const styles = StyleSheet.create({
     },
     numberPadActionButton: {
         flex: 1,
-        paddingVertical: 12,
+        padding: 10,
         borderRadius: 12,
         alignItems: 'center',
     },
@@ -845,6 +850,8 @@ const styles = StyleSheet.create({
     },
     numberPadConfirmButton: {
         backgroundColor: AppColors.orange,
+        borderWidth: 1.5,
+        borderColor: AppColors.orange,
     },
     numberPadActionButtonText: {
         fontSize: 16,
