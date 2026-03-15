@@ -4,6 +4,7 @@ import {
     register,
     login,
     refresh,
+    logout,
     googleAuth,
     registerGoogle,
     checkEmailExists,
@@ -25,6 +26,7 @@ const router = Router();
 router.post('/register', validate(registerSchema), register);
 router.post('/login', validate(loginSchema), login);
 router.post('/refresh', validate(refreshTokenSchema), refresh);
+router.post('/logout', validate(refreshTokenSchema), logout);
 
 // Google Auth
 router.post('/google', validate(googleAuthSchema), googleAuth);

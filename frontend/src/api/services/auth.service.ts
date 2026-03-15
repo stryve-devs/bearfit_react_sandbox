@@ -26,7 +26,14 @@ export const authService = {
     },
 
     async logout(): Promise<void> {
-        await AsyncStorage.multiRemove(['accessToken', 'refreshToken', 'user']);
+        try {
+            const refreshToken = await AsyncStorage.getItem('refreshToken');
+            if (refreshToken) {
+                await api.post('/auth/logout', { refreshToken });
+            }
+        } finally {
+            await AsyncStorage.multiRemove(['accessToken', 'refreshToken', 'user']);
+        }
     },
 
     async getUser(): Promise<User | null> {

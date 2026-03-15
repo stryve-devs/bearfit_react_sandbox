@@ -239,3 +239,19 @@ export const googleSignIn = async (idToken: string, opts?: { username?: string; 
     },
   };
 };
+
+/* =======================
+   LOGOUT
+======================= */
+
+export const logoutUser = async (refreshToken: string) => {
+  if (!refreshToken) {
+    throw new Error('refreshToken is required');
+  }
+
+  // Revoke only the presented refresh token (single-device logout behavior).
+  await prisma.refresh_tokens.updateMany({
+    where: { token: refreshToken, revoked: false },
+    data: { revoked: true },
+  });
+};

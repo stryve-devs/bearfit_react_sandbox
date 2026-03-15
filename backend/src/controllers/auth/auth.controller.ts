@@ -4,6 +4,7 @@ import {
   loginUser,
   refreshAccessToken,
   googleSignIn,
+  logoutUser,
 } from "../../services/auth/auth.service";
 import {
   generateAccessToken,
@@ -259,5 +260,22 @@ export const verifyOtp = async (req: Request, res: Response) => {
     return res.status(200).json({ message: 'OTP verified' });
   } catch (error: any) {
     return res.status(500).json({ message: 'Failed to verify OTP' });
+  }
+};
+
+/* =======================
+   LOGOUT
+======================= */
+export const logout = async (req: Request, res: Response) => {
+  try {
+    const { refreshToken } = req.body;
+    if (!refreshToken) {
+      return res.status(400).json({ message: "refreshToken is required" });
+    }
+
+    await logoutUser(refreshToken);
+    return res.status(200).json({ message: "Logout successful" });
+  } catch (error: any) {
+    return res.status(400).json({ message: error.message || "Logout failed" });
   }
 };
