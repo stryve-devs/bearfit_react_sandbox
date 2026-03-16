@@ -1,17 +1,18 @@
 import { Stack } from 'expo-router';
 import React from "react";
 
-export default function AccountLayout() {
+export default function AccountSettingsLayout() {
     return (
-        <Stack screenOptions={{
-            headerShown: true, // This is the ONLY one that should be true
-            headerStyle: { backgroundColor: '#000' },
-            headerTintColor: '#ff9d00',
-
-            headerShadowVisible: false
-        }}>
-            <Stack.Screen name="index" options={{ title:null }} />
-            <Stack.Screen name="change-email" options={{ title: null}} />
+        <Stack
+            screenOptions={{
+                headerShown: false,            // No Stack header on any screen
+            }}
+        >
+            <Stack.Screen name="index"           options={{ headerShown: false }} />
+            <Stack.Screen name="change-email"    options={{ headerShown: false }} />
+            <Stack.Screen name="change-username" options={{ headerShown: false }} />
+            <Stack.Screen name="update-password" options={{ headerShown: false }} />
+            <Stack.Screen name="delete-acc"      options={{ headerShown: false }} />
         </Stack>
     );
 }

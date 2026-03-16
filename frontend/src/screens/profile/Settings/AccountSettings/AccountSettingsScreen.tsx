@@ -1,77 +1,102 @@
 import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView } from "react-native";
 import { useRouter } from "expo-router";
 import { Feather, MaterialIcons } from "@expo/vector-icons";
 
-export default function AccountSettingsScreen() {
-    const router = useRouter();
+const ORANGE = "#ff7a00";
+const DANGER = "#ff3b30";
 
-    const Row = ({ icon, text, path, danger = false }: any) => (
+type RowProps = {
+    icon: React.ReactNode;
+    text: string;
+    path: string;
+    danger?: boolean;
+};
+
+function Row({ icon, text, path, danger = false }: RowProps) {
+    const router = useRouter();
+    return (
         <TouchableOpacity
             style={styles.row}
-            onPress={() => router.push(path)}
+            onPress={() => router.push(path as any)}
             activeOpacity={0.7}
         >
             <View style={styles.left}>
                 {icon}
-                <Text style={[styles.text, danger && { color: "#f1610d" }]}>{text}</Text>
+                <Text style={[styles.text, danger && styles.dangerText]}>{text}</Text>
             </View>
-            <Feather name="chevron-right" size={20} color="#888" />
+            <Feather name="chevron-right" size={20} color="#555" />
         </TouchableOpacity>
     );
+}
+
+export default function AccountSettingsScreen() {
+    const router = useRouter();
 
     return (
-        <View style={styles.container}>
+        <SafeAreaView style={styles.safe}>
+
+            {/* Single custom header */}
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => router.back()}>
+                <TouchableOpacity
+                    onPress={() => router.back()}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                    <Feather name="chevron-left" size={26} color="#fff" />
                 </TouchableOpacity>
+                <Text style={styles.headerTitle}>Account Settings</Text>
+                <View style={{ width: 26 }} />
             </View>
 
-            <Row
-                icon={<Feather name="user" size={20} color="#ff9d00" />}
-                text="Change Username"
-                path="/Profile/Settings/AccountSettings/change-username"
-            />
-
-            <Row
-                icon={<MaterialIcons name="email" size={20} color="#ff9d00" />}
-                text="Change Email"
-                path="/Profile/Settings/AccountSettings/change-email"
-            />
-
-            <Row
-                icon={<Feather name="lock" size={20} color="#ff9d00" />}
-                text="Update Password"
-                path="/Profile/Settings/AccountSettings/update-password"
-            />
-
-            <Row
-                icon={<MaterialIcons name="delete" size={20} color="#ff3b30" />}
-                text="Delete Account"
-                path="/Profile/Settings/AccountSettings/delete-acc"
-                danger
-            />
-        </View>
+            <View style={styles.container}>
+                <Row
+                    icon={<Feather name="user" size={20} color={ORANGE} />}
+                    text="Change Username"
+                    path="/Profile/Settings/AccountSettings/change-username"
+                />
+                <Row
+                    icon={<MaterialIcons name="email" size={20} color={ORANGE} />}
+                    text="Change Email"
+                    path="/Profile/Settings/AccountSettings/change-email"
+                />
+                <Row
+                    icon={<Feather name="lock" size={20} color={ORANGE} />}
+                    text="Update Password"
+                    path="/Profile/Settings/AccountSettings/update-password"
+                />
+                <Row
+                    icon={<MaterialIcons name="delete" size={20} color={DANGER} />}
+                    text="Delete Account"
+                    path="/Profile/Settings/AccountSettings/delete-acc"
+                    danger
+                />
+            </View>
+        </SafeAreaView>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
+    safe: {
         flex: 1,
         backgroundColor: "#000",
-        padding: 20
     },
     header: {
         flexDirection: "row",
-        justifyContent: "space-between",
         alignItems: "center",
-        marginBottom: 30,
-        marginTop: 10
+        justifyContent: "space-between",
+        paddingHorizontal: 16,
+        paddingVertical: 14,
+        backgroundColor: "#000",
     },
-    title: {
-        color: "#fff",
-        fontSize: 20,
-        fontWeight: "600"
+    headerTitle: {
+        color: ORANGE,
+        fontSize: 18,
+        fontWeight: "600",
+    },
+    container: {
+        flex: 1,
+        padding: 16,
+        paddingTop: 8,
     },
     row: {
         backgroundColor: "#1c1c1e",
@@ -80,15 +105,18 @@ const styles = StyleSheet.create({
         marginBottom: 12,
         flexDirection: "row",
         justifyContent: "space-between",
-        alignItems: "center"
+        alignItems: "center",
     },
     left: {
         flexDirection: "row",
         alignItems: "center",
-        gap: 15
+        gap: 15,
     },
     text: {
         color: "#fff",
-        fontSize: 16
-    }
+        fontSize: 16,
+    },
+    dangerText: {
+        color: DANGER,
+    },
 });

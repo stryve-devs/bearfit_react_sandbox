@@ -1,83 +1,112 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert } from "react-native";
-import { useRouter } from "expo-router"; // Switch to Expo Router
+import {
+    View,
+    Text,
+    StyleSheet,
+    TextInput,
+    TouchableOpacity,
+    Alert,
+    SafeAreaView,
+} from "react-native";
+import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 
+const ORANGE = "#ff7a00";
+
 export default function ChangeUsernameScreen() {
-    const router = useRouter(); // Use the router hook
+    const router = useRouter();
     const [username, setUsername] = useState("");
 
     const handleUpdate = () => {
-        if (username.length < 3) {
-            Alert.alert("Error", "Username must be at least 3 characters");
+        if (username.trim().length < 3) {
+            Alert.alert("Error", "Username must be at least 3 characters.");
             return;
         }
-        // Logic to update username would go here
-        Alert.alert("Success", "Username updated to " + username);
-        router.back(); // Navigate back to Account Settings
+        Alert.alert("Success", `Username updated to "${username}".`, [
+            { text: "OK", onPress: () => router.back() },
+        ]);
     };
 
     return (
-        <View style={styles.container}>
-            <View style={styles.header}>
-                {/* router.back() is safer for Expo Router file stacks */}
-                <TouchableOpacity onPress={() => router.back()}>
-                    <Feather name="arrow-left" size={24} color="#ff9d00" />
+        <SafeAreaView style={styles.safe}>
+            <View style={styles.container}>
+                {/* Single custom header */}
+                <View style={styles.header}>
+                    <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                        <Feather name="arrow-left" size={24} color={ORANGE} />
+                    </TouchableOpacity>
+                    <Text style={styles.title}>Change Username</Text>
+                    <View style={{ width: 24 }} />
+                </View>
+
+                <Text style={styles.label}>Username</Text>
+                <TextInput
+                    style={styles.input}
+                    placeholder="Enter new username"
+                    placeholderTextColor="#555"
+                    value={username}
+                    onChangeText={setUsername}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    maxLength={20}
+                    returnKeyType="done"
+                    onSubmitEditing={handleUpdate}
+                />
+
+                <TouchableOpacity style={styles.button} onPress={handleUpdate} activeOpacity={0.8}>
+                    <Text style={styles.buttonText}>Update</Text>
                 </TouchableOpacity>
-                <Text style={styles.title}>Change Username</Text>
-                <View style={{ width: 24 }} />
             </View>
-
-            <Text style={styles.label}>Username</Text>
-
-            <TextInput
-                style={styles.input}
-                placeholder="lenajzh" // Based on your previous screen
-                placeholderTextColor="#777"
-                value={username}
-                onChangeText={setUsername}
-                autoCapitalize="none" // Standard for usernames
-                autoCorrect={false}
-                maxLength={20}
-            />
-
-            <TouchableOpacity
-                style={styles.button}
-                onPress={handleUpdate}
-            >
-                <Text style={styles.buttonText}>Update</Text>
-            </TouchableOpacity>
-        </View>
+        </SafeAreaView>
     );
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: "#000", padding: 20 },
+    safe: {
+        flex: 1,
+        backgroundColor: "#000",
+    },
+    container: {
+        flex: 1,
+        padding: 20,
+    },
     header: {
         flexDirection: "row",
         justifyContent: "space-between",
         alignItems: "center",
-        marginBottom: 30
+        marginBottom: 36,
+        marginTop: 8,
     },
-    title: { color: "#fff", fontSize: 22 },
-    label: { color: "#ff9d00", marginBottom: 10 },
+    title: {
+        color: "#fff",
+        fontSize: 20,
+        fontWeight: "600",
+    },
+    label: {
+        color: ORANGE,
+        marginBottom: 10,
+        fontSize: 14,
+        fontWeight: "500",
+    },
     input: {
         borderBottomWidth: 1,
-        borderBottomColor: "#666",
+        borderBottomColor: "#444",
         color: "#fff",
         marginBottom: 40,
-        paddingVertical: 8,
-        fontSize: 16
+        paddingVertical: 10,
+        fontSize: 16,
     },
     button: {
-        backgroundColor: "#333",
+        backgroundColor: "#1a1a1a",
         padding: 18,
         borderRadius: 30,
-        alignItems: "center"
+        alignItems: "center",
+        borderWidth: 1,
+        borderColor: "#2e2e2e",
     },
     buttonText: {
-        color: "#ff9d00",
+        color: ORANGE,
         fontSize: 18,
-        fontWeight: "600"
-    }
+        fontWeight: "700",
+    },
 });
