@@ -1,20 +1,24 @@
-import { Tabs } from 'expo-router';
+import { Tabs, useRouter, usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { AppColors } from '../../src/constants/colors';
+import { useEffect } from 'react';
 
 export default function TabLayout() {
+    const router = useRouter();
+    const pathname = usePathname();
+
+    useEffect(() => {
+        if (pathname === '/(tabs)') {
+            router.replace('/(tabs)/home');
+        }
+    }, [pathname]);
+
     return (
         <Tabs
+            // start on the home tab and don't render a separate header at the tab level
+            initialRouteName="home"
             screenOptions={{
-                headerStyle: {
-                    backgroundColor: AppColors.black,
-                },
-                headerTintColor: AppColors.white,
-                headerTitleStyle: {
-                    color: AppColors.orange,
-                    fontWeight: '600',
-                },
-                headerShadowVisible: false,
+                headerShown: false,
                 tabBarStyle: {
                     backgroundColor: AppColors.black,
                     borderTopColor: AppColors.darkGrey,
@@ -26,6 +30,14 @@ export default function TabLayout() {
             <Tabs.Screen
                 name="index"
                 options={{
+                    headerShown: false,
+                    href: null,
+                }}
+            />
+            <Tabs.Screen
+                name="home"
+                options={{
+                    headerShown: false,
                     title: 'Home',
                     tabBarIcon: ({ color, size }) => (
                         <Ionicons name="home" size={size} color={color} />
@@ -33,7 +45,7 @@ export default function TabLayout() {
                 }}
             />
             <Tabs.Screen
-                name="workouts"
+                name="workout"
                 options={{
                     title: 'Workouts',
                     tabBarIcon: ({ color, size }) => (
@@ -42,7 +54,7 @@ export default function TabLayout() {
                 }}
             />
             <Tabs.Screen
-                name="profile"
+                name="Profile"
                 options={{
                     title: 'Profile',
                     tabBarIcon: ({ color, size }) => (
