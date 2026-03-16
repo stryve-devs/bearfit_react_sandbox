@@ -27,21 +27,20 @@ export default function ProfileScreen() {
 
                 <View style={styles.topIconRow}>
                     <TouchableOpacity onPress={() => router.push("/Profile/edit-profile")}>
-                        <Ionicons name="pencil-outline" size={22} color="white" />
+                        <Ionicons name="pencil-outline" size={26} color="white" />
                     </TouchableOpacity>
 
                     <TouchableOpacity
                         style={{ marginLeft: 20 }}
                         onPress={() => alert("Share pressed")}
                     >
-                        <Ionicons name="share-social-outline" size={22} color="white" />
+                        <Ionicons name="share-social-outline" size={26} color="white" />
                     </TouchableOpacity>
 
                     <TouchableOpacity
                         style={{ marginLeft: 20 }}
-                        onPress={() => alert("Settings pressed")}
-                    >
-                        <Ionicons name="settings-outline" size={22} color="white" />
+                        onPress={() => router.push('/Profile/Settings')}>
+                        <Ionicons name="settings-outline" size={26} color="white" />
                     </TouchableOpacity>
                 </View>
             </View>
