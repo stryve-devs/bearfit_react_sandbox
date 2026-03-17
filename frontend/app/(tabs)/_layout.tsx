@@ -2,6 +2,7 @@ import { Tabs, useRouter, usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { AppColors } from '../../src/constants/colors';
 import { useEffect } from 'react';
+import React from "react";
 
 export default function TabLayout() {
     const router = useRouter();

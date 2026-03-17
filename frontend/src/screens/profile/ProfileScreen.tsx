@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
     View,
     Text,
@@ -6,328 +6,246 @@ import {
     Image,
     TouchableOpacity,
     ScrollView,
+    Animated,
+    Easing,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 
-export default function ProfileScreen() {
-    const router = useRouter();
-    const [selectedTab, setSelectedTab] = useState<
-        "Duration" | "Volume" | "Reps"
-    >("Duration");
+const ORANGE = "#FF7825";
+
+// ─── Conic Spin Component (Tailwind Logic) ──────────────────────────────────
+const GlowingCard = ({ children, containerStyle }: any) => {
+    const rotateAnim = useRef(new Animated.Value(0)).current;
+
+    useEffect(() => {
+        Animated.loop(
+            Animated.timing(rotateAnim, {
+                toValue: 1,
+                duration: 9000,
+                easing: Easing.linear, // Changed to linear for consistent spin speed
+                useNativeDriver: true,
+            })
+        ).start();
+    }, []);
+
+    const rotate = rotateAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: ["0deg", "360deg"],
+    });
 
     return (
-        <ScrollView
-            style={styles.container}
-            contentContainerStyle={{ paddingBottom: 40 }}
-        >
-            {/* ===== TOP USER HEADER ===== */}
-            <View style={styles.topHeader}>
-                <Text style={styles.topName}>Arthika</Text>
-
-                <View style={styles.topIconRow}>
-                    <TouchableOpacity onPress={() => router.push("/Profile/edit-profile")}>
-                        <Ionicons name="pencil-outline" size={26} color="white" />
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={{ marginLeft: 20 }}
-                        onPress={() => alert("Share pressed")}
-                    >
-                        <Ionicons name="share-social-outline" size={26} color="white" />
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={{ marginLeft: 20 }}
-                        onPress={() => router.push('/Profile/Settings')}>
-                        <Ionicons name="settings-outline" size={26} color="white" />
-                    </TouchableOpacity>
-                </View>
+        <View style={[styles.glowContainer, containerStyle]}>
+            <Animated.View style={[styles.gradientLayer, { transform: [{ rotate }] }]}>
+                <View style={styles.conicBeam} />
+            </Animated.View>
+            <View style={styles.innerCard}>
+                {children}
             </View>
+        </View>
+    );
+};
 
-            {/* ===== PROFILE INFO SECTION ===== */}
-            <View style={styles.profileInfoRow}>
-                <Image
-                    source={{ uri: "https://i.pravatar.cc/150" }}
-                    style={styles.largeAvatar}
-                />
+export default function ProfileScreen() {
+    const router = useRouter();
+    const [selectedTab, setSelectedTab] = useState<"Duration" | "Volume" | "Reps">("Duration");
 
-                <View style={styles.userInfoColumn}>
-                    <Text style={styles.username}>Arthika</Text>
+    return (
+        <SafeAreaView style={styles.safe}>
+            <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
 
-                    <View style={styles.statsRow}>
-                        <View style={styles.statBlock}>
-                            <Text style={styles.statNumber}>0</Text>
-                            <Text style={styles.statLabel}>Workouts</Text>
-                        </View>
+                {/* Header */}
+                <View style={styles.topHeader}>
+                    <Text style={styles.topName}>Arthika</Text>
+                    <View style={styles.topIconRow}>
+                        <TouchableOpacity onPress={() => router.push("/Profile/edit-profile")}>
+                            <Ionicons name="pencil-outline" size={26} color="white" />
+                        </TouchableOpacity>
+                        <TouchableOpacity style={{ marginLeft: 20 }}><Ionicons name="share-social-outline" size={26} color="white" /></TouchableOpacity>
+                        <TouchableOpacity style={{ marginLeft: 20 }} onPress={() => router.push('/Profile/Settings')}><Ionicons name="settings-outline" size={26} color="white" /></TouchableOpacity>
+                    </View>
+                </View>
 
-                        <View style={styles.statBlock}>
-                            <Text style={styles.statNumber}>0</Text>
-                            <Text style={styles.statLabel}>Followers</Text>
-                        </View>
-
-                        <View style={styles.statBlock}>
-                            <Text style={styles.statNumber}>0</Text>
-                            <Text style={styles.statLabel}>Following</Text>
+                {/* Profile Info */}
+                <View style={styles.profileInfoRow}>
+                    <Image source={{ uri: "https://i.pravatar.cc/150" }} style={styles.largeAvatar} />
+                    <View style={styles.userInfoColumn}>
+                        <Text style={styles.username}>Arthika</Text>
+                        <View style={styles.statsRow}>
+                            <StatBlock num="12" label="Workouts" />
+                            <StatBlock num="240" label="Followers" />
+                            <StatBlock num="180" label="Following" />
                         </View>
                     </View>
                 </View>
-            </View>
 
-            {/* ===== GRAPH CARD ===== */}
-            <View style={styles.graphCard}>
-                <MaterialCommunityIcons name="chart-bar" size={40} color="#aaa" />
-                <Text style={styles.noData}>No data yet</Text>
-            </View>
+                {/* ===== RESTORED: GRAPH CARD (No data yet) ===== */}
+                <View style={styles.standardCard}>
+                    <View style={styles.cardContent}>
+                        <MaterialCommunityIcons name="chart-bar" size={40} color="#333" />
+                        <Text style={styles.noData}>No data yet</Text>
+                    </View>
+                </View>
 
-            {/* ===== TOGGLE BUTTONS ===== */}
-            <View style={styles.toggleRow}>
-                {["Duration", "Volume", "Reps"].map((item) => (
-                    <TouchableOpacity
-                        key={item}
-                        style={[
-                            styles.toggleButton,
-                            selectedTab === item && styles.activeToggle,
-                        ]}
-                        onPress={() => setSelectedTab(item as any)}
-                    >
-                        <Text
+                {/* ===== RESTORED: TOGGLE BUTTONS ===== */}
+                <View style={styles.toggleRow}>
+                    {["Duration", "Volume", "Reps"].map((item) => (
+                        <TouchableOpacity
+                            key={item}
                             style={[
-                                styles.toggleText,
-                                selectedTab === item && styles.activeToggleText,
+                                styles.toggleButton,
+                                selectedTab === item && styles.activeToggle,
                             ]}
+                            onPress={() => setSelectedTab(item as any)}
                         >
-                            {item}
-                        </Text>
-                    </TouchableOpacity>
-                ))}
-            </View>
+                            <Text
+                                style={[
+                                    styles.toggleText,
+                                    selectedTab === item && styles.activeToggleText,
+                                ]}
+                            >
+                                {item}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+                </View>
 
-            {/* ===== DASHBOARD ===== */}
-            <Text style={styles.sectionTitle}>Dashboard</Text>
+                {/* Dashboard Grid */}
+                <Text style={styles.sectionTitle}>Dashboard</Text>
+                <View style={styles.dashboardGrid}>
+                    <DashboardButton icon="chart-line" label="Statistics" />
+                    <DashboardButton icon="dumbbell" label="Exercises" />
+                    <DashboardButton icon="human-male-height" label="Measures" />
+                    <DashboardButton icon="calendar" label="Calendar" />
+                </View>
 
-            <View style={styles.dashboardGrid}>
-                <DashboardButton
-                    icon="chart-line"
-                    label="Statistics"
-                    onPress={() => alert("Statistics")}
-                />
+                {/* Workouts */}
+                <Text style={styles.sectionTitle}>Recent Sessions</Text>
+                <View style={styles.standardCard}>
+                    <View style={styles.cardContent}>
+                        <MaterialCommunityIcons name="dumbbell" size={40} color="#333" />
+                        <Text style={styles.noData}>No recent workouts</Text>
+                    </View>
+                </View>
 
-                <DashboardButton
-                    icon="dumbbell"
-                    label="Exercises"
-                    onPress={() => alert("Exercises")}
-                />
+                {/* Start Tracking */}
+                <TouchableOpacity style={styles.startTracking}>
+                    <Text style={styles.startText}>Start tracking here</Text>
+                    <Ionicons name="chevron-down" size={18} color={ORANGE} />
+                </TouchableOpacity>
 
-                <DashboardButton
-                    icon="human-male-height"
-                    label="Measures"
-                    onPress={() => alert("Measures")}
-                />
-
-                <DashboardButton
-                    icon="calendar"
-                    label="Calendar"
-                    onPress={() => alert("Calendar")}
-                />
-            </View>
-
-            {/* ===== WORKOUTS ===== */}
-            <Text style={styles.sectionTitle}>Workouts</Text>
-
-            <View style={styles.workoutCard}>
-                <MaterialCommunityIcons name="dumbbell" size={40} color="#aaa" />
-                <Text style={styles.noWorkout}>No Workout</Text>
-            </View>
-
-            <TouchableOpacity
-                style={styles.startTracking}
-                onPress={() => alert("Start Tracking")}
-            >
-                <Text style={styles.startText}>Start tracking here</Text>
-                <Ionicons name="chevron-down" size={18} color="#FF7825" />
-            </TouchableOpacity>
-        </ScrollView>
+            </ScrollView>
+        </SafeAreaView>
     );
 }
 
-function DashboardButton({
-                             icon,
-                             label,
-                             onPress,
-                         }: {
-    icon: any;
-    label: string;
-    onPress: () => void;
-}) {
-    return (
-        <TouchableOpacity style={styles.dashboardButton} onPress={onPress}>
-            <MaterialCommunityIcons name={icon} size={22} color="white" />
-            <Text style={styles.dashboardText}>{label}</Text>
-        </TouchableOpacity>
-    );
-}
+// ─── Styles & Helpers ────────────────────────────────────────────────────────
+
+const StatBlock = ({ num, label }: any) => (
+    <View style={styles.statBlock}><Text style={styles.statNumber}>{num}</Text><Text style={styles.statLabel}>{label}</Text></View>
+);
+
+const DashboardButton = ({ icon, label }: any) => (
+    <GlowingCard containerStyle={styles.dashWrapper}>
+        <View style={styles.dashContent}>
+            <View style={styles.iconCircle}><MaterialCommunityIcons name={icon} size={20} color="white" /></View>
+            <Text style={styles.dashText}>{label}</Text>
+        </View>
+    </GlowingCard>
+);
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: "#000",
-        padding: 16,
-    },
+    safe: { flex: 1, backgroundColor: "#000" },
+    container: { flex: 1, paddingHorizontal: 16 },
 
-    /* ===== TOP HEADER ===== */
-    topHeader: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "center",
-        marginBottom: 20,
-    },
+    // Header & Info
+    topHeader: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 10 },
+    topName: { color: "white", fontSize: 24, fontWeight: "bold" },
+    topIconRow: { flexDirection: "row", alignItems: "center" },
+    profileInfoRow: { flexDirection: "row", alignItems: "center", marginVertical: 20 },
+    largeAvatar: { width: 84, height: 84, borderRadius: 42, marginRight: 20, backgroundColor: "#222" },
+    userInfoColumn: { flex: 1 },
+    username: { color: "white", fontSize: 18, fontWeight: "700", marginBottom: 10 },
+    statsRow: { flexDirection: "row", justifyContent: "space-between" },
+    statBlock: { alignItems: "center" },
+    statNumber: { color: ORANGE, fontSize: 16, fontWeight: "bold" },
+    statLabel: { color: "#888", fontSize: 12 },
 
-    topName: {
-        color: "white",
-        fontSize: 22,
-        fontWeight: "bold",
-    },
-
-    topIconRow: {
-        flexDirection: "row",
-        alignItems: "center",
-    },
-
-    /* ===== PROFILE INFO ===== */
-    profileInfoRow: {
-        flexDirection: "row",
-        alignItems: "center",
-        marginBottom: 20,
-    },
-
-    largeAvatar: {
-        width: 90,
-        height: 90,
-        borderRadius: 45,
-        marginRight: 20,
-    },
-
-    userInfoColumn: {
-        flex: 1,
-    },
-
-    username: {
-        color: "white",
-        fontSize: 18,
-        fontWeight: "600",
-        marginBottom: 10,
-    },
-
-    statsRow: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-    },
-
-    statBlock: {
-        alignItems: "center",
-    },
-
-    statNumber: {
-        color: "#FF7825",
-        fontSize: 16,
-        fontWeight: "bold",
-    },
-
-    statLabel: {
-        color: "#aaa",
-        fontSize: 12,
-        marginTop: 4,
-    },
-
-    graphCard: {
-        backgroundColor: "#222",
+    // THE TAILWIND REPLICA GLOW
+    glowContainer: {
         borderRadius: 16,
-        padding: 30,
-        alignItems: "center",
-        marginBottom: 20,
+        overflow: "hidden",
+        padding: 2.0,
+        backgroundColor: "#111"
+    },
+    gradientLayer: {
+        position: "absolute",
+        width: "200%",
+        height: "200%",
+        top: "-50%",
+        left: "-50%",
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    conicBeam: {
+        width: '45%',
+        height: '150%',
+        backgroundColor: ORANGE,
+        opacity: 0.5,
+        shadowColor: ORANGE,
+        shadowOffset: { width: 0, height: 0},
+        shadowOpacity: 1,
+        shadowRadius: 15,
+        elevation: 15,
+    },
+    innerCard: {
+        backgroundColor: "#080808",
+        borderRadius: 15,
+        overflow: "hidden"
     },
 
-    noData: {
-        color: "#aaa",
-        marginTop: 10,
-    },
-
+    // Toggle Buttons
     toggleRow: {
         flexDirection: "row",
         justifyContent: "space-between",
-        marginBottom: 20,
+        marginVertical: 20,
     },
-
     toggleButton: {
         flex: 1,
-        backgroundColor: "#333",
+        backgroundColor: "#111",
         paddingVertical: 10,
         marginHorizontal: 4,
         borderRadius: 20,
         alignItems: "center",
+        borderWidth: 1,
+        borderColor: "#222"
     },
-
     activeToggle: {
-        backgroundColor: "#FF7825",
+        backgroundColor: ORANGE,
+        borderColor: ORANGE,
     },
-
     toggleText: {
         color: "#aaa",
+        fontSize: 13,
     },
-
     activeToggleText: {
         color: "white",
         fontWeight: "bold",
     },
 
-    sectionTitle: {
-        color: "white",
-        fontSize: 16,
-        marginBottom: 12,
-    },
+    // Dashboard Grid
+    dashboardGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },
+    dashWrapper: { width: "48.5%", marginBottom: 18, },
+    dashContent: { flexDirection: "row", alignItems: "center", padding: 26 },
+    iconCircle: { width: 32, height: 32, borderRadius: 16, backgroundColor: "#151515", justifyContent: "center", alignItems: "center", marginRight: 10 },
+    dashText: { color: "white", fontSize: 14, fontWeight: "500" },
 
-    dashboardGrid: {
-        flexDirection: "row",
-        flexWrap: "wrap",
-        justifyContent: "space-between",
-    },
-
-    dashboardButton: {
-        width: "48%",
-        backgroundColor: "#222",
-        padding: 18,
-        borderRadius: 16,
-        marginBottom: 14,
-        alignItems: "center",
-    },
-
-    dashboardText: {
-        color: "white",
-        marginTop: 6,
-    },
-
-    workoutCard: {
-        backgroundColor: "#222",
-        borderRadius: 16,
-        padding: 36,
-        alignItems: "center",
-    },
-
-    noWorkout: {
-        color: "#aaa",
-        marginTop: 8,
-    },
-
-    startTracking: {
-        marginTop: 20,
-        alignItems: "center",
-        flexDirection: "row",
-        justifyContent: "center",
-    },
-
-    startText: {
-        color: "#FF7825",
-        marginRight: 4,
-    },
+    // Misc
+    sectionTitle: { color: "white", fontSize: 17, fontWeight: "700", marginTop: 8, marginBottom: 16 },
+    standardCard: { backgroundColor: "#080808", borderRadius: 16, borderWidth: 1, borderColor: "#1a1a1a" },
+    cardContent: { paddingVertical: 40, alignItems: "center" },
+    noData: { color: "#555", marginTop: 10 },
+    startTracking: { marginTop: 24, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 4 },
+    startText: { color: ORANGE, fontSize: 15, fontWeight: "600" },
 });
