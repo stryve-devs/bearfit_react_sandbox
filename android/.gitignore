@@ -12,5 +12,7 @@ local.properties
 *.hprof
 .cxx/
 
+android/
+.expo/
 # Bundle artifacts
 *.jsbundle
