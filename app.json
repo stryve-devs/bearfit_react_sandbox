@@ -1,0 +1,12 @@
+{
+  "android": {
+    "package": "com.anonymous.bearfitmonorepo"
+  },
+  "ios": {
+    "bundleIdentifier": "com.anonymous.bearfitmonorepo"
+  },
+  "plugins": [
+    "expo-router",
+    "expo-font"
+  ]
+}
