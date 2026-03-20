@@ -485,7 +485,7 @@ const st = StyleSheet.create({
         borderWidth: 0.5, borderColor: "rgba(255,255,255,0.08)",
         borderRadius: 12, alignItems: "center", justifyContent: "center",
     },
-    headerTitle: { fontSize: 16, fontWeight: "600", color: "#f0ede8", letterSpacing: -0.2 },
+    headerTitle: { fontSize: 16, fontWeight: "600", color: "#e46011", letterSpacing: -0.2 },
     doneBtn: {
         backgroundColor: "rgba(255,122,0,0.15)",
         borderWidth: 0.5, borderColor: "rgba(255,122,0,0.3)",

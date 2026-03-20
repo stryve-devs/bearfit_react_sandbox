@@ -47,7 +47,6 @@ const DASH_ITEMS = [
 ] as const;
 
 // ─── AvatarRing ───────────────────────────────────────────────────────────────
-// ─── AvatarRing ───────────────────────────────────────────────────────────────
 function AvatarRing() {
     return (
         <View style={ringSt.container}>
