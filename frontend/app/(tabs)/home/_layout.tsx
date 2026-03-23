@@ -2,54 +2,28 @@ import { Stack } from 'expo-router';
 import { AppColors } from "../../../src/constants/colors";
 
 export default function HomeLayout() {
+    // Fallback colors in case AppColors is failing
+    const activeColors = {
+        black: AppColors?.black || '#000000',
+        white: AppColors?.white || '#ffffff',
+        orange: AppColors?.orange || '#cc5500',
+    };
+
     return (
         <Stack
             screenOptions={{
-                headerShown: false,
-                headerStyle: { backgroundColor: AppColors.black },
-                headerTintColor: AppColors.white,
-                headerTitleStyle: { color: AppColors.orange },
-                headerShadowVisible: false,
-                contentStyle: { backgroundColor: AppColors.black },
+                headerShown: false, // Keeping this false since your HomeScreen has its own header
+                contentStyle: { backgroundColor: activeColors.black },
+                animation: 'slide_from_right', // Smoother transition for BearFit
             }}
         >
-            <Stack.Screen
-                name="index"
-                options={{ title: 'Home' }}
-            />
-
-            <Stack.Screen
-                name="explore"
-                options={{ title: 'Explore' }}
-            />
-
-
-            <Stack.Screen
-                name="discover"
-                options={{ title: 'Discover' }}
-            />
-
-            <Stack.Screen
-            name="post-detail"
-            options={{ title: "Post Detail" }}
-             />
-
-            <Stack.Screen
-                name="home17"
-                options={{ title: "Media" }}
-            />
-
-            {/* ✅ Added for Contacts */}
-            <Stack.Screen
-                name="contacts"
-                options={{ title: 'Contacts' }}
-            />
-
-            {/* ✅ Added for Notifications */}
-            <Stack.Screen
-                name="notifications"
-                options={{ title: 'Notifications' }}
-            />
+            <Stack.Screen name="index" />
+            <Stack.Screen name="explore" />
+            <Stack.Screen name="discover" />
+            <Stack.Screen name="post-detail" />
+            <Stack.Screen name="home17" />
+            <Stack.Screen name="contacts" />
+            <Stack.Screen name="notifications" />
         </Stack>
     );
 }

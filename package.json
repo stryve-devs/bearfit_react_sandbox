@@ -11,5 +11,11 @@
     "install-all": "npm install",
     "be:prisma": "npm run prisma:generate -w backend",
     "fe:start": "npm start -w frontend"
+  },
+  "dependencies": {
+    "expo-linear-gradient": "~14.0.2"
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.10"
   }
 }
