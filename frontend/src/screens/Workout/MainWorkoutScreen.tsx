@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { AppColors } from '../../constants/colors';
 import { Ionicons } from '@expo/vector-icons';
+import { GlassButton } from '../../components/workout/glass';
+import * as Haptics from 'expo-haptics';
 
 export default function MainWorkoutScreen() {
     const router = useRouter();
@@ -20,7 +23,7 @@ export default function MainWorkoutScreen() {
     };
 
     return (
-        <View style={styles.container}>
+        <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
             <ScrollView
                 style={styles.scrollView}
                 contentContainerStyle={styles.scrollContent}
@@ -80,7 +83,7 @@ export default function MainWorkoutScreen() {
 
                 <View style={styles.largeSpacing} />
             </ScrollView>
-        </View>
+        </SafeAreaView>
     );
 }
 

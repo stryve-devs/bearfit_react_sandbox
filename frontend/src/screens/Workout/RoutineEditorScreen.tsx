@@ -274,7 +274,7 @@ function TargetCard({ target, index, onTargetChange, onRemove }: any) {
 
             {/* Rest Selector */}
             <View style={styles.restSelector}>
-                <Ionicons name="timer" size={18} color={AppColors.orange} />
+                <Ionicons name="timer-outline" size={18} color={AppColors.orange} />
                 <TouchableOpacity
                     style={styles.restSelectorButton}
                     onPress={() => setRestPickerVisible(true)}
