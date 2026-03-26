@@ -1,37 +1,29 @@
 import React from "react";
-import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { createStackNavigator } from "@react-navigation/stack";
 
+// Screens
 import SettingsScreen from "./SettingsScreen";
-import ProfileScreen from "./Profile/ProfileScreen";
-import AccountSettingsScreen from "./AccountSettings/AccountSettingsScreen";
-import ChangeUsernameScreen from "./AccountSettings/ChangeUsernameScreen";
+import AccountSettingsScreen from "./AccountSettings/AccountScreen";
 import ChangeEmailScreen from "./AccountSettings/ChangeEmailScreen";
+import ChangeUsernameScreen from "./AccountSettings/ChangeUsernameScreen";
 import UpdatePasswordScreen from "./AccountSettings/UpdatePasswordScreen";
 import DeleteAccountScreen from "./AccountSettings/DeleteAccountScreen";
-import NotificationsScreen from "./Notifications/NotificationsScreen";
 
-const Stack = createNativeStackNavigator();
+const Stack = createStackNavigator();
 
 export default function SettingsNavigator() {
-
     return (
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="SettingsHome" component={SettingsScreen} />
+            <Stack.Screen name="Profile" component={ProfileScreen} />
+            <Stack.Screen name="AccountSettings" component={AccountScreen} />
+            <Stack.Screen name="Notifications" component={NotificationsScreen} />
 
-        <Stack.Navigator screenOptions={{ headerShown:false }}>
 
-            <Stack.Screen name="Settings" component={SettingsScreen}/>
-            <Stack.Navigator>
-                <Stack.Screen name="Settings" component={SettingsScreen} />
-                <Stack.Screen name="ProfileScreen" component={ProfileScreen} />
-            </Stack.Navigator>
-            <Stack.Screen name="AccountSettings" component={AccountSettingsScreen}/>
-            <Stack.Screen name="ChangeUsername" component={ChangeUsernameScreen}/>
-            <Stack.Screen name="ChangeEmail" component={ChangeEmailScreen}/>
-            <Stack.Screen name="UpdatePassword" component={UpdatePasswordScreen}/>
-            <Stack.Screen name="DeleteAccount" component={DeleteAccountScreen}/>
-            <Stack.Screen name="Notifications" component={NotificationsScreen}/>
-
+            <Stack.Screen name="ChangeEmail" component={ChangeEmailScreen} />
+            <Stack.Screen name="ChangeUsername" component={ChangeUsernameScreen} />
+            <Stack.Screen name="UpdatePassword" component={UpdatePasswordScreen} />
+            <Stack.Screen name="DeleteAccount" component={DeleteAccountScreen} />
         </Stack.Navigator>
-
     );
-
 }
