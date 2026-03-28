@@ -43,7 +43,13 @@ const DASH_ITEMS = [
     { label: "Statistics",    icon: "chart-line",        startOffset: 0    },
     { label: "Exercises",     icon: "dumbbell",          startOffset: 0.33 },
     { label: "Measures",      icon: "human-male-height", startOffset: 0.17 },
-    { label: "Calendar",      icon: "calendar",          startOffset: 0.56 },
+    {
+        label: "Calendar",
+        icon: "calendar",
+        startOffset: 0.56,
+        sub: "",
+        route: "/Profile/calendar"
+    },
 ] as const;
 
 // ─── AvatarRing ───────────────────────────────────────────────────────────────
@@ -338,6 +344,11 @@ export default function ProfileScreen() {
                                 sub={item.sub}
                                 icon={item.icon}
                                 startOffset={item.startOffset}
+                                onPress={() => {
+                                    if (item.route) {
+                                        router.push(item.route);
+                                    }
+                                }}
                             />
                         ))}
                     </View>
