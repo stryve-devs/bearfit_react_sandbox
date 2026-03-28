@@ -1,22 +1,139 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+    View,
+    Text,
+    StyleSheet,
+    ScrollView,
+    Pressable,
+    Animated,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { AppColors } from '../../constants/colors';
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { GlassButton } from '../../components/workout/glass';
 import * as Haptics from 'expo-haptics';
+import AnimatedReanimated, {
+    FadeInDown,
+    FadeInUp,
+    useAnimatedStyle,
+    useSharedValue,
+    withSpring,
+    withTiming,
+} from 'react-native-reanimated';
+import { AppColors } from '../../constants/colors';
+
+const ReanimatedPressable =
+    AnimatedReanimated.createAnimatedComponent(Pressable);
+
+type GlassActionCardProps = {
+    title: string;
+    iconName: keyof typeof Ionicons.glyphMap;
+    onPress: () => void;
+    vertical?: boolean;
+    delay?: number;
+    style?: any;
+};
+
+function GlassActionCard({
+                             title,
+                             iconName,
+                             onPress,
+                             vertical = false,
+                             delay = 0,
+                             style,
+                         }: GlassActionCardProps) {
+    const scale = useSharedValue(1);
+    const glow = useSharedValue(0.22);
+
+    const animatedStyle = useAnimatedStyle(() => {
+        return {
+            transform: [{ scale: scale.value }],
+            opacity: withTiming(1, { duration: 250 }),
+            shadowOpacity: glow.value,
+        };
+    });
+
+    return (
+        <AnimatedReanimated.View
+            entering={FadeInDown.delay(delay).springify()}
+            style={[style]}
+        >
+            <ReanimatedPressable
+                onPressIn={() => {
+                    scale.value = withSpring(0.97);
+                    glow.value = withTiming(0.35, { duration: 160 });
+                }}
+                onPressOut={() => {
+                    scale.value = withSpring(1);
+                    glow.value = withTiming(0.22, { duration: 180 });
+                }}
+                onPress={onPress}
+                style={[animatedStyle]}
+            >
+                <BlurView intensity={28} tint="dark" style={styles.glassButtonOuter}>
+                    <LinearGradient
+                        colors={[
+                            'rgba(255,255,255,0.12)',
+                            'rgba(255,255,255,0.05)',
+                            'rgba(255,120,37,0.08)',
+                        ]}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.glassButtonInner}
+                    >
+
+                        <View
+                            style={[
+                                styles.buttonContent,
+                                vertical ? styles.buttonContentVertical : styles.buttonContentRow,
+                            ]}
+                        >
+                            {vertical ? (
+                                <>
+                                    <Text style={styles.glassButtonText}>{title}</Text>
+
+                                    <View style={styles.iconWrap}>
+                                        <LinearGradient
+                                            colors={['rgba(255,255,255,0.15)', 'rgba(255,120,37,0.12)']}
+                                            style={styles.iconGradient}
+                                        >
+                                            <Ionicons name={iconName} size={20} color={AppColors.white} />
+                                        </LinearGradient>
+                                    </View>
+                                </>
+                            ) : (
+                                <>
+                                    <View style={styles.iconWrap}>
+                                        <LinearGradient
+                                            colors={['rgba(255,255,255,0.15)', 'rgba(255,120,37,0.12)']}
+                                            style={styles.iconGradient}
+                                        >
+                                            <Ionicons name={iconName} size={20} color={AppColors.white} />
+                                        </LinearGradient>
+                                    </View>
+
+                                    <Text style={styles.glassButtonText}>{title}</Text>
+                                </>
+                            )}
+                        </View>
+
+                    </LinearGradient>
+                </BlurView>
+            </ReanimatedPressable>
+        </AnimatedReanimated.View>
+    );
+}
 
 export default function MainWorkoutScreen() {
     const router = useRouter();
-    const [navIndex, setNavIndex] = useState(1); // Workout active
+    const [navIndex, setNavIndex] = useState(1);
+
 
     const handleNavTap = (index: number) => {
         setNavIndex(index);
         if (index === 0) {
             router.push('/(tabs)');
-        } else if (index === 1) {
-            // Stay on Workout
         } else if (index === 2) {
             router.push('/(tabs)/profile');
         }
@@ -24,65 +141,78 @@ export default function MainWorkoutScreen() {
 
     return (
         <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
-            <ScrollView
-                style={styles.scrollView}
-                contentContainerStyle={styles.scrollContent}
-                showsVerticalScrollIndicator={false}
-            >
 
-                {/* Quick Start Section */}
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Quick Start</Text>
-                    <View style={styles.mediumSpacing} />
 
-                    {/* Add Exercise Button */}
-                    <TouchableOpacity
-                        style={styles.addExerciseButton}
-                        onPress={() => router.push('/(tabs)/Workout/log')}
-                        activeOpacity={0.7}
-                    >
-                        <Ionicons name="add" size={20} color={AppColors.white} />
-                        <Text style={styles.addExerciseText}>Start Empty Workout</Text>
-                    </TouchableOpacity>
-                </View>
 
-                <View style={styles.mediumSpacing} />
-
-                {/* Routines Section */}
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Routines</Text>
-                    <View style={styles.mediumSpacing} />
-
-                    {/* Two Cards Row */}
-                    <View style={styles.cardsRow}>
-                        {/* New Routine Card */}
-                        <TouchableOpacity
-                            style={[styles.card, styles.cardFlex]}
-                            onPress={() => router.push('/(tabs)/Workout/routine')}
-                            activeOpacity={0.7}
+                        <ScrollView
+                            style={styles.scrollView}
+                            contentContainerStyle={styles.scrollContent}
+                            showsVerticalScrollIndicator={false}
                         >
-                            <Text style={styles.cardLabel}>New Routine</Text>
-                            <View style={styles.cardGap} />
-                            <Ionicons name="sparkles" size={20} color={AppColors.white} />
-                        </TouchableOpacity>
 
-                        <View style={styles.cardGapHorizontal} />
 
-                        {/* Explore Routines Card */}
-                        <TouchableOpacity
-                            style={[styles.card, styles.cardFlex]}
-                            onPress={() => router.push('/(tabs)/Workout/explore')}
-                            activeOpacity={0.7}
-                        >
-                            <Text style={styles.cardLabel}>Explore Routines</Text>
-                            <View style={styles.cardGap} />
-                            <Ionicons name="compass" size={20} color={AppColors.white} />
-                        </TouchableOpacity>
-                    </View>
-                </View>
+                            <View style={styles.section}>
+                                <Text style={styles.sectionTitle}>Quick Start</Text>
+                                <Text style={styles.sectionSubtitle}>
+                                    Jump right into your workout
+                                </Text>
 
-                <View style={styles.largeSpacing} />
-            </ScrollView>
+                                <View style={styles.mediumSpacing} />
+
+                                <GlassActionCard
+                                    title="Start Empty Workout"
+                                    iconName="add"
+                                    vertical={false}
+                                    delay={180}
+                                    onPress={() => {
+                                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                        router.push('/(tabs)/Workout/log');
+                                    }}
+                                />
+                            </View>
+
+                            <View style={styles.largeSpacing} />
+
+                            <View style={styles.section}>
+                                <Text style={styles.sectionTitle}>Routines</Text>
+                                <Text style={styles.sectionSubtitle}>
+                                    Build or explore your plans
+                                </Text>
+
+                                <View style={styles.mediumSpacing} />
+
+                                <View style={styles.cardsRow}>
+                                    <GlassActionCard
+                                        title="New Routine"
+                                        iconName="sparkles"
+                                        vertical
+                                        delay={260}
+                                        style={styles.cardButton}
+                                        onPress={() => {
+                                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                            router.push('/(tabs)/Workout/routine');
+                                        }}
+                                    />
+
+                                    <View style={styles.cardGapHorizontal} />
+
+                                    <GlassActionCard
+                                        title="Explore Routines"
+                                        iconName="compass"
+                                        vertical
+                                        delay={340}
+                                        style={styles.cardButton}
+                                        onPress={() => {
+                                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                            router.push('/(tabs)/Workout/explore');
+                                        }}
+                                    />
+                                </View>
+                            </View>
+
+                            <View style={styles.bottomGap} />
+                        </ScrollView>
+
         </SafeAreaView>
     );
 }
@@ -90,136 +220,112 @@ export default function MainWorkoutScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: AppColors.black,
+        backgroundColor: '#090909',
     },
+
     scrollView: {
         flex: 1,
     },
+
     scrollContent: {
         paddingBottom: 20,
-    },
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        backgroundColor: AppColors.darkBg,
-        height: 56,
-        paddingHorizontal: 12,
+        paddingTop: 20
     },
 
-    headerLeft: {
-        width: 60,
-        justifyContent: 'center',
-        alignItems: 'flex-start',
-    },
-
-    headerTitle: {
-        flex: 1,
-        textAlign: 'center',
-        fontSize: 18,
-        fontWeight: '700',
-        color: AppColors.orange,
-    },
-
-    headerRight: {
-        width: 60,
-        flexDirection: 'row',
-        justifyContent: 'flex-end',
-        alignItems: 'center',
-        gap: 8,
-    },
-
-    iconButton: {
-        marginRight: 8,
-    },
-
-    finishButton: {
-        backgroundColor: AppColors.black,
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 10,
-    },
-
-    finishButtonText: {
-        color: AppColors.orange,
-        fontWeight: '700',
-        fontSize: 14,
-    },
-
-    saveButton: {
-        backgroundColor: AppColors.black,
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 10,
-    },
-
-    saveButtonText: {
-        color: AppColors.orange,
-        fontWeight: '700',
-        fontSize: 14,
-    },
     section: {
-        paddingHorizontal: 12,
+        paddingHorizontal: 14,
+        marginTop: 8,
     },
+
     sectionTitle: {
         fontSize: 16,
-        fontWeight: '400',
-        color: AppColors.orange,
-        marginTop: 20,
-        marginBottom: 0,
-    },
-    spacing: {
-        height: 12,
-    },
-    mediumSpacing: {
-        height: 22,
-    },
-    largeSpacing: {
-        height: 40,
-    },
-    addExerciseButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: AppColors.darkBg,
-        paddingHorizontal: 24,
-        paddingVertical: 10,
-        borderRadius: 12,
-        gap: 8,
-    },
-    addExerciseText: {
-        fontSize: 16,
         fontWeight: '700',
-        color: AppColors.white,
-        fontFamily: 'Quicksand',
+        color: AppColors.orange,
     },
+
+    sectionSubtitle: {
+        fontSize: 14,
+        color: 'rgba(255,255,255,0.55)',
+        marginTop: 4,
+    },
+
+    mediumSpacing: {
+        height: 18,
+    },
+
+    largeSpacing: {
+        height: 14,
+    },
+
+    glassButtonOuter: {
+        borderRadius: 22,
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+        shadowColor: AppColors.orange,
+        shadowRadius: 18,
+        shadowOffset: { width: 0, height: 8 },
+        elevation: 8,
+        backgroundColor: 'rgba(255,255,255,0.05)'
+    },
+
+    glassButtonInner: {
+        borderRadius: 22,
+        paddingHorizontal: 16,
+        paddingVertical: 18,
+        minHeight: 92,
+        justifyContent: 'center',
+    },
+
+    buttonContent: {
+        alignItems: 'center',
+    },
+
+    buttonContentRow: {
+        flexDirection: 'row',
+        gap: 14,
+    },
+
+    buttonContentVertical: {
+        justifyContent: 'center',
+        gap: 12,
+    },
+
+    iconWrap: {
+        borderRadius: 10,
+        overflow: 'hidden',
+    },
+
+    iconGradient: {
+        width: 40,
+        height: 40,
+        borderRadius: 10,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255,120,37,0.20)',
+    },
+
+    glassButtonText: {
+        color: '#FFFFFF',
+        fontSize: 15,
+        fontWeight: '600',
+        flexShrink: 1,
+    },
+
     cardsRow: {
         flexDirection: 'row',
-        gap: 0,
     },
+
+    cardButton: {
+        flex: 1,
+    },
+
     cardGapHorizontal: {
         width: 12,
     },
-    card: {
-        backgroundColor: AppColors.darkBg,
-        paddingHorizontal: 20,
-        paddingVertical: 10,
-        borderRadius: 12,
-        justifyContent: 'center',
-        alignItems: 'center',
-        minHeight: 80,
-    },
-    cardFlex: {
-        flex: 1,
-    },
-    cardGap: {
-        height: 12,
-    },
-    cardLabel: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: AppColors.white,
-        fontFamily: 'Quicksand',
-        textAlign: 'center',
+
+    bottomGap: {
+        height: 42,
     },
 });

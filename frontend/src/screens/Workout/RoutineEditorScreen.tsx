@@ -1,8 +1,26 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import {View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal} from 'react-native';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import {
+    View,
+    Text,
+    StyleSheet,
+    ScrollView,
+    TouchableOpacity,
+    TextInput,
+    Modal,
+    Animated,
+    Pressable,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
+import AnimatedReanimated, {
+    FadeInDown,
+    FadeInUp,
+    useSharedValue,
+    useAnimatedStyle,
+    withSpring,
+} from 'react-native-reanimated';
 import { AppColors } from '../../constants/colors';
 import { ExerciseTarget, Routine, ExerciseLog } from '../../types/workout.types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -10,13 +28,23 @@ import Toast from '../../components/workout/Toast';
 import AlertDialog from '../../components/workout/AlertDialog';
 import { useRoutine } from '../../context/RoutineContext';
 import { setHeaderActions } from '../../../app/(tabs)/Workout/_layout';
-
 import { useNavigation } from '@react-navigation/native';
+
+const ReanimatedTouchable =
+    AnimatedReanimated.createAnimatedComponent(TouchableOpacity);
 
 export default function RoutineEditorScreen() {
     const router = useRouter();
     const routeParams = useLocalSearchParams();
-    const { routineTitle, setRoutineTitle, targets, addTarget, updateTarget, removeTarget, clearRoutine } = useRoutine();
+    const {
+        routineTitle,
+        setRoutineTitle,
+        targets,
+        addTarget,
+        updateTarget,
+        removeTarget,
+        clearRoutine,
+    } = useRoutine();
 
     const navigation = useNavigation();
 
@@ -27,10 +55,31 @@ export default function RoutineEditorScreen() {
     const [savedRoutine, setSavedRoutine] = useState<Routine | null>(null);
     const [isFromWorkout, setIsFromWorkout] = useState(false);
 
+    const screenFade = useRef(new Animated.Value(0)).current;
+    const screenTranslate = useRef(new Animated.Value(16)).current;
+
+    useEffect(() => {
+        Animated.parallel([
+            Animated.timing(screenFade, {
+                toValue: 1,
+                duration: 420,
+                useNativeDriver: true,
+            }),
+            Animated.timing(screenTranslate, {
+                toValue: 0,
+                duration: 420,
+                useNativeDriver: true,
+            }),
+        ]).start();
+    }, [screenFade, screenTranslate]);
+
     useEffect(() => {
         if (routeParams?.exercisesFromWorkout) {
             try {
-                const exercisesFromWorkout = JSON.parse(routeParams.exercisesFromWorkout as string) as ExerciseLog[];
+                const exercisesFromWorkout = JSON.parse(
+                    routeParams.exercisesFromWorkout as string
+                ) as ExerciseLog[];
+
                 setIsFromWorkout(true);
 
                 exercisesFromWorkout.forEach((exercise) => {
@@ -47,7 +96,7 @@ export default function RoutineEditorScreen() {
                 console.error('Error parsing exercises:', error);
             }
         }
-    }, [routeParams?.exercisesFromWorkout]);
+    }, [routeParams?.exercisesFromWorkout, addTarget]);
 
     useEffect(() => {
         const listener = navigation.addListener('event', (e: any) => {
@@ -58,7 +107,7 @@ export default function RoutineEditorScreen() {
         });
 
         return () => listener?.();
-    }, []);
+    }, [navigation]);
 
     useEffect(() => {
         if (routeParams?.exerciseName && typeof routeParams.exerciseName === 'string') {
@@ -75,7 +124,7 @@ export default function RoutineEditorScreen() {
             addTarget(newTarget);
             router.setParams({ exerciseName: undefined });
         }
-    }, [routeParams?.exerciseName]);
+    }, [routeParams?.exerciseName, addTarget, router]);
 
     const handleSave = useCallback(async () => {
         if (targets.length === 0) {
@@ -88,12 +137,13 @@ export default function RoutineEditorScreen() {
             const finalTitle = routineTitle.trim() || 'Untitled Routine';
             const routine: Routine = {
                 title: finalTitle,
-                targets: targets,
+                targets,
             };
 
             const existingRoutines = await AsyncStorage.getItem('savedRoutines');
             const routinesArray = existingRoutines ? JSON.parse(existingRoutines) : [];
             routinesArray.push(routine);
+
             await AsyncStorage.setItem('savedRoutines', JSON.stringify(routinesArray));
 
             setSavedRoutine(routine);
@@ -154,77 +204,74 @@ export default function RoutineEditorScreen() {
         removeTarget(index);
     };
 
-    const handleBack = () => {
-        clearRoutine();
-        router.back();
-    };
-
     return (
-        <SafeAreaView style={styles.container} edges={['bottom','left','right']}>
-            <ScrollView
-                style={styles.scrollView}
-                contentContainerStyle={styles.scrollContent}
-                showsVerticalScrollIndicator={false}
+        <SafeAreaView style={styles.container} edges={['left', 'right']}>
+            <Animated.View
+                style={[
+                    styles.animatedScreen,
+                    {
+                        opacity: screenFade,
+                        transform: [{ translateY: screenTranslate }],
+                    },
+                ]}
             >
-                <View style={styles.topSpacing} />
 
-                {/* Routine Title */}
-                <View style={styles.section}>
-                    {!editingTitle ? (
-                        <TouchableOpacity onPress={() => setEditingTitle(true)}>
-                            <Text style={styles.routineTitle}>
-                                {routineTitle || 'Routine title'}
-                            </Text>
-                        </TouchableOpacity>
-                    ) : (
-                        <TextInput
-                            style={styles.routineTitleInput}
-                            value={routineTitle}
-                            onChangeText={setRoutineTitle}
-                            placeholder="Enter routine title"
-                            placeholderTextColor={AppColors.grey}
-                            autoFocus
-                            onBlur={() => setEditingTitle(false)}
-                            onSubmitEditing={() => setEditingTitle(false)}
-                        />
-                    )}
+                <ScrollView
+                    style={styles.scrollView}
+                    contentContainerStyle={styles.scrollContent}
+                    showsVerticalScrollIndicator={false}
+                >
 
-                    <View style={styles.spacing} />
+                    <AnimatedReanimated.View entering={FadeInUp.duration(420)} style={styles.section}>
+                        {!editingTitle ? (
+                            <TouchableOpacity onPress={() => setEditingTitle(true)}>
+                                <Text style={styles.routineTitle}>
+                                    {routineTitle || 'Routine title'}
+                                </Text>
+                            </TouchableOpacity>
+                        ) : (
+                            <TextInput
+                                style={styles.routineTitleInput}
+                                value={routineTitle}
+                                onChangeText={setRoutineTitle}
+                                placeholder="Enter routine title"
+                                placeholderTextColor={AppColors.grey}
+                                autoFocus
+                                onBlur={() => setEditingTitle(false)}
+                                onSubmitEditing={() => setEditingTitle(false)}
+                            />
+                        )}
 
-                    {/* Muscle Icon */}
-                    <View style={styles.iconContainer}>
-                        <Ionicons name="barbell-outline" size={48} color={AppColors.white} />
-                    </View>
+                        <View style={styles.spacing} />
 
-                    <View style={styles.mediumSpacing} />
+                        <View style={styles.iconContainer}>
+                            <Ionicons name="barbell-outline" size={48} color={AppColors.white} />
+                        </View>
 
-                    {/* Add Exercise Button */}
-                    <TouchableOpacity
-                        style={styles.addExerciseButton}
-                        onPress={handleAddExercise}
-                    >
-                        <Ionicons name="add" size={20} color={AppColors.orange} />
-                        <Text style={styles.addExerciseButtonText}>Add Exercise</Text>
-                    </TouchableOpacity>
+                        <View style={styles.mediumSpacing} />
 
-                    <View style={styles.mediumSpacing} />
+                        <GlassButton onPress={handleAddExercise} style={styles.addExerciseButton}>
+                            <Ionicons name="add" size={20} color={AppColors.orange} />
+                            <Text style={styles.addExerciseButtonText}>Add Exercise</Text>
+                        </GlassButton>
 
-                    {/* Exercises List */}
-                    {targets.map((target, index) => (
-                        <TargetCard
-                            key={`${index}-${target.name}`}
-                            target={target}
-                            index={index}
-                            onTargetChange={handleTargetChange}
-                            onRemove={handleRemoveExercise}
-                        />
-                    ))}
-                </View>
+                        <View style={styles.mediumSpacing} />
 
-                <View style={styles.largeSpacing} />
-            </ScrollView>
+                        {targets.map((target, index) => (
+                            <TargetCard
+                                key={`${index}-${target.name}`}
+                                target={target}
+                                index={index}
+                                onTargetChange={handleTargetChange}
+                                onRemove={handleRemoveExercise}
+                            />
+                        ))}
+                    </AnimatedReanimated.View>
 
-            {/* Empty Routine Toast */}
+                    <View style={styles.largeSpacing} />
+                </ScrollView>
+            </Animated.View>
+
             <Toast
                 visible={emptyRoutineToastVisible}
                 message="Your routine needs at least one exercise"
@@ -233,11 +280,10 @@ export default function RoutineEditorScreen() {
                 buttonText="OK"
             />
 
-            {/* Routine Saved Alert */}
             <AlertDialog
                 visible={routineSavedToastVisible}
                 title="Routine saved successfully!"
-                message={isFromWorkout ? "What would you like to do?" : "What would you like to do?"}
+                message={isFromWorkout ? 'What would you like to do?' : 'What would you like to do?'}
                 buttons={[
                     {
                         text: 'Start Workout',
@@ -255,131 +301,165 @@ export default function RoutineEditorScreen() {
     );
 }
 
-// Target Card Component
+function GlassButton({
+                         children,
+                         onPress,
+                         style,
+                     }: {
+    children: React.ReactNode;
+    onPress?: () => void;
+    style?: any;
+}) {
+    const scale = useSharedValue(1);
+
+    const animatedStyle = useAnimatedStyle(() => ({
+        transform: [{ scale: scale.value }],
+    }));
+
+    return (
+        <AnimatedReanimated.View style={animatedStyle}>
+            <ReanimatedTouchable
+                activeOpacity={0.92}
+                onPress={onPress}
+                onPressIn={() => {
+                    scale.value = withSpring(0.97);
+                }}
+                onPressOut={() => {
+                    scale.value = withSpring(1);
+                }}
+            >
+                <BlurView intensity={26} tint="dark" style={[styles.glassButtonBase, style]}>
+                    {children}
+                </BlurView>
+            </ReanimatedTouchable>
+        </AnimatedReanimated.View>
+    );
+}
+
 function TargetCard({ target, index, onTargetChange, onRemove }: any) {
     const [restPickerVisible, setRestPickerVisible] = useState(false);
     const [numberPadVisible, setNumberPadVisible] = useState(false);
     const [numberPadMode, setNumberPadMode] = useState<'sets' | 'weight' | 'reps' | null>(null);
 
     return (
-        <View style={styles.targetCard}>
-            <View style={styles.targetCardHeader}>
-                <Text style={styles.targetName}>{target.name}</Text>
-                <TouchableOpacity onPress={() => onRemove(index)}>
-                    <Ionicons name="close" size={20} color={AppColors.orange} />
-                </TouchableOpacity>
-            </View>
-
-            <View style={styles.targetSpacing} />
-
-            {/* Rest Selector */}
-            <View style={styles.restSelector}>
-                <Ionicons name="timer-outline" size={18} color={AppColors.orange} />
-                <TouchableOpacity
-                    style={styles.restSelectorButton}
-                    onPress={() => setRestPickerVisible(true)}
-                >
-                    <Text style={styles.restSelectorText}>
-                        Rest: {target.restSeconds >= 60
-                        ? `${Math.floor(target.restSeconds / 60)}m`
-                        : `${target.restSeconds}s`}
-                    </Text>
-                </TouchableOpacity>
-            </View>
-
-            <View style={styles.targetSpacing} />
-
-            {/* Table Headers */}
-            <View style={styles.tableRow}>
-                <View style={styles.tableColumn}>
-                    <Text style={styles.tableHeaderCell}>Sets</Text>
-                </View>
-                <View style={styles.tableColumn}>
-                    <Text style={styles.tableHeaderCell}>Target Weight</Text>
-                </View>
-                <View style={styles.tableColumn}>
-                    <Text style={styles.tableHeaderCell}>Target Reps</Text>
-                </View>
-            </View>
-
-            <View style={styles.targetSpacing} />
-
-            {/* Values Row */}
-            <View style={styles.tableRow}>
-                {/* Sets */}
-                <View style={styles.tableColumn}>
-                    <TouchableOpacity
-                        style={styles.inputTouchableArea}
-                        onPress={() => {
-                            setNumberPadMode('sets');
-                            setNumberPadVisible(true);
-                        }}
-                    >
-                        <Text style={styles.inputValue}>{target.sets}</Text>
+        <AnimatedReanimated.View entering={FadeInDown.springify().damping(16)}>
+            <BlurView intensity={28} tint="dark" style={styles.targetCard}>
+                <View style={styles.targetCardHeader}>
+                    <Text style={styles.targetName}>{target.name}</Text>
+                    <TouchableOpacity onPress={() => onRemove(index)}>
+                        <Ionicons name="close" size={20} color={AppColors.orange} />
                     </TouchableOpacity>
                 </View>
 
-                {/* Weight */}
-                <View style={styles.tableColumn}>
+                <View style={styles.targetSpacing} />
+
+                <View style={styles.restSelector}>
+                    <Ionicons name="timer-outline" size={18} color={AppColors.orange} />
                     <TouchableOpacity
-                        style={styles.inputTouchableArea}
-                        onPress={() => {
-                            setNumberPadMode('weight');
-                            setNumberPadVisible(true);
-                        }}
+                        style={styles.restSelectorButton}
+                        onPress={() => setRestPickerVisible(true)}
                     >
-                        <Text style={styles.inputValue}>{target.targetWeightKg.toFixed(0)} kg</Text>
+                        <Text style={styles.restSelectorText}>
+                            Rest: {target.restSeconds >= 60
+                            ? `${Math.floor(target.restSeconds / 60)}m`
+                            : `${target.restSeconds}s`}
+                        </Text>
                     </TouchableOpacity>
                 </View>
 
-                {/* Reps */}
-                <View style={styles.tableColumn}>
-                    <TouchableOpacity
-                        style={styles.inputTouchableArea}
-                        onPress={() => {
-                            setNumberPadMode('reps');
-                            setNumberPadVisible(true);
-                        }}
-                    >
-                        <Text style={styles.inputValue}>{target.targetReps}</Text>
-                    </TouchableOpacity>
+                <View style={styles.targetSpacing} />
+
+                <View style={styles.tableRow}>
+                    <View style={styles.tableColumn}>
+                        <Text style={styles.tableHeaderCell}>Sets</Text>
+                    </View>
+                    <View style={styles.tableColumn}>
+                        <Text style={styles.tableHeaderCell}>Target Weight</Text>
+                    </View>
+                    <View style={styles.tableColumn}>
+                        <Text style={styles.tableHeaderCell}>Target Reps</Text>
+                    </View>
                 </View>
-            </View>
 
-            {/* Rest Picker */}
-            <RestPickerSheet
-                visible={restPickerVisible}
-                initial={target.restSeconds}
-                onSelect={(seconds: number) => {
-                    onTargetChange(index, 'restSeconds', seconds);
-                    setRestPickerVisible(false);
-                }}
-                onClose={() => setRestPickerVisible(false)}
-            />
+                <View style={styles.targetSpacing} />
 
-            <NumberPadModal
-                visible={numberPadVisible}
-                mode={numberPadMode}
-                onSelect={(value: number) => {
-                    if (numberPadMode === 'sets') {
-                        onTargetChange(index, 'sets', Math.max(1, Math.min(999, value)));
-                    } else if (numberPadMode === 'weight') {
-                        onTargetChange(index, 'targetWeightKg', Math.max(0, value));
-                    } else if (numberPadMode === 'reps') {
-                        onTargetChange(index, 'targetReps', Math.max(1, Math.min(999, value)));
-                    }
-                    setNumberPadMode(null);
-                }}
-                onClose={() => {
-                    setNumberPadVisible(false);
-                    setNumberPadMode(null);
-                }}
-            />
-        </View>
+                <View style={styles.tableRow}>
+                    <View style={styles.tableColumn}>
+                        <TouchableOpacity
+                            style={styles.inputTouchableArea}
+                            onPress={() => {
+                                setNumberPadMode('sets');
+                                setNumberPadVisible(true);
+                            }}
+                        >
+                            <View style={styles.valuePill}>
+                                <Text style={styles.inputValue}>{target.sets}</Text>
+                            </View>
+                        </TouchableOpacity>
+                    </View>
+
+                    <View style={styles.tableColumn}>
+                        <TouchableOpacity
+                            style={styles.inputTouchableArea}
+                            onPress={() => {
+                                setNumberPadMode('weight');
+                                setNumberPadVisible(true);
+                            }}
+                        >
+                            <View style={styles.valuePill}>
+                                <Text style={styles.inputValue}>{target.targetWeightKg.toFixed(0)} kg</Text>
+                            </View>
+                        </TouchableOpacity>
+                    </View>
+
+                    <View style={styles.tableColumn}>
+                        <TouchableOpacity
+                            style={styles.inputTouchableArea}
+                            onPress={() => {
+                                setNumberPadMode('reps');
+                                setNumberPadVisible(true);
+                            }}
+                        >
+                            <View style={styles.valuePill}>
+                                <Text style={styles.inputValue}>{target.targetReps}</Text>
+                            </View>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+
+                <RestPickerSheet
+                    visible={restPickerVisible}
+                    initial={target.restSeconds}
+                    onSelect={(seconds: number) => {
+                        onTargetChange(index, 'restSeconds', seconds);
+                        setRestPickerVisible(false);
+                    }}
+                    onClose={() => setRestPickerVisible(false)}
+                />
+
+                <NumberPadModal
+                    visible={numberPadVisible}
+                    mode={numberPadMode}
+                    onSelect={(value: number) => {
+                        if (numberPadMode === 'sets') {
+                            onTargetChange(index, 'sets', Math.max(1, Math.min(999, value)));
+                        } else if (numberPadMode === 'weight') {
+                            onTargetChange(index, 'targetWeightKg', Math.max(0, value));
+                        } else if (numberPadMode === 'reps') {
+                            onTargetChange(index, 'targetReps', Math.max(1, Math.min(999, value)));
+                        }
+                        setNumberPadMode(null);
+                    }}
+                    onClose={() => {
+                        setNumberPadVisible(false);
+                        setNumberPadMode(null);
+                    }}
+                />
+            </BlurView>
+        </AnimatedReanimated.View>
     );
 }
 
-// Rest Picker Sheet Component
 function RestPickerSheet({ visible, initial, onSelect, onClose }: any) {
     const generateRestOptions = (): number[] => {
         const options: number[] = [];
@@ -409,33 +489,28 @@ function RestPickerSheet({ visible, initial, onSelect, onClose }: any) {
                 activeOpacity={1}
                 onPress={onClose}
             >
-                <TouchableOpacity
-                    style={styles.restPickerSheet}
-                    activeOpacity={1}
-                    onPress={() => {}}
-                >
-                    <View style={styles.sheetHandle} />
-                    <Text style={styles.pickerTitle}>Pick rest time</Text>
+                <TouchableOpacity activeOpacity={1} onPress={() => {}}>
+                    <BlurView intensity={30} tint="dark" style={styles.restPickerSheet}>
+                        <View style={styles.sheetHandle} />
+                        <Text style={styles.pickerTitle}>Pick rest time</Text>
 
-                    <ScrollView
-                        style={styles.pickerOptions}
-                        showsVerticalScrollIndicator={false}
-                    >
-                        {options.map((seconds) => (
-                            <TouchableOpacity
-                                key={seconds}
-                                style={styles.pickerOption}
-                                onPress={() => onSelect(seconds)}
-                            >
-                                <Text style={styles.pickerOptionText}>
-                                    {formatRestLabel(seconds)}
-                                </Text>
-                                {seconds === initial && (
-                                    <Ionicons name="checkmark" size={20} color={AppColors.orange} />
-                                )}
-                            </TouchableOpacity>
-                        ))}
-                    </ScrollView>
+                        <ScrollView style={styles.pickerOptions} showsVerticalScrollIndicator={false}>
+                            {options.map((seconds) => (
+                                <TouchableOpacity
+                                    key={seconds}
+                                    style={styles.pickerOption}
+                                    onPress={() => onSelect(seconds)}
+                                >
+                                    <Text style={styles.pickerOptionText}>
+                                        {formatRestLabel(seconds)}
+                                    </Text>
+                                    {seconds === initial && (
+                                        <Ionicons name="checkmark" size={20} color={AppColors.orange} />
+                                    )}
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
+                    </BlurView>
                 </TouchableOpacity>
             </TouchableOpacity>
         </Modal>
@@ -446,15 +521,19 @@ function NumberPadModal({ visible, onSelect, onClose, mode }: any) {
     const [inputValue, setInputValue] = useState('');
 
     const handleNumberPress = (num: string) => {
-        setInputValue(prev => prev + num);
+        if (num === '.' && inputValue.includes('.')) return;
+        setInputValue((prev) => prev + num);
     };
 
     const handleBackspace = () => {
-        setInputValue(prev => prev.slice(0, -1));
+        setInputValue((prev) => prev.slice(0, -1));
     };
 
     const handleConfirm = () => {
-        const value = parseInt(inputValue) || 0;
+        const value = mode === 'weight'
+            ? parseFloat(inputValue) || 0
+            : parseInt(inputValue) || 0;
+
         onSelect(value);
         setInputValue('');
         onClose();
@@ -468,12 +547,8 @@ function NumberPadModal({ visible, onSelect, onClose, mode }: any) {
     return (
         <Modal visible={visible} transparent animationType="fade" onRequestClose={handleCancel}>
             <View style={styles.numberPadBackdrop}>
-                <TouchableOpacity
-                    style={StyleSheet.absoluteFill}
-                    activeOpacity={1}
-                    onPress={handleCancel}
-                />
-                <View style={styles.numberPadContainer}>
+                <Pressable style={StyleSheet.absoluteFill} onPress={handleCancel} />
+                <BlurView intensity={30} tint="dark" style={styles.numberPadContainer}>
                     <View style={styles.numberPadHeader}>
                         <Text style={styles.numberPadTitle}>
                             {mode === 'sets' ? 'Sets' : mode === 'weight' ? 'Weight (kg)' : 'Reps'}
@@ -484,9 +559,7 @@ function NumberPadModal({ visible, onSelect, onClose, mode }: any) {
                     </View>
 
                     <View style={styles.numberPadDisplay}>
-                        <Text style={styles.numberPadDisplayText}>
-                            {inputValue || '0'}
-                        </Text>
+                        <Text style={styles.numberPadDisplayText}>{inputValue || '0'}</Text>
                     </View>
 
                     <View style={styles.numberPadGrid}>
@@ -499,23 +572,25 @@ function NumberPadModal({ visible, onSelect, onClose, mode }: any) {
                                 <Text style={styles.numberPadButtonText}>{num}</Text>
                             </TouchableOpacity>
                         ))}
+
                         <TouchableOpacity
                             style={styles.numberPadButton}
                             onPress={() => handleNumberPress('0')}
                         >
                             <Text style={styles.numberPadButtonText}>0</Text>
                         </TouchableOpacity>
-                        {mode === 'weight' && (
+
+                        {mode === 'weight' ? (
                             <TouchableOpacity
                                 style={styles.numberPadButton}
                                 onPress={() => handleNumberPress('.')}
                             >
                                 <Text style={styles.numberPadButtonText}>.</Text>
                             </TouchableOpacity>
+                        ) : (
+                            <View style={[styles.numberPadButton, styles.numberPadGhostButton]} />
                         )}
-                        {mode !== 'weight' && (
-                            <View style={[styles.numberPadButton, { backgroundColor: 'transparent', borderColor: 'transparent' }]} />
-                        )}
+
                         <TouchableOpacity
                             style={[styles.numberPadButton, styles.numberPadBackspaceButton]}
                             onPress={handleBackspace}
@@ -538,7 +613,7 @@ function NumberPadModal({ visible, onSelect, onClose, mode }: any) {
                             <Text style={styles.numberPadConfirmButtonText}>OK</Text>
                         </TouchableOpacity>
                     </View>
-                </View>
+                </BlurView>
             </View>
         </Modal>
     );
@@ -547,187 +622,215 @@ function NumberPadModal({ visible, onSelect, onClose, mode }: any) {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: AppColors.black,
+        backgroundColor: '#090909',
     },
 
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        backgroundColor: AppColors.darkBg,
-        height: 56,
-        paddingHorizontal: 12,
-    },
-
-    headerLeft: {
-        width: 60,
-        justifyContent: 'center',
-        alignItems: 'flex-start',
-    },
-
-    headerTitle: {
+    animatedScreen: {
         flex: 1,
-        textAlign: 'center',
-        fontSize: 18,
-        fontWeight: '700',
-        color: AppColors.orange,
     },
 
-    headerRight: {
-        width: 60,
-        flexDirection: 'row',
-        justifyContent: 'flex-end',
-        alignItems: 'center',
-        gap: 8,
-    },
-
-    iconButton: {
-        marginRight: 8,
-    },
-
-    saveButton: {
-        backgroundColor: AppColors.orange,
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 10,
-    },
-
-    saveButtonText: {
-        color: AppColors.black,
-        fontWeight: '700',
-        fontSize: 14,
-    },
     scrollView: {
         flex: 1,
     },
+
+
     scrollContent: {
         paddingBottom: 20,
+        paddingTop: 20
     },
-    topSpacing : {
-        height: 20
+
+    topSpacing: {
+        height: 20,
     },
+
     spacing: {
         height: 12,
     },
+
     mediumSpacing: {
         height: 22,
     },
+
     largeSpacing: {
         height: 40,
     },
-    targetSpacing: { height: 10 },
-    smallSpacing: { height: 40 },
+
+    targetSpacing: {
+        height: 10,
+    },
+
     section: {
         paddingHorizontal: 12,
+        marginTop:8,
     },
+
+    titleGlass: {
+        minHeight: 56,
+        borderRadius: 18,
+        paddingHorizontal: 16,
+        paddingVertical: 14,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        overflow: 'hidden',
+    },
+
     routineTitle: {
         fontSize: 16,
         fontWeight: '700',
         color: AppColors.orange,
     },
+
     routineTitleInput: {
         fontSize: 16,
         fontWeight: '400',
         color: AppColors.orange,
         paddingVertical: 8,
     },
+
     iconContainer: {
         alignItems: 'center',
+        justifyContent: 'center',
         marginVertical: 16,
+        width: '100%'
     },
+
+    glassButtonBase: {
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+        overflow: 'hidden',
+    },
+
     addExerciseButton: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
         gap: 8,
-        backgroundColor: AppColors.darkBg,
         paddingHorizontal: 24,
-        paddingVertical: 12,
-        borderRadius: 12,
+        paddingVertical: 14,
+        borderRadius: 18,
     },
+
     addExerciseButtonText: {
         fontSize: 16,
         fontWeight: '700',
         color: AppColors.orange,
     },
+
     targetCard: {
-        backgroundColor: AppColors.darkBg,
-        borderRadius: 12,
-        padding: 12,
+        borderRadius: 22,
+        padding: 14,
         marginBottom: 12,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+        overflow: 'hidden',
     },
+
     targetCardHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
     },
+
     targetName: {
         fontSize: 16,
         fontWeight: '700',
         color: AppColors.white,
+        flex: 1,
+        marginRight: 12,
     },
+
     restSelector: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 6,
         justifyContent: 'center',
+        alignSelf: 'flex-start',
+        backgroundColor: 'rgba(255,120,37,0.12)',
+        borderRadius: 14,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderWidth: 1,
+        borderColor: 'rgba(255,120,37,0.24)',
     },
+
     restSelectorButton: {
-        paddingHorizontal: 6,
-        paddingVertical: 4,
-        flex: 1,
+        paddingHorizontal: 0,
+        paddingVertical: 0,
+        flex: 0,
     },
+
     restSelectorText: {
         fontSize: 14,
         color: AppColors.orange,
+        fontWeight: '600',
     },
+
     tableRow: {
         flexDirection: 'row',
         alignItems: 'center',
     },
+
     tableColumn: {
         flex: 1,
         alignItems: 'center',
     },
+
     tableHeaderCell: {
         fontSize: 12,
-        color: AppColors.white,
+        color: 'rgba(255,255,255,0.65)',
         textAlign: 'center',
     },
-    inputGroup: {
-        flexDirection: 'row',
+
+    inputTouchableArea: {
+        width: '100%',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 4,
+    },
+
+    valuePill: {
+        minWidth: 78,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        borderRadius: 14,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 8,
     },
+
     inputValue: {
-        fontSize: 16,
+        fontSize: 15,
         color: AppColors.white,
         textAlign: 'center',
-        minWidth: 40,
+        fontWeight: '600',
     },
-    iconButtonText: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: AppColors.orange,
-        paddingHorizontal: 4,
-    },
+
     sheetBackdrop: {
         flex: 1,
-        backgroundColor: AppColors.darkBg,
+        backgroundColor: 'rgba(0,0,0,0.52)',
         justifyContent: 'flex-end',
     },
+
     restPickerSheet: {
-        backgroundColor: AppColors.black,
-        borderTopLeftRadius: 20,
-        borderTopRightRadius: 20,
-        borderWidth: 1.5,
-        borderColor: AppColors.orange,
-        borderBottomWidth: 0,
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
         paddingHorizontal: 12,
         paddingVertical: 12,
         maxHeight: '70%',
+        backgroundColor: 'rgba(255,255,255,0.06)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+        overflow: 'hidden',
     },
+
     sheetHandle: {
         width: 40,
         height: 5,
@@ -736,6 +839,7 @@ const styles = StyleSheet.create({
         alignSelf: 'center',
         marginBottom: 12,
     },
+
     pickerTitle: {
         fontSize: 16,
         fontWeight: '700',
@@ -743,121 +847,148 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         marginBottom: 12,
     },
+
     pickerOptions: {
         maxHeight: 400,
     },
+
     pickerOption: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        backgroundColor: AppColors.darkBg,
+        backgroundColor: 'rgba(255,255,255,0.05)',
         paddingHorizontal: 16,
-        paddingVertical: 10,
-        borderRadius: 12,
+        paddingVertical: 12,
+        borderRadius: 14,
         marginBottom: 8,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.06)',
     },
+
     pickerOptionText: {
         fontSize: 16,
         color: AppColors.white,
     },
-    inputTouchableArea: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: 4,
-    },
+
     numberPadBackdrop: {
         flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        backgroundColor: 'rgba(0, 0, 0, 0.52)',
         justifyContent: 'center',
         alignItems: 'center',
     },
+
     numberPadContainer: {
-        backgroundColor: AppColors.darkBg,
-        borderRadius: 20,
+        borderRadius: 24,
         paddingHorizontal: 20,
         alignItems: 'center',
         paddingVertical: 20,
         width: '85%',
         maxWidth: 350,
-
+        backgroundColor: 'rgba(255,255,255,0.06)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+        overflow: 'hidden',
     },
+
     numberPadHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
         marginBottom: 16,
+        width: '100%',
     },
+
     numberPadTitle: {
         fontSize: 16,
         fontWeight: '700',
         color: AppColors.white,
         flex: 1,
     },
+
     numberPadDisplay: {
-        backgroundColor: AppColors.black,
-        borderRadius: 12,
+        width: '100%',
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        borderRadius: 14,
         paddingVertical: 16,
         marginBottom: 16,
         paddingHorizontal: 20,
         alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
     },
+
     numberPadDisplayText: {
         fontSize: 20,
         fontWeight: '700',
         color: AppColors.orange,
-
     },
+
     numberPadGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
         justifyContent: 'center',
         marginBottom: 16,
     },
+
     numberPadButton: {
         width: '25%',
         aspectRatio: 1,
-        backgroundColor: AppColors.black,
+        backgroundColor: 'rgba(255,255,255,0.05)',
         justifyContent: 'center',
         alignItems: 'center',
         margin: 4,
-        borderRadius: 12,
+        borderRadius: 14,
         borderWidth: 1,
-        borderColor: AppColors.orange,
+        borderColor: 'rgba(255,255,255,0.08)',
     },
+
     numberPadButtonText: {
         fontSize: 18,
         fontWeight: '700',
         color: AppColors.orange,
     },
-    numberPadBackspaceButton: {
-        backgroundColor: AppColors.orange,
+
+    numberPadGhostButton: {
+        backgroundColor: 'transparent',
+        borderColor: 'transparent',
     },
+
+    numberPadBackspaceButton: {
+        backgroundColor: 'rgba(255,120,37,0.18)',
+        borderColor: 'rgba(255,120,37,0.35)',
+    },
+
     numberPadButtonsRow: {
         flexDirection: 'row',
         gap: 12,
+        width: '100%',
     },
+
     numberPadActionButton: {
         flex: 1,
-        padding: 10,
-        borderRadius: 12,
+        padding: 12,
+        borderRadius: 14,
         alignItems: 'center',
     },
+
     numberPadCancelButton: {
-        backgroundColor: AppColors.black,
-        borderWidth: 1.5,
-        borderColor: AppColors.orange,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
     },
+
     numberPadConfirmButton: {
         backgroundColor: AppColors.orange,
-        borderWidth: 1.5,
+        borderWidth: 1,
         borderColor: AppColors.orange,
     },
+
     numberPadActionButtonText: {
         fontSize: 16,
         fontWeight: '700',
         color: AppColors.orange,
     },
+
     numberPadConfirmButtonText: {
         fontSize: 16,
         fontWeight: '700',

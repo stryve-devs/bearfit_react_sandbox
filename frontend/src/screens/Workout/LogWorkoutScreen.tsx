@@ -1,8 +1,25 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import {View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Pressable} from 'react-native';
+import {
+    View,
+    Text,
+    StyleSheet,
+    ScrollView,
+    TouchableOpacity,
+    Modal,
+    Pressable,
+    Animated,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
+import AnimatedReanimated, {
+    FadeInDown,
+    FadeInUp,
+    useSharedValue,
+    useAnimatedStyle,
+    withSpring,
+} from 'react-native-reanimated';
 import { AppColors } from '../../constants/colors';
 import { Routine, SetEntry, ExerciseLog } from '../../types/workout.types';
 import Toast from '../../components/workout/Toast';
@@ -29,8 +46,27 @@ export default function LogWorkoutScreen() {
     const [chooseRoutineVisible, setChooseRoutineVisible] = useState(false);
     const [savedRoutines, setSavedRoutines] = useState<Routine[]>([]);
     const [saveRoutineVisible, setSaveRoutineVisible] = useState(false);
+
     const elapsedTimerRef = useRef<NodeJS.Timeout | null>(null);
     const restTimersRef = useRef<{ [key: number]: NodeJS.Timeout }>({});
+
+    const screenFade = useRef(new Animated.Value(0)).current;
+    const screenTranslate = useRef(new Animated.Value(16)).current;
+
+    useEffect(() => {
+        Animated.parallel([
+            Animated.timing(screenFade, {
+                toValue: 1,
+                duration: 450,
+                useNativeDriver: true,
+            }),
+            Animated.timing(screenTranslate, {
+                toValue: 0,
+                duration: 450,
+                useNativeDriver: true,
+            }),
+        ]).start();
+    }, [screenFade, screenTranslate]);
 
     useEffect(() => {
         elapsedTimerRef.current = setInterval(() => {
@@ -115,10 +151,7 @@ export default function LogWorkoutScreen() {
 
     const getTotalVolume = (): number => {
         return exercises.reduce((sum, ex) => {
-            return (
-                sum +
-                ex.sets.reduce((exSum, set) => exSum + set.weightKg * set.reps, 0)
-            );
+            return sum + ex.sets.reduce((exSum, set) => exSum + set.weightKg * set.reps, 0);
         }, 0);
     };
 
@@ -309,98 +342,106 @@ export default function LogWorkoutScreen() {
     }, [handleFinish, handleBack]);
 
     return (
-        <SafeAreaView style={styles.container} edges={['bottom','left','right']}>
-            <ScrollView
-                style={styles.scrollView}
-                contentContainerStyle={styles.scrollContent}
-                showsVerticalScrollIndicator={false}
+        <SafeAreaView style={styles.container} edges={['left', 'right']}>
+            <Animated.View
+                style={[
+                    styles.animatedScreen,
+                    {
+                        opacity: screenFade,
+                        transform: [{ translateY: screenTranslate }],
+                    },
+                ]}
             >
-                <View style={styles.topSpacing} />
-                <View style={styles.metricsRow}>
-                    <View style={styles.metricBlock}>
-                        <Text style={styles.metricLabel}>Duration</Text>
-                        <Text style={styles.metricValue}>{formatTime(elapsed)}</Text>
-                    </View>
-                    <View style={styles.metricBlock}>
-                        <Text style={styles.metricLabel}>Volume</Text>
-                        <Text style={styles.metricValue}>{getTotalVolume().toFixed(0)} kg</Text>
-                    </View>
-                    <View style={styles.metricBlock}>
-                        <Text style={styles.metricLabel}>Sets</Text>
-                        <Text style={styles.metricValue}>{getTotalSets()}</Text>
-                    </View>
-                </View>
-
-                <View style={styles.spacing} />
-
-                {currentRoutine && (
-                    <>
-                        <TouchableOpacity
-                            style={styles.routineButton}
-                            onPress={handleChooseRoutine}
-                        >
-                            <Ionicons name="list" size={20} color={AppColors.orange} />
-                            <Text style={styles.routineButtonText}>{currentRoutine.title}</Text>
-                        </TouchableOpacity>
-                        <View style={styles.spacing} />
-                    </>
-                )}
-
-                <TouchableOpacity
-                    style={styles.addExerciseButton}
-                    onPress={handleAddExercise}
+                <ScrollView
+                    style={styles.scrollView}
+                    contentContainerStyle={styles.scrollContent}
+                    showsVerticalScrollIndicator={false}
                 >
-                    <Ionicons name="add" size={20} color={AppColors.orange} />
-                    <Text style={styles.addExerciseButtonText}>Add Exercise</Text>
-                </TouchableOpacity>
+                    <View style={styles.section}>
+                    <BlurView intensity={28} tint="dark" style={styles.metricsContainer}>
+                        <View style={styles.metricItem}>
+                            <Text style={styles.metricLabel}>Duration</Text>
+                            <Text style={styles.metricValue}>{formatTime(elapsed)}</Text>
+                        </View>
 
-                <View style={styles.spacing} />
+                        <View style={styles.metricDivider} />
 
-                {exercises.map((exercise, exerciseIndex) => (
-                    <ExerciseCard
-                        key={`${exercise.name}-${exerciseIndex}`}
-                        exercise={exercise}
-                        exerciseIndex={exerciseIndex}
-                        onSetDone={handleSetDone}
-                        onWeightChange={handleSetWeightChange}
-                        onRepsChange={handleSetRepsChange}
-                        onAddSet={handleAddSet}
-                        onDeleteSet={handleDeleteSet}
-                        onRestTimeChange={handleRestTimeChange}
-                    />
-                ))}
+                        <View style={styles.metricItem}>
+                            <Text style={styles.metricLabel}>Volume</Text>
+                            <Text style={styles.metricValue}>{getTotalVolume().toFixed(0)} kg</Text>
+                        </View>
 
-                <View style={styles.spacing} />
+                        <View style={styles.metricDivider} />
 
-                {currentRoutine && (
-                    <>
-                        <TouchableOpacity
-                            style={styles.updateRoutineButton}
-                            onPress={handleUpdateRoutine}
+                        <View style={styles.metricItem}>
+                            <Text style={styles.metricLabel}>Sets</Text>
+                            <Text style={styles.metricValue}>{getTotalSets()}</Text>
+                        </View>
+                    </BlurView>
+                    <View style={styles.spacing} />
+
+                    {currentRoutine && (
+                        <>
+                            <GlassButton style={styles.routineButton} onPress={handleChooseRoutine}>
+                                <Ionicons name="list" size={20} color={AppColors.white} />
+                                <Text style={styles.routineButtonText}>{currentRoutine.title}</Text>
+                            </GlassButton>
+                            <View style={styles.spacing} />
+                        </>
+                    )}
+
+                    <GlassButton style={styles.addExerciseButton} onPress={handleAddExercise}>
+                        <Ionicons name="add" size={20} color={AppColors.orange} />
+                        <Text style={styles.addExerciseButtonText}>Add Exercise</Text>
+                    </GlassButton>
+
+                    <View style={styles.spacing} />
+
+                    {exercises.map((exercise, exerciseIndex) => (
+                        <ExerciseCard
+                            key={`${exercise.name}-${exerciseIndex}`}
+                            exercise={exercise}
+                            exerciseIndex={exerciseIndex}
+                            onSetDone={handleSetDone}
+                            onWeightChange={handleSetWeightChange}
+                            onRepsChange={handleSetRepsChange}
+                            onAddSet={handleAddSet}
+                            onDeleteSet={handleDeleteSet}
+                            onRestTimeChange={handleRestTimeChange}
+                        />
+                    ))}
+
+                    <View style={styles.spacing} />
+
+                    {currentRoutine && (
+                        <>
+                            <GlassButton style={styles.updateRoutineButton} onPress={handleUpdateRoutine}>
+                                <Text style={styles.updateRoutineButtonText}>
+                                    Update Routine with current workout
+                                </Text>
+                            </GlassButton>
+
+                            <View style={styles.mediumSpacing} />
+                        </>
+                    )}
+
+                    <View style={styles.horizontalButtons}>
+                        <GlassButton style={styles.halfButton}>
+                            <Text style={styles.actionButtonText}>Settings</Text>
+                        </GlassButton>
+
+                        <GlassButton
+                            style={styles.halfButton}
+                            onPress={() => setDiscardConfirmAlertVisible(true)}
                         >
-                            <Text style={styles.updateRoutineButtonText}>
-                                Update Routine with current workout
-                            </Text>
-                        </TouchableOpacity>
+                            <Text style={styles.actionButtonText}>Discard</Text>
+                        </GlassButton>
+                    </View>
 
-                        <View style={styles.mediumSpacing} />
-                    </>
-                )}
-
-                <View style={styles.actionButtonsRow}>
-                    <TouchableOpacity style={[styles.actionButton, styles.settingsButton]}>
-                        <Text style={styles.actionButtonText}>Settings</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        style={[styles.actionButton, styles.discardButton]}
-                        onPress={() => setDiscardConfirmAlertVisible(true)}
-                    >
-                        <Text style={styles.actionButtonText}>Discard</Text>
-                    </TouchableOpacity>
-                </View>
-
-                <View style={styles.largeSpacing} />
-            </ScrollView>
+                    <View style={styles.largeSpacing} />
+                    </View>
+                </ScrollView>
+            </Animated.View>
 
             <ClockOverlay
                 visible={clockOverlayVisible}
@@ -433,47 +474,55 @@ export default function LogWorkoutScreen() {
                     activeOpacity={1}
                     onPress={() => setRoutineUpdatedToastVisible(false)}
                 >
-                    <View style={styles.toastContainer}>
+                    <BlurView intensity={28} tint="dark" style={styles.toastContainer}>
                         <Text style={styles.toastText}>Routine updated successfully!</Text>
-                    </View>
+                    </BlurView>
                 </TouchableOpacity>
             </Modal>
 
-            <Modal visible={chooseRoutineVisible} transparent animationType="fade" onRequestClose={() => setChooseRoutineVisible(false)}>
+            <Modal
+                visible={chooseRoutineVisible}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setChooseRoutineVisible(false)}
+            >
                 <TouchableOpacity
                     style={styles.modalBackdrop}
                     activeOpacity={1}
                     onPress={() => setChooseRoutineVisible(false)}
                 >
                     <TouchableOpacity
-                        style={styles.modalContent}
                         activeOpacity={1}
                         onPress={() => {}}
                     >
-                        <Text style={styles.modalTitle}>Choose Routine</Text>
-                        <ScrollView style={styles.routinesList}>
-                            {savedRoutines.map((routine, index) => (
-                                <TouchableOpacity
-                                    key={index}
-                                    style={styles.routineItemButton}
-                                    onPress={() => handleSelectRoutine(routine)}
-                                >
-                                    <View style={styles.routineItemText}>
-                                        <Text style={styles.routineItemTitle}>{routine.title}</Text>
-                                        <Text style={styles.routineItemSubtitle}>
-                                            {routine.targets.length} exercise{routine.targets.length !== 1 ? 's' : ''}
-                                        </Text>
-                                    </View>
-                                    <Ionicons name="chevron-forward" size={20} color={AppColors.orange} />
-                                </TouchableOpacity>
-                            ))}
-                        </ScrollView>
-                        <TouchableOpacity
-                            style={styles.modalCloseButton}
-                            onPress={() => setChooseRoutineVisible(false)}
-                        >
-                            <Text style={styles.modalCloseButtonText}>Close</Text>
-                        </TouchableOpacity>
+                        <BlurView intensity={28} tint="dark" style={styles.modalContent}>
+                            <Text style={styles.modalTitle}>Choose Routine</Text>
+                            <ScrollView style={styles.routinesList}>
+                                <View style={styles.section}>
+                                {savedRoutines.map((routine, index) => (
+                                    <TouchableOpacity
+                                        key={index}
+                                        style={styles.routineItemButton}
+                                        onPress={() => handleSelectRoutine(routine)}
+                                    >
+                                        <View style={styles.routineItemText}>
+                                            <Text style={styles.routineItemTitle}>{routine.title}</Text>
+                                            <Text style={styles.routineItemSubtitle}>
+                                                {routine.targets.length} exercise{routine.targets.length !== 1 ? 's' : ''}
+                                            </Text>
+                                        </View>
+                                        <Ionicons name="chevron-forward" size={20} color={AppColors.orange} />
+                                    </TouchableOpacity>
+                                ))}
+                                </View>
+                            </ScrollView>
+                            <TouchableOpacity
+                                style={styles.modalCloseButton}
+                                onPress={() => setChooseRoutineVisible(false)}
+                            >
+                                <Text style={styles.modalCloseButtonText}>Close</Text>
+                            </TouchableOpacity>
+                        </BlurView>
                     </TouchableOpacity>
                 </TouchableOpacity>
             </Modal>
@@ -517,6 +566,42 @@ export default function LogWorkoutScreen() {
     );
 }
 
+function GlassPanel({
+                        children,
+                        style,
+                    }: {
+    children: React.ReactNode;
+    style?: any;
+}) {
+    return (
+        <BlurView intensity={24} tint="dark" style={[styles.glassBase, style]}>
+            {children}
+        </BlurView>
+    );
+}
+function GlassButton({
+                         children,
+                         style,
+                         onPress,
+                     }: {
+    children: React.ReactNode;
+    style?: any;
+    onPress?: () => void;
+}) {
+    return (
+        <TouchableOpacity
+            activeOpacity={0.88}
+            onPress={onPress}
+            style={style} // ✅ FIXED
+        >
+            <BlurView intensity={28} tint="dark" style={styles.blur}>
+                <View style={styles.inner}>
+                    {children}
+                </View>
+            </BlurView>
+        </TouchableOpacity>
+    );
+}
 function ExerciseCard({
                           exercise,
                           exerciseIndex,
@@ -532,141 +617,162 @@ function ExerciseCard({
     const [numberPadMode, setNumberPadMode] = useState<'weight' | 'reps' | null>(null);
     const [numberPadSetIndex, setNumberPadSetIndex] = useState<number | null>(null);
 
+    const scale = useSharedValue(1);
+
+    const checkboxAnimatedStyle = useAnimatedStyle(() => ({
+        transform: [{ scale: scale.value }],
+    }));
+
+    const handlePressDone = (setIndex: number) => {
+        scale.value = withSpring(0.88, { damping: 12, stiffness: 180 }, () => {
+            scale.value = withSpring(1);
+        });
+        onSetDone(exerciseIndex, setIndex);
+    };
+
     return (
-        <View style={styles.exerciseCard}>
-            <View style={styles.exerciseHeader}>
-                <Text style={styles.exerciseName}>{exercise.name}</Text>
-                <TouchableOpacity
-                    style={styles.restButton}
-                    onPress={() => setRestPickerVisible(true)}
-                >
-                    <Ionicons name="timer-outline" size={18} color={AppColors.orange} />
-                    <Text style={styles.restButtonText}>
-                        Rest: {exercise.restSeconds >= 60
-                        ? `${Math.floor(exercise.restSeconds / 60)}m`
-                        : `${exercise.restSeconds}s`}
-                    </Text>
-                </TouchableOpacity>
-            </View>
+        <AnimatedReanimated.View entering={FadeInDown.springify().damping(16)}>
+            <BlurView intensity={28} tint="dark" style={styles.exerciseCard}>
+                <View style={styles.exerciseHeader}>
+                    <Text style={styles.exerciseName}>{exercise.name}</Text>
 
-            {exercise.restRemaining > 0 && (
-                <View style={styles.restCountdown}>
-                    <Text style={styles.restCountdownText}>
-                        Rest: {String(Math.floor(exercise.restRemaining / 60)).padStart(2, '0')}:
-                        {String(exercise.restRemaining % 60).padStart(2, '0')}
-                    </Text>
-                </View>
-            )}
-
-            <View style={styles.exerciseSpacing} />
-
-            <View style={styles.tableHeaderRow}>
-                <Text style={[styles.tableHeaderCell, { flex: 0.5 }]}>Set</Text>
-                <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Weight</Text>
-                <Text style={[styles.tableHeaderCell, { flex: 1 }]}>Reps</Text>
-                <Text style={[styles.tableHeaderCell, { flex: 0.8 }]}>Done</Text>
-            </View>
-
-            <View style={styles.exerciseSpacing} />
-
-            {exercise.sets.map((set: SetEntry, setIndex: number) => (
-                <View key={setIndex} style={styles.tableDataRow}>
-                    <Text style={[styles.tableCell, { flex: 0.5 }]}>{setIndex + 1}</Text>
-
-                    <View style={[styles.tableCellContainer, { flex: 1.5 }]}>
-                        <TouchableOpacity
-                            onPress={() => {
-                                setNumberPadMode('weight');
-                                setNumberPadSetIndex(setIndex);
-                                setNumberPadVisible(true);
-                            }}
-                            style={styles.inputTouchable}
-                        >
-                            <Text style={styles.tableCell}>{set.weightKg.toFixed(0)} kg</Text>
-                        </TouchableOpacity>
-                    </View>
-
-                    <View style={[styles.tableCellContainer, { flex: 1 }]}>
-                        <TouchableOpacity
-                            onPress={() => {
-                                setNumberPadMode('reps');
-                                setNumberPadSetIndex(setIndex);
-                                setNumberPadVisible(true);
-                            }}
-                            style={styles.inputTouchable}
-                        >
-                            <Text style={styles.tableCell}>{set.reps}</Text>
-                        </TouchableOpacity>
-                    </View>
-
-                    <View style={[styles.doneCheckboxContainer, { flex: 0.8 }]}>
-                        <TouchableOpacity
-                            style={[
-                                styles.doneCheckbox,
-                                set.done && styles.doneCheckboxChecked,
-                            ]}
-                            onPress={() => onSetDone(exerciseIndex, setIndex)}
-                        >
-                            {set.done && (
-                                <Ionicons name="checkmark" size={20} color={AppColors.white} />
-                            )}
-                        </TouchableOpacity>
-                    </View>
-
-                </View>
-            ))}
-
-            <View style={styles.exerciseSpacing} />
-
-            <View style={styles.setButtonsRow}>
-                <TouchableOpacity
-                    style={styles.addSetButton}
-                    onPress={() => onAddSet(exerciseIndex)}
-                >
-                    <Text style={styles.addSetButtonText}>+ Add Set</Text>
-                </TouchableOpacity>
-
-                {exercise.sets.length > 1 && (
                     <TouchableOpacity
-                        style={styles.deleteSetButton}
-                        onPress={() => onDeleteSet(exerciseIndex, exercise.sets.length - 1)}
+                        style={styles.restButton}
+                        onPress={() => setRestPickerVisible(true)}
                     >
-                        <Text style={styles.deleteSetButtonText}>- Delete Set</Text>
+                        <Ionicons name="timer-outline" size={18} color={AppColors.orange} />
+                        <Text style={styles.restButtonText}>
+                            Rest: {exercise.restSeconds >= 60
+                            ? `${Math.floor(exercise.restSeconds / 60)}m`
+                            : `${exercise.restSeconds}s`}
+                        </Text>
                     </TouchableOpacity>
+                </View>
+
+                {exercise.restRemaining > 0 && (
+                    <View style={styles.restCountdown}>
+                        <Text style={styles.restCountdownText}>
+                            Rest: {String(Math.floor(exercise.restRemaining / 60)).padStart(2, '0')}:
+                            {String(exercise.restRemaining % 60).padStart(2, '0')}
+                        </Text>
+                    </View>
                 )}
-            </View>
 
-            <RestPickerSheet
-                visible={restPickerVisible}
-                initial={exercise.restSeconds}
-                onSelect={(seconds: number) => {
-                    onRestTimeChange(exerciseIndex, seconds);
-                    setRestPickerVisible(false);
-                }}
-                onClose={() => setRestPickerVisible(false)}
-            />
+                <View style={styles.exerciseSpacing} />
 
-            <NumberPadModal
-                visible={numberPadVisible}
-                mode={numberPadMode}
-                onSelect={(value: number) => {
-                    if (numberPadSetIndex !== null) {
-                        if (numberPadMode === 'weight') {
-                            onWeightChange(exerciseIndex, numberPadSetIndex, value);
-                        } else if (numberPadMode === 'reps') {
-                            onRepsChange(exerciseIndex, numberPadSetIndex, value);
+                <View style={styles.tableHeaderRow}>
+                    <Text style={[styles.tableHeaderCell, { flex: 0.5 }]}>Set</Text>
+                    <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Weight</Text>
+                    <Text style={[styles.tableHeaderCell, { flex: 1 }]}>Reps</Text>
+                    <Text style={[styles.tableHeaderCell, { flex: 0.8 }]}>Done</Text>
+                </View>
+
+                <View style={styles.exerciseSpacing} />
+
+                {exercise.sets.map((set: SetEntry, setIndex: number) => (
+                    <View key={setIndex} style={styles.tableDataRow}>
+                        <Text style={[styles.tableCell, { flex: 0.5 }]}>{setIndex + 1}</Text>
+
+                        <View style={[styles.tableCellContainer, { flex: 1.5 }]}>
+                            <TouchableOpacity
+                                onPress={() => {
+                                    setNumberPadMode('weight');
+                                    setNumberPadSetIndex(setIndex);
+                                    setNumberPadVisible(true);
+                                }}
+                                style={styles.inputTouchable}
+                            >
+                                <View style={styles.valuePill}>
+                                    <Text style={styles.tableCell}>{set.weightKg.toFixed(0)} kg</Text>
+                                </View>
+                            </TouchableOpacity>
+                        </View>
+
+                        <View style={[styles.tableCellContainer, { flex: 1 }]}>
+                            <TouchableOpacity
+                                onPress={() => {
+                                    setNumberPadMode('reps');
+                                    setNumberPadSetIndex(setIndex);
+                                    setNumberPadVisible(true);
+                                }}
+                                style={styles.inputTouchable}
+                            >
+                                <View style={styles.valuePill}>
+                                    <Text style={styles.tableCell}>{set.reps}</Text>
+                                </View>
+                            </TouchableOpacity>
+                        </View>
+
+                        <View style={[styles.doneCheckboxContainer, { flex: 0.8 }]}>
+                            <AnimatedReanimated.View style={checkboxAnimatedStyle}>
+                                <TouchableOpacity
+                                    style={[
+                                        styles.doneCheckbox,
+                                        set.done && styles.doneCheckboxChecked,
+                                    ]}
+                                    onPress={() => handlePressDone(setIndex)}
+                                >
+                                    {set.done && (
+                                        <Ionicons name="checkmark" size={18} color={AppColors.white} />
+                                    )}
+                                </TouchableOpacity>
+                            </AnimatedReanimated.View>
+                        </View>
+                    </View>
+                ))}
+
+                <View style={styles.exerciseSpacing} />
+
+                <View style={styles.setButtonsRow}>
+                    <TouchableOpacity
+                        style={styles.addSetButton}
+                        onPress={() => onAddSet(exerciseIndex)}
+                    >
+                        <Text style={styles.addSetButtonText}>+ Add Set</Text>
+                    </TouchableOpacity>
+
+                    {exercise.sets.length > 1 && (
+                        <TouchableOpacity
+                            style={styles.deleteSetButton}
+                            onPress={() => onDeleteSet(exerciseIndex, exercise.sets.length - 1)}
+                        >
+                            <Text style={styles.deleteSetButtonText}>- Delete Set</Text>
+                        </TouchableOpacity>
+                    )}
+                </View>
+
+                <RestPickerSheet
+                    visible={restPickerVisible}
+                    initial={exercise.restSeconds}
+                    onSelect={(seconds: number) => {
+                        onRestTimeChange(exerciseIndex, seconds);
+                        setRestPickerVisible(false);
+                    }}
+                    onClose={() => setRestPickerVisible(false)}
+                />
+
+                <NumberPadModal
+                    visible={numberPadVisible}
+                    mode={numberPadMode}
+                    onSelect={(value: number) => {
+                        if (numberPadSetIndex !== null) {
+                            if (numberPadMode === 'weight') {
+                                onWeightChange(exerciseIndex, numberPadSetIndex, value);
+                            } else if (numberPadMode === 'reps') {
+                                onRepsChange(exerciseIndex, numberPadSetIndex, value);
+                            }
                         }
-                    }
-                    setNumberPadMode(null);
-                    setNumberPadSetIndex(null);
-                }}
-                onClose={() => {
-                    setNumberPadVisible(false);
-                    setNumberPadMode(null);
-                    setNumberPadSetIndex(null);
-                }}
-            />
-        </View>
+                        setNumberPadMode(null);
+                        setNumberPadSetIndex(null);
+                    }}
+                    onClose={() => {
+                        setNumberPadVisible(false);
+                        setNumberPadMode(null);
+                        setNumberPadSetIndex(null);
+                    }}
+                />
+            </BlurView>
+        </AnimatedReanimated.View>
     );
 }
 
@@ -700,32 +806,35 @@ function RestPickerSheet({ visible, initial, onSelect, onClose }: any) {
                 onPress={onClose}
             >
                 <TouchableOpacity
-                    style={styles.restPickerSheet}
                     activeOpacity={1}
                     onPress={() => {}}
                 >
-                    <View style={styles.sheetHandle} />
-                    <Text style={styles.pickerTitle}>Pick rest time</Text>
+                    <BlurView intensity={30} tint="dark" style={styles.restPickerSheet}>
+                        <View style={styles.sheetHandle} />
+                        <Text style={styles.pickerTitle}>Pick rest time</Text>
 
-                    <ScrollView
-                        style={styles.pickerOptions}
-                        showsVerticalScrollIndicator={false}
-                    >
-                        {options.map((seconds) => (
-                            <TouchableOpacity
-                                key={seconds}
-                                style={styles.pickerOption}
-                                onPress={() => onSelect(seconds)}
-                            >
-                                <Text style={styles.pickerOptionText}>
-                                    {formatRestLabel(seconds)}
-                                </Text>
-                                {seconds === initial && (
-                                    <Ionicons name="checkmark" size={20} color={AppColors.orange} />
-                                )}
-                            </TouchableOpacity>
-                        ))}
-                    </ScrollView>
+                        <ScrollView
+                            style={styles.pickerOptions}
+                            showsVerticalScrollIndicator={false}
+                        >
+                            <View style={styles.section}>
+                            {options.map((seconds) => (
+                                <TouchableOpacity
+                                    key={seconds}
+                                    style={styles.pickerOption}
+                                    onPress={() => onSelect(seconds)}
+                                >
+                                    <Text style={styles.pickerOptionText}>
+                                        {formatRestLabel(seconds)}
+                                    </Text>
+                                    {seconds === initial && (
+                                        <Ionicons name="checkmark" size={20} color={AppColors.orange} />
+                                    )}
+                                </TouchableOpacity>
+                            ))}
+                            </View>
+                        </ScrollView>
+                    </BlurView>
                 </TouchableOpacity>
             </TouchableOpacity>
         </Modal>
@@ -736,6 +845,7 @@ function NumberPadModal({ visible, onSelect, onClose, mode }: any) {
     const [inputValue, setInputValue] = useState('');
 
     const handleNumberPress = (num: string) => {
+        if (num === '.' && inputValue.includes('.')) return;
         setInputValue(prev => prev + num);
     };
 
@@ -763,7 +873,7 @@ function NumberPadModal({ visible, onSelect, onClose, mode }: any) {
                     activeOpacity={1}
                     onPress={handleCancel}
                 />
-                <View style={styles.numberPadContainer}>
+                <BlurView intensity={28} tint="dark" style={styles.numberPadContainer}>
                     <View style={styles.numberPadHeader}>
                         <Text style={styles.numberPadTitle}>
                             Enter {mode === 'weight' ? 'Weight (kg)' : 'Reps'}
@@ -789,12 +899,14 @@ function NumberPadModal({ visible, onSelect, onClose, mode }: any) {
                                 <Text style={styles.numberPadButtonText}>{num}</Text>
                             </TouchableOpacity>
                         ))}
+
                         <TouchableOpacity
                             style={styles.numberPadButton}
                             onPress={() => handleNumberPress('.')}
                         >
                             <Text style={styles.numberPadButtonText}>.</Text>
                         </TouchableOpacity>
+
                         <TouchableOpacity
                             style={styles.numberPadButton}
                             onPress={() => handleNumberPress('0')}
@@ -817,6 +929,7 @@ function NumberPadModal({ visible, onSelect, onClose, mode }: any) {
                         >
                             <Text style={styles.numberPadActionButtonText}>Cancel</Text>
                         </TouchableOpacity>
+
                         <TouchableOpacity
                             style={[styles.numberPadActionButton, styles.numberPadConfirmButton]}
                             onPress={handleConfirm}
@@ -824,7 +937,7 @@ function NumberPadModal({ visible, onSelect, onClose, mode }: any) {
                             <Text style={styles.numberPadConfirmButtonText}>OK</Text>
                         </TouchableOpacity>
                     </View>
-                </View>
+                </BlurView>
             </View>
         </Modal>
     );
@@ -888,7 +1001,7 @@ function ClockOverlay({ visible, onClose }: any) {
                     activeOpacity={1}
                     onPress={onClose}
                 />
-                <View style={styles.clockOverlay}>
+                <BlurView intensity={28} tint="dark" style={styles.clockOverlay}>
                     <View style={styles.clockHeader}>
                         <View style={{ width: 24 }} />
                         <Text style={styles.clockTitle}>Clock</Text>
@@ -914,6 +1027,7 @@ function ClockOverlay({ visible, onClose }: any) {
                                 Timer
                             </Text>
                         </TouchableOpacity>
+
                         <TouchableOpacity
                             style={[
                                 styles.toggleButton,
@@ -974,7 +1088,7 @@ function ClockOverlay({ visible, onClose }: any) {
                         }}
                         onClose={() => setDurationPickerVisible(false)}
                     />
-                </View>
+                </BlurView>
             </View>
         </Modal>
     );
@@ -999,7 +1113,7 @@ function DurationPickerModal({ visible, onSelect, onClose }: any) {
             <View style={styles.pickerBackdrop}>
                 <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
 
-                <View style={styles.durationPickerSheet}>
+                <BlurView intensity={30} tint="dark" style={styles.durationPickerSheet}>
                     <View style={styles.sheetHandle} />
                     <Text style={styles.durationPickerTitle}>Select duration</Text>
 
@@ -1011,26 +1125,27 @@ function DurationPickerModal({ visible, onSelect, onClose }: any) {
                             decelerationRate="fast"
                             contentContainerStyle={{ paddingVertical: ITEM_HEIGHT }}
                             onMomentumScrollEnd={(e) => {
-                                const index = Math.round(
-                                    e.nativeEvent.contentOffset.y / ITEM_HEIGHT
-                                );
+                                const index = Math.round(e.nativeEvent.contentOffset.y / ITEM_HEIGHT);
                                 setMinutes(index);
                             }}
                         >
+                            <View style={styles.section}>
                             {minutesList.map((m) => (
                                 <View
                                     key={m}
                                     style={{
                                         height: ITEM_HEIGHT,
-                                        justifyContent: "center",
-                                        alignItems: "center",
+                                        justifyContent: 'center',
+                                        alignItems: 'center',
                                     }}
                                 >
                                     <Text style={styles.durationValue}>
-                                        {String(m).padStart(2, "0")}
+                                        {String(m).padStart(2, '0')}
                                     </Text>
                                 </View>
                             ))}
+                            </View>
+
                         </ScrollView>
 
                         <Text style={styles.durationSeparator}>:</Text>
@@ -1042,32 +1157,33 @@ function DurationPickerModal({ visible, onSelect, onClose }: any) {
                             decelerationRate="fast"
                             contentContainerStyle={{ paddingVertical: ITEM_HEIGHT }}
                             onMomentumScrollEnd={(e) => {
-                                const index = Math.round(
-                                    e.nativeEvent.contentOffset.y / ITEM_HEIGHT
-                                );
+                                const index = Math.round(e.nativeEvent.contentOffset.y / ITEM_HEIGHT);
                                 setSeconds(index);
                             }}
                         >
+                            <View style={styles.section}>
                             {secondsList.map((s) => (
                                 <View
                                     key={s}
                                     style={{
                                         height: ITEM_HEIGHT,
-                                        justifyContent: "center",
-                                        alignItems: "center",
+                                        justifyContent: 'center',
+                                        alignItems: 'center',
                                     }}
                                 >
                                     <Text style={styles.durationValue}>
-                                        {String(s).padStart(2, "0")}
+                                        {String(s).padStart(2, '0')}
                                     </Text>
                                 </View>
                             ))}
+                            </View>
+
                         </ScrollView>
 
                         <View
                             pointerEvents="none"
                             style={{
-                                position: "absolute",
+                                position: 'absolute',
                                 top: ITEM_HEIGHT,
                                 bottom: ITEM_HEIGHT,
                                 left: 15,
@@ -1077,7 +1193,7 @@ function DurationPickerModal({ visible, onSelect, onClose }: any) {
                                 borderBottomWidth: 1,
                                 borderLeftWidth: 1,
                                 borderRightWidth: 1,
-                                borderColor: AppColors.lightGrey
+                                borderColor: AppColors.lightGrey,
                             }}
                         />
                     </View>
@@ -1097,7 +1213,7 @@ function DurationPickerModal({ visible, onSelect, onClose }: any) {
                             <Text style={styles.durationOKButtonText}>OK</Text>
                         </TouchableOpacity>
                     </View>
-                </View>
+                </BlurView>
             </View>
         </Modal>
     );
@@ -1112,27 +1228,28 @@ function WorkoutInProgressSheet({ visible, onResume, onDiscard }: any) {
                 onPress={onResume}
             >
                 <TouchableOpacity
-                    style={styles.workoutInProgressSheet}
                     activeOpacity={1}
                     onPress={() => {}}
                 >
-                    <View style={styles.sheetHandle} />
-                    <Text style={styles.sheetTitle}>Workout in progress</Text>
+                    <BlurView intensity={30} tint="dark" style={styles.workoutInProgressSheet}>
+                        <View style={styles.sheetHandle} />
+                        <Text style={styles.sheetTitle}>Workout in progress</Text>
 
-                    <View style={styles.sheetButtonsRow}>
-                        <TouchableOpacity
-                            style={[styles.sheetButton, styles.sheetButtonResume]}
-                            onPress={onResume}
-                        >
-                            <Text style={styles.sheetButtonText}>Resume</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={[styles.sheetButton, styles.sheetButtonDiscard]}
-                            onPress={onDiscard}
-                        >
-                            <Text style={styles.sheetButtonText}>Discard</Text>
-                        </TouchableOpacity>
-                    </View>
+                        <View style={styles.sheetButtonsRow}>
+                            <TouchableOpacity
+                                style={[styles.sheetButton, styles.sheetButtonResume]}
+                                onPress={onResume}
+                            >
+                                <Text style={styles.sheetButtonText}>Resume</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.sheetButton, styles.sheetButtonDiscard]}
+                                onPress={onDiscard}
+                            >
+                                <Text style={styles.sheetButtonText}>Discard</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </BlurView>
                 </TouchableOpacity>
             </TouchableOpacity>
         </Modal>
@@ -1154,9 +1271,9 @@ function RestCompleteOverlay({ visible, exerciseName, onClose }: any) {
                 activeOpacity={1}
                 onPress={onClose}
             >
-                <View style={styles.restCompleteOverlay}>
+                <BlurView intensity={28} tint="dark" style={styles.restCompleteOverlay}>
                     <Text style={styles.restCompleteText}>Time for the next set!</Text>
-                </View>
+                </BlurView>
             </TouchableOpacity>
         </Modal>
     );
@@ -1165,278 +1282,403 @@ function RestCompleteOverlay({ visible, exerciseName, onClose }: any) {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: AppColors.black,
+        backgroundColor: '#090909',
+        width: '100%',
+
     },
+
+    animatedScreen: {
+        flex: 1,
+    },
+
     scrollView: {
         flex: 1,
     },
-    scrollContent: {
-        paddingHorizontal: 12,
-        paddingBottom: 20,
+    section: {
+        paddingHorizontal: 14,
+        marginTop: 8,
     },
+    blur: {
+        width: '100%',
+        borderRadius: 14,
+        overflow: 'hidden',
+    },
+    inner: {
+        width: '100%',
+        alignItems: 'center',
+
+        flexDirection: 'row',
+        justifyContent: 'center',
+        paddingVertical: 14,
+        flexDirection: 'row',
+        gap:8
+    },
+
+    scrollContent: {
+        paddingBottom: 20,
+        paddingTop: 20
+    },
+
+    glassBase: {
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+        overflow: 'hidden',
+    },
+
     metricsRow: {
         flexDirection: 'row',
         gap: 12,
         paddingHorizontal: 12,
+        overflow: 'hidden',
     },
+
     metricBlock: {
         flex: 1,
         alignItems: 'center',
-        paddingVertical: 12,
+        paddingVertical: 14,
+        borderRadius: 14,
+        overflow: 'hidden',
     },
+
     metricLabel: {
         fontSize: 12,
-        color: AppColors.grey,
+        color: 'rgba(255,255,255,0.6)',
         marginBottom: 6,
     },
+
     metricValue: {
         fontSize: 16,
         fontWeight: '700',
         color: AppColors.white,
     },
-    topSpacing : {
-        height: 20
+
+    topSpacing: {
+        height: 20,
     },
+
     spacing: {
         height: 12,
     },
+
     mediumSpacing: {
-        height: 22,
+        height: 18,
     },
     largeSpacing: {
-        height: 40,
+        height: 14,
     },
-    routineButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-        backgroundColor: AppColors.darkBg,
+
+    routineButton:{
+        width: '100%',             // full width to show blur
+        flexDirection: 'row',      // for icon + text inline
+        alignItems: 'center',      // vertical center
+        justifyContent: 'center',  // center horizontally
+        borderRadius: 14,
         paddingHorizontal: 16,
-        paddingVertical: 12,
-        borderRadius: 12,
-        marginHorizontal: 12,
+        backgroundColor: 'rgba(255,255,255,0.05)', // subtle background tint to enhance blur
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+        gap: 8,
     },
+
     routineButtonText: {
-        flex: 1,
         fontSize: 16,
         fontWeight: '700',
-        color: AppColors.orange,
+        color: AppColors.white,
     },
+
     addExerciseButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 8,
-        backgroundColor: AppColors.darkBg,
-        paddingHorizontal: 24,
-        paddingVertical: 12,
-        borderRadius: 12,
-        marginHorizontal: 12,
+        width: '100%',             // full width to show blur
+        flexDirection: 'row',      // for icon + text inline
+        alignItems: 'center',      // vertical center
+        justifyContent: 'center',  // center horizontally
+        borderRadius: 14,
+        backgroundColor: 'rgba(255,255,255,0.05)', // subtle background tint to enhance blur
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+        gap: 8,                   // spacing between icon & text
     },
+
     addExerciseButtonText: {
         fontSize: 16,
         fontWeight: '700',
         color: AppColors.orange,
     },
+
     exerciseCard: {
-        backgroundColor: AppColors.darkBg,
-        borderRadius: 12,
-        padding: 12,
+        borderRadius: 20,
+        padding: 14,
         marginBottom: 12,
-        marginHorizontal: 12,
+        
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+        overflow: 'hidden',
     },
+
     exerciseHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
     },
+
     exerciseName: {
         fontSize: 16,
         fontWeight: '700',
         color: AppColors.white,
+        flex: 1,
+        marginRight: 10,
     },
+
     restButton: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 6,
+        backgroundColor: 'rgba(255,120,37,0.10)',
+        paddingHorizontal: 10,
+        paddingVertical: 8,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(255,120,37,0.20)',
     },
+
     restButtonText: {
         fontSize: 14,
         color: AppColors.orange,
+        fontWeight: '600',
     },
+
     restCountdown: {
-        marginTop: 8,
-        backgroundColor: AppColors.black,
-        paddingVertical: 8,
-        borderRadius: 12,
+        marginTop: 10,
+        backgroundColor: 'rgba(255,120,37,0.10)',
+        paddingVertical: 10,
+        borderRadius: 14,
         alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255,120,37,0.18)',
     },
+
     restCountdownText: {
         fontSize: 14,
         fontWeight: '700',
         color: AppColors.orange,
     },
-    exerciseSpacing: { height: 10 },
+
+    exerciseSpacing: {
+        height: 10,
+    },
+
     tableHeaderRow: {
         flexDirection: 'row',
         marginBottom: 6,
         paddingHorizontal: 4,
     },
+
     tableHeaderCell: {
         fontSize: 12,
-        color: AppColors.white,
+        color: 'rgba(255,255,255,0.65)',
         textAlign: 'center',
     },
+
     tableDataRow: {
         flexDirection: 'row',
         alignItems: 'center',
         marginVertical: 6,
         paddingHorizontal: 4,
     },
+
     tableCell: {
         fontSize: 14,
         color: AppColors.white,
         textAlign: 'center',
+        opacity: 0.95,
     },
+
     tableCellContainer: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
         gap: 6,
     },
+
+    valuePill: {
+        minWidth: 68,
+        paddingHorizontal: 10,
+        paddingVertical: 8,
+        borderRadius: 12,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.06)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+
     iconButtonText: {
         fontSize: 16,
         fontWeight: '700',
         color: AppColors.orange,
         paddingHorizontal: 6,
     },
+
     doneCheckboxContainer: {
         alignItems: 'center',
         justifyContent: 'center',
     },
+
     doneCheckbox: {
-        width: 24,
-        height: 24,
-        borderWidth: 2,
-        borderColor: AppColors.orange,
-        borderRadius: 4,
-    },
-    doneCheckboxChecked: {
+        width: 28,
+        height: 28,
+        borderWidth: 1.5,
+        borderColor: 'rgba(255,120,37,0.55)',
+        borderRadius: 8,
+        backgroundColor: 'rgba(255,255,255,0.04)',
         alignItems: 'center',
         justifyContent: 'center',
     },
+
+    doneCheckboxChecked: {
+        backgroundColor: 'rgba(255,120,37,0.26)',
+        borderColor: AppColors.orange,
+    },
+
     setButtonsRow: {
         flexDirection: 'row',
         gap: 12,
     },
+
     addSetButton: {
         flex: 1,
-        backgroundColor: AppColors.orange,
+        backgroundColor: 'rgba(255,120,37,0.15)',
         paddingVertical: 12,
         paddingHorizontal: 12,
-        borderRadius: 12,
+        borderRadius: 14,
         alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255,120,37,0.35)',
     },
+
     addSetButtonText: {
         fontSize: 16,
         fontWeight: '700',
         color: AppColors.white,
     },
+
     deleteSetButton: {
         flex: 1,
-        backgroundColor: AppColors.orange,
+        backgroundColor: 'rgba(255,120,37,0.12)',
         paddingVertical: 12,
         paddingHorizontal: 12,
-        borderRadius: 12,
+        borderRadius: 14,
         alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255,120,37,0.25)',
     },
+
     deleteSetButtonText: {
         fontSize: 16,
         fontWeight: '700',
         color: AppColors.white,
     },
+
     updateRoutineButton: {
-        backgroundColor: AppColors.darkBg,
-        paddingHorizontal: 24,
-        paddingVertical: 12,
-        borderRadius: 12,
-        alignItems: 'center',
-        marginHorizontal: 12,
+        width: '100%',             // full width to show blur
+        alignItems: 'center',      // vertical center
+        justifyContent: 'center',  // center horizontally
+        borderRadius: 14,
+        backgroundColor: 'rgba(255,255,255,0.05)', // subtle background tint to enhance blur
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+        gap: 8,
     },
-    updateRoutineButtonText: {
+
+        updateRoutineButtonText: {
         fontSize: 14,
         fontWeight: '700',
         color: AppColors.orange,
         textAlign: 'center',
     },
+
     actionButtonsRow: {
         flexDirection: 'row',
         gap: 12,
-        marginHorizontal: 12,
+        
     },
+
     actionButton: {
         flex: 1,
         paddingHorizontal: 16,
-        paddingVertical: 12,
-        borderRadius: 12,
+        paddingVertical: 14,
+        borderRadius: 16,
         alignItems: 'center',
     },
-    settingsButton: {
-        backgroundColor: AppColors.darkBg,
-    },
-    discardButton: {
-        backgroundColor: AppColors.darkBg,
-    },
+
+    settingsButton: {},
+
+    discardButton: {},
+
     actionButtonText: {
         fontSize: 16,
         fontWeight: '700',
         color: AppColors.orange,
-        textAlign: 'center',
     },
+
     overlayBackdrop: {
         flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        backgroundColor: 'rgba(0, 0, 0, 0.45)',
         justifyContent: 'center',
         alignItems: 'center',
     },
+
     toastBackdrop: {
         flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+        backgroundColor: 'rgba(0, 0, 0, 0.55)',
         justifyContent: 'center',
         alignItems: 'center',
     },
+
     toastContainer: {
-        backgroundColor: AppColors.darkBg,
         borderRadius: 20,
         paddingHorizontal: 24,
         paddingVertical: 16,
+        backgroundColor: 'rgba(255,255,255,0.06)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+        overflow: 'hidden',
     },
+
     toastText: {
         fontSize: 16,
         fontWeight: '700',
         color: AppColors.white,
         textAlign: 'center',
     },
+
     clockBackdrop: {
         flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+        backgroundColor: 'rgba(0, 0, 0, 0.55)',
         justifyContent: 'center',
         alignItems: 'center',
     },
+
     clockOverlay: {
-        backgroundColor: AppColors.darkBg,
-        borderRadius: 20,
+        borderRadius: 24,
         paddingHorizontal: 20,
         paddingVertical: 20,
         width: '80%',
         maxWidth: 337,
+        backgroundColor: 'rgba(255,255,255,0.06)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+        overflow: 'hidden',
     },
+
     clockHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
         marginBottom: 16,
     },
+
     clockTitle: {
         fontSize: 16,
         fontWeight: '400',
@@ -1444,31 +1686,39 @@ const styles = StyleSheet.create({
         flex: 1,
         textAlign: 'center',
     },
+
     timerToggle: {
         flexDirection: 'row',
         gap: 12,
         marginBottom: 12,
     },
+
     toggleButton: {
-        backgroundColor: AppColors.black,
+        backgroundColor: 'rgba(255,255,255,0.05)',
         paddingHorizontal: 20,
         paddingVertical: 10,
         borderRadius: 12,
         flex: 1,
         alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.06)',
     },
+
     toggleButtonActive: {
         backgroundColor: AppColors.orange,
     },
+
     toggleButtonText: {
         fontSize: 14,
         fontWeight: '700',
         color: AppColors.white,
         textAlign: 'center',
     },
+
     toggleButtonTextActive: {
         color: AppColors.black,
     },
+
     timeDisplay: {
         fontSize: 28,
         fontWeight: '700',
@@ -1476,51 +1726,63 @@ const styles = StyleSheet.create({
         marginBottom: 12,
         textAlign: 'center',
     },
+
     setDurationButton: {
-        backgroundColor: AppColors.black,
+        backgroundColor: 'rgba(255,255,255,0.05)',
         paddingHorizontal: 24,
         paddingVertical: 10,
         borderRadius: 12,
         marginBottom: 12,
         alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.06)',
     },
+
     setDurationButtonText: {
         fontSize: 16,
         fontWeight: '700',
         color: AppColors.white,
     },
+
     controlButtons: {
         flexDirection: 'row',
         gap: 8,
         marginTop: 8,
     },
+
     controlButton: {
         flex: 1,
-        backgroundColor: AppColors.black,
+        backgroundColor: 'rgba(255,255,255,0.05)',
         paddingVertical: 10,
         borderRadius: 12,
         alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.06)',
     },
+
     controlButtonText: {
         fontSize: 16,
         fontWeight: '700',
         color: AppColors.white,
     },
+
     pickerBackdrop: {
         flex: 1,
         backgroundColor: 'rgba(0, 0, 0, 0.5)',
         justifyContent: 'flex-end',
     },
+
     durationPickerSheet: {
-        backgroundColor: AppColors.black,
-        borderTopLeftRadius: 20,
-        borderTopRightRadius: 20,
-        borderWidth: 1.5,
-        borderColor: AppColors.orange,
-        borderBottomWidth: 0,
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
         paddingHorizontal: 12,
         paddingVertical: 16,
+        backgroundColor: 'rgba(255,255,255,0.06)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+        overflow: 'hidden',
     },
+
     sheetHandle: {
         width: 40,
         height: 5,
@@ -1529,6 +1791,7 @@ const styles = StyleSheet.create({
         alignSelf: 'center',
         marginBottom: 12,
     },
+
     durationPickerTitle: {
         fontSize: 16,
         fontWeight: '700',
@@ -1536,12 +1799,14 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         marginBottom: 20,
     },
+
     durationInputRow: {
         flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'center',
         marginBottom: 20,
     },
+
     durationValue: {
         fontSize: 24,
         fontWeight: '700',
@@ -1550,16 +1815,19 @@ const styles = StyleSheet.create({
         minWidth: 50,
         textAlign: 'center',
     },
+
     durationSeparator: {
         fontSize: 24,
         fontWeight: '700',
         color: AppColors.white,
         marginHorizontal: 16,
     },
+
     durationButtonsRow: {
         flexDirection: 'row',
         gap: 12,
     },
+
     durationButton: {
         flex: 1,
         paddingHorizontal: 24,
@@ -1567,37 +1835,46 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         alignItems: 'center',
     },
+
     durationCancelButton: {
-        backgroundColor: AppColors.darkBg,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.06)',
     },
+
     durationOKButton: {
         backgroundColor: AppColors.orange,
     },
+
     durationButtonText: {
         fontSize: 16,
         fontWeight: '700',
         color: AppColors.orange,
     },
+
     durationOKButtonText: {
         fontSize: 16,
         fontWeight: '700',
         color: AppColors.black,
     },
+
     sheetBackdrop: {
         flex: 1,
         backgroundColor: 'rgba(0,0,0,0.5)',
         justifyContent: 'flex-end',
     },
+
     workoutInProgressSheet: {
-        backgroundColor: AppColors.black,
-        borderTopLeftRadius: 20,
-        borderTopRightRadius: 20,
-        borderWidth: 1.5,
-        borderColor: AppColors.orange,
-        borderBottomWidth: 0,
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
         paddingHorizontal: 12,
         paddingVertical: 16,
+        backgroundColor: 'rgba(255,255,255,0.06)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+        overflow: 'hidden',
     },
+
     sheetTitle: {
         fontSize: 16,
         fontWeight: '400',
@@ -1605,10 +1882,12 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         marginBottom: 12,
     },
+
     sheetButtonsRow: {
         flexDirection: 'row',
         gap: 12,
     },
+
     sheetButton: {
         flex: 1,
         paddingHorizontal: 30,
@@ -1616,40 +1895,54 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         alignItems: 'center',
     },
+
     sheetButtonResume: {
-        backgroundColor: AppColors.darkBg,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.06)',
     },
+
     sheetButtonDiscard: {
-        backgroundColor: AppColors.darkBg,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.06)',
     },
+
     sheetButtonText: {
         fontSize: 16,
         fontWeight: '700',
         color: AppColors.orange,
     },
+
     restCompleteOverlay: {
-        backgroundColor: 'rgba(0,0,0,0.5)',
         borderRadius: 20,
         paddingHorizontal: 24,
         paddingVertical: 16,
+        backgroundColor: 'rgba(255,255,255,0.06)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+        overflow: 'hidden',
     },
+
     restCompleteText: {
         fontSize: 16,
         fontWeight: '700',
         color: AppColors.white,
         textAlign: 'center',
     },
+
     restPickerSheet: {
-        backgroundColor: AppColors.black,
-        borderTopLeftRadius: 20,
-        borderTopRightRadius: 20,
-        borderWidth: 1.5,
-        borderColor: AppColors.orange,
-        borderBottomWidth: 0,
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
         paddingHorizontal: 12,
         paddingVertical: 12,
         maxHeight: '70%',
+        backgroundColor: 'rgba(255,255,255,0.06)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+        overflow: 'hidden',
     },
+
     pickerTitle: {
         fontSize: 16,
         fontWeight: '700',
@@ -1657,186 +1950,286 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         marginBottom: 12,
     },
+
     pickerOptions: {
         maxHeight: 400,
     },
+
     pickerOption: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        backgroundColor: AppColors.darkBg,
+        backgroundColor: 'rgba(255,255,255,0.05)',
         paddingHorizontal: 16,
-        paddingVertical: 10,
-        borderRadius: 12,
+        paddingVertical: 12,
+        borderRadius: 14,
         marginBottom: 8,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.06)',
     },
+
     pickerOptionText: {
         fontSize: 16,
         color: AppColors.white,
     },
+
     modalBackdrop: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
+        backgroundColor: 'rgba(0,0,0,0.55)',
         justifyContent: 'center',
         alignItems: 'center',
     },
+
     modalContent: {
-        backgroundColor: AppColors.darkBg,
-        borderRadius: 20,
+        borderRadius: 24,
+        width: '95%',         // bigger than before
+        maxWidth: 480,        // allow it to grow on tablets
+        maxHeight: '80%',
         paddingHorizontal: 20,
-        paddingVertical: 16,
-        width: '80%',
-        maxHeight: '60%',
+        paddingVertical: 20,
+        backgroundColor: 'rgba(255,255,255,0.06)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+        overflow: 'hidden',
     },
+
+    routineItemButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between', // text left, chevron right
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        borderRadius: 14,
+        marginBottom: 8,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.06)',
+        gap: 12,
+    },
+
+    routineItemText: {
+        flexShrink: 0,  // never let text shrink to 0
+        flexGrow: 1,    // fill available space
+        marginRight: 8, // small space before chevron
+    },
+
     modalTitle: {
         fontSize: 16,
         fontWeight: '700',
         color: AppColors.white,
         textAlign: 'center',
-        marginBottom: 12,
+        marginBottom: 20,
     },
+
     routinesList: {
         maxHeight: 300,
         marginBottom: 12,
+        width: '100%',
     },
-    routineItemButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: AppColors.black,
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        borderRadius: 12,
-        marginBottom: 8,
-        gap: 12,
-    },
-    routineItemText: {
-        flex: 1,
-    },
+
     routineItemTitle: {
         fontSize: 14,
         fontWeight: '700',
         color: AppColors.orange,
         marginBottom: 4,
     },
+
     routineItemSubtitle: {
         fontSize: 12,
         color: AppColors.grey,
     },
+
     modalCloseButton: {
-        backgroundColor: AppColors.black,
-        borderWidth: 1.5,
-        borderColor: AppColors.orange,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
         paddingHorizontal: 24,
         paddingVertical: 12,
-        borderRadius: 12,
+        borderRadius: 14,
         alignItems: 'center',
     },
+
     modalCloseButtonText: {
         fontSize: 16,
         fontWeight: '700',
         color: AppColors.orange,
     },
+
     inputTouchable: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
         padding: 4,
     },
+
     numberPadBackdrop: {
         flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        backgroundColor: 'rgba(0, 0, 0, 0.55)',
         justifyContent: 'center',
         alignItems: 'center',
     },
+
     numberPadContainer: {
-        backgroundColor: AppColors.darkBg,
-        borderRadius: 20,
+        borderRadius: 24,
         paddingHorizontal: 20,
         alignItems: 'center',
         paddingVertical: 20,
         width: '85%',
         maxWidth: 350,
-
+        backgroundColor: 'rgba(255,255,255,0.06)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+        overflow: 'hidden',
     },
+
     numberPadHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
         marginBottom: 16,
+        alignSelf: 'stretch',
     },
+
     numberPadTitle: {
         fontSize: 16,
         fontWeight: '700',
         color: AppColors.white,
         flex: 1,
     },
+
     numberPadDisplay: {
-        backgroundColor: AppColors.black,
-        borderRadius: 12,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        borderRadius: 14,
         paddingVertical: 16,
         marginBottom: 16,
         paddingHorizontal: 20,
         alignItems: 'center',
+        width: '100%',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.06)',
     },
+
     numberPadDisplayText: {
         fontSize: 20,
         fontWeight: '700',
         color: AppColors.orange,
-
     },
+
     numberPadGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
         justifyContent: 'center',
         marginBottom: 16,
     },
+
     numberPadButton: {
         width: '25%',
         aspectRatio: 1,
-        backgroundColor: AppColors.black,
+        backgroundColor: 'rgba(255,255,255,0.05)',
         justifyContent: 'center',
         alignItems: 'center',
         margin: 4,
-        borderRadius: 12,
+        borderRadius: 14,
         borderWidth: 1,
-        borderColor: AppColors.orange,
+        borderColor: 'rgba(255,255,255,0.08)',
     },
+
     numberPadButtonText: {
         fontSize: 18,
         fontWeight: '700',
         color: AppColors.orange,
     },
+
     numberPadBackspaceButton: {
-        backgroundColor: AppColors.orange,
+        backgroundColor: 'rgba(255,120,37,0.18)',
+        borderColor: 'rgba(255,120,37,0.35)',
     },
+
     numberPadButtonsRow: {
         flexDirection: 'row',
         gap: 12,
+        width: '100%',
     },
+
     numberPadActionButton: {
         flex: 1,
-        padding: 10,
-        borderRadius: 12,
+        padding: 12,
+        borderRadius: 14,
         alignItems: 'center',
     },
+
     numberPadCancelButton: {
-        backgroundColor: AppColors.black,
-        borderWidth: 1.5,
-        borderColor: AppColors.orange,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
     },
+
     numberPadConfirmButton: {
         backgroundColor: AppColors.orange,
-        borderWidth: 1.5,
-        borderColor: AppColors.orange,
     },
+
     numberPadActionButtonText: {
         fontSize: 16,
         fontWeight: '700',
         color: AppColors.orange,
     },
+
     numberPadConfirmButtonText: {
         fontSize: 16,
         fontWeight: '700',
         color: AppColors.black,
+    },
+    metricsContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        overflow:'hidden',
+        paddingVertical: 16,
+        borderRadius: 20,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+    },
+
+    metricItem: {
+        flex: 1,
+        alignItems: 'center',
+    },
+
+    metricDivider: {
+        width: 1,
+        height: 40,
+        backgroundColor: 'rgba(255,255,255,0.08)',
+    },
+    fullWidthButtons: {
+        
+        gap: 12,
+    },
+
+    fullButton: {
+        width: '100%',
+        paddingVertical: 16,
+        borderRadius: 14,
+        alignItems: 'center',
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+    },
+    horizontalButtons: {
+        flexDirection: 'row',
+        gap: 8,
+        
+        justifyContent: 'space-between',
+    },
+
+    halfButton: {
+        flex: 1,
+        height: 55,
+        borderRadius: 14,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
     },
 });

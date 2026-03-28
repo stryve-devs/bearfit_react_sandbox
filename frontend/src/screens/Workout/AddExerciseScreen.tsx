@@ -1,11 +1,25 @@
-import React, { useState, useMemo } from 'react';
-import {View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal,} from 'react-native';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import {
+    View, Text, StyleSheet, ScrollView, TouchableOpacity,
+    TextInput, Animated, Modal
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
+import AnimatedReanimated, {
+    FadeInDown,
+    useSharedValue,
+    useAnimatedStyle,
+    withSpring,
+} from 'react-native-reanimated';
+
 import { AppColors } from '../../constants/colors';
-import { Exercise, ExerciseTarget } from '../../types/workout.types';
+import { Exercise } from '../../types/workout.types';
 import { useRoutine } from '../../context/RoutineContext';
+
+const ReanimatedTouchable =
+    AnimatedReanimated.createAnimatedComponent(TouchableOpacity);
 
 const SAMPLE_EXERCISES: Exercise[] = [
     { name: 'Bench Press (Barbell)', muscle: 'Chest', equipment: 'Barbell', imageAsset: 'icon' },
@@ -36,17 +50,22 @@ export default function AddExerciseScreen() {
     const router = useRouter();
     const routeParams = useLocalSearchParams();
     const { addTarget } = useRoutine();
+
     const [searchText, setSearchText] = useState('');
     const [selectedEquipment, setSelectedEquipment] = useState<string | null>(null);
     const [selectedMuscle, setSelectedMuscle] = useState<string | null>(null);
     const [equipmentSheetVisible, setEquipmentSheetVisible] = useState(false);
     const [muscleSheetVisible, setMuscleSheetVisible] = useState(false);
 
-    // Check if we're coming from workout logging
-    const isFromWorkout = routeParams?.fromWorkout === 'true';
+    const fadeAnim = useRef(new Animated.Value(0)).current;
+    const translateAnim = useRef(new Animated.Value(20)).current;
 
-    const hasActiveFilters = (selectedEquipment && selectedEquipment !== 'All Equipment') ||
-        (selectedMuscle && selectedMuscle !== 'All Muscles');
+    useEffect(() => {
+        Animated.parallel([
+            Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
+            Animated.timing(translateAnim, { toValue: 0, duration: 400, useNativeDriver: true }),
+        ]).start();
+    }, []);
 
     const filteredExercises = useMemo(() => {
         const query = searchText.toLowerCase();
@@ -59,20 +78,19 @@ export default function AddExerciseScreen() {
     }, [searchText, selectedEquipment, selectedMuscle]);
 
     const handleExerciseSelect = (exercise: Exercise) => {
-        if (isFromWorkout) {
+        if (routeParams?.fromWorkout === 'true') {
             router.back();
             setTimeout(() => {
                 router.setParams({ addExerciseName: exercise.name } as any);
             }, 100);
         } else {
-            const newTarget: ExerciseTarget = {
+            addTarget({
                 name: exercise.name,
                 sets: 0,
                 targetWeightKg: 0,
                 targetReps: 0,
                 restSeconds: 60,
-            };
-            addTarget(newTarget);
+            });
             router.back();
         }
     };
@@ -82,364 +100,254 @@ export default function AddExerciseScreen() {
         setSelectedMuscle(null);
     };
 
-    const handleEquipmentSelect = (equipment: string) => {
-        setSelectedEquipment(equipment === 'All Equipment' ? null : equipment);
-        setEquipmentSheetVisible(false);
-    };
-
-    const handleMuscleSelect = (muscle: string) => {
-        setSelectedMuscle(muscle === 'All Muscles' ? null : muscle);
-        setMuscleSheetVisible(false);
-    };
-/*
     return (
-        <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-            <View style={styles.header}>
-                <View style={styles.headerLeft}>
-                    <TouchableOpacity onPress={() => router.back()}>
-                        <Ionicons name="arrow-back" size={24} color={AppColors.orange} />
-                    </TouchableOpacity>
-                </View>
-
-                <Text style={styles.headerTitle}>Workout</Text>
-
-                <View style={styles.headerRight} />
-            </View>
-*/
-    return (
-        <SafeAreaView style={styles.container} edges={['bottom','left','right']}>
-            <View style={styles.spacing} />
-        <ScrollView
-                style={styles.scrollView}
-                contentContainerStyle={styles.scrollContent}
-                showsVerticalScrollIndicator={false}
+        <SafeAreaView style={styles.container} edges={['left', 'right']}>
+            <Animated.View
+                style={{
+                    flex: 1,
+                    opacity: fadeAnim,
+                    transform: [{ translateY: translateAnim }],
+                }}
             >
-                <View style={styles.spacing} />
+                <ScrollView contentContainerStyle={styles.scrollContent}>
+                    {/* SEARCH BAR */}
+                    <BlurView intensity={25} tint="dark" style={styles.searchContainer}>
+                        <Ionicons name="search" size={20} color={AppColors.orange} />
+                        <TextInput
+                            style={styles.searchInput}
+                            placeholder="Search Exercises"
+                            placeholderTextColor={AppColors.orange}
+                            value={searchText}
+                            onChangeText={setSearchText}
+                        />
+                    </BlurView>
 
-                {/* Search Bar */}
-                <View style={styles.searchContainer}>
-                    <Ionicons name="search" size={20} color={AppColors.orange} />
-                    <TextInput
-                        style={styles.searchInput}
-                        placeholder="Search Exercises"
-                        placeholderTextColor={AppColors.orange}
-                        value={searchText}
-                        onChangeText={setSearchText}
-                    />
-                </View>
-
-                <View style={styles.spacing} />
-
-                {/* Filter Buttons */}
-                <View style={styles.filterRow}>
-                    <TouchableOpacity
-                        style={styles.filterButton}
-                        onPress={() => setEquipmentSheetVisible(true)}
-                    >
-                        <Text style={styles.filterButtonText}>
-                            {selectedEquipment || 'All Equipment'}
-                        </Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.filterButton}
-                        onPress={() => setMuscleSheetVisible(true)}
-                    >
-                        <Text style={styles.filterButtonText}>
-                            {selectedMuscle || 'All Muscles'}
-                        </Text>
-                    </TouchableOpacity>
-
-                    {hasActiveFilters && (
-                        <TouchableOpacity
-                            style={styles.clearFiltersButton}
-                            onPress={handleResetFilters}
+                    {/* FILTER BUTTONS */}
+                    <View style={styles.filterRow}>
+                        <ReanimatedTouchable
+                            onPress={() => setEquipmentSheetVisible(true)}
+                            style={[
+                                styles.filterButton,
+                                { flex: selectedEquipment || selectedMuscle ? 0.45 : 0.5 },
+                            ]}
                         >
-                            <Ionicons name="close-circle" size={17} color={AppColors.orange} />
-                        </TouchableOpacity>
-                    )}
-                </View>
+                            <BlurView intensity={25} tint="dark" style={styles.filterButtonBlur}>
+                                <Text style={styles.filterButtonText}>
+                                    {selectedEquipment || 'All Equipment'}
+                                </Text>
+                            </BlurView>
+                        </ReanimatedTouchable>
 
-                <View style={styles.spacing} />
+                        <ReanimatedTouchable
+                            onPress={() => setMuscleSheetVisible(true)}
+                            style={[
+                                styles.filterButton,
+                                { flex: selectedEquipment || selectedMuscle ? 0.45 : 0.5 },
+                            ]}
+                        >
+                            <BlurView intensity={25} tint="dark" style={styles.filterButtonBlur}>
+                                <Text style={styles.filterButtonText}>
+                                    {selectedMuscle || 'All Muscles'}
+                                </Text>
+                            </BlurView>
+                        </ReanimatedTouchable>
 
-                {/* Popular Exercises Label */}
-                <Text style={styles.popularLabel}>Popular Exercises</Text>
+                        {(selectedEquipment || selectedMuscle) && (
+                            <ReanimatedTouchable
+                                onPress={handleResetFilters}
+                                style={[styles.filterButton, { flex: 0.1 }]}
+                            >
+                                <BlurView intensity={25} tint="dark" style={styles.filterButtonBlur}>
+                                    <Ionicons name="close-circle" size={20} color={AppColors.orange} />
+                                </BlurView>
+                            </ReanimatedTouchable>
+                        )}
+                    </View>
 
-                <View style={styles.spacing} />
-
-                {/* Exercises List */}
-                {filteredExercises.length > 0 ? (
-                    filteredExercises.map((exercise) => (
-                        <ExerciseListItem
+                    {/* EXERCISE LIST */}
+                    {filteredExercises.map((exercise, index) => (
+                        <ExerciseItem
                             key={exercise.name}
                             exercise={exercise}
-                            onSelect={() => handleExerciseSelect(exercise)}
+                            delay={index * 50}
+                            onPress={() => handleExerciseSelect(exercise)}
                         />
-                    ))
-                ) : (
-                    <Text style={styles.noResultsText}>No exercises found</Text>
-                )}
+                    ))}
+                </ScrollView>
 
-                <View style={styles.largeSpacing} />
-            </ScrollView>
+                {/* FILTER SHEETS */}
+                <FilterSheet
+                    visible={equipmentSheetVisible}
+                    title="Equipment"
+                    items={EQUIPMENT_LIST}
+                    selected={selectedEquipment || 'All Equipment'}
+                    onSelect={(item) => {
+                        setSelectedEquipment(item === 'All Equipment' ? null : item);
+                        setEquipmentSheetVisible(false);
+                    }}
+                    onClose={() => setEquipmentSheetVisible(false)}
+                />
 
-            {/* Equipment Filter Sheet */}
-            <FilterSheet
-                visible={equipmentSheetVisible}
-                title="Equipment"
-                items={EQUIPMENT_LIST}
-                selected={selectedEquipment || 'All Equipment'}
-                onSelect={handleEquipmentSelect}
-                onClose={() => setEquipmentSheetVisible(false)}
-            />
-
-            {/* Muscle Filter Sheet */}
-            <FilterSheet
-                visible={muscleSheetVisible}
-                title="Muscles"
-                items={MUSCLE_LIST}
-                selected={selectedMuscle || 'All Muscles'}
-                onSelect={handleMuscleSelect}
-                onClose={() => setMuscleSheetVisible(false)}
-            />
+                <FilterSheet
+                    visible={muscleSheetVisible}
+                    title="Muscles"
+                    items={MUSCLE_LIST}
+                    selected={selectedMuscle || 'All Muscles'}
+                    onSelect={(item) => {
+                        setSelectedMuscle(item === 'All Muscles' ? null : item);
+                        setMuscleSheetVisible(false);
+                    }}
+                    onClose={() => setMuscleSheetVisible(false)}
+                />
+            </Animated.View>
         </SafeAreaView>
     );
 }
 
-function ExerciseListItem({ exercise, onSelect }: any) {
+function ExerciseItem({ exercise, onPress, delay }: any) {
+    const scale = useSharedValue(1);
+
+    const style = useAnimatedStyle(() => ({
+        transform: [{ scale: scale.value }],
+    }));
+
     return (
-        <TouchableOpacity
-            style={styles.exerciseItem}
-            onPress={onSelect}
-        >
-            <View style={styles.exerciseItemLeft}>
-                <Ionicons name="barbell" size={24} color={AppColors.white} />
-                <View style={styles.exerciseItemText}>
-                    <Text style={styles.exerciseItemTitle}>{exercise.name}</Text>
-                    <Text style={styles.exerciseItemSubtitle}>{exercise.muscle}</Text>
-                </View>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={AppColors.white} />
-        </TouchableOpacity>
+        <AnimatedReanimated.View entering={FadeInDown.delay(delay).springify()}>
+            <ReanimatedTouchable
+                style={style}
+                onPressIn={() => (scale.value = withSpring(0.97))}
+                onPressOut={() => (scale.value = withSpring(1))}
+                onPress={onPress}
+            >
+                <BlurView intensity={25} tint="dark" style={styles.card}>
+                    <View style={styles.cardLeft}>
+                        <Ionicons name="barbell" size={22} color={AppColors.orange} />
+                        <View>
+                            <Text style={styles.title}>{exercise.name}</Text>
+                            <Text style={styles.subtitle}>{exercise.muscle}</Text>
+                        </View>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color={AppColors.white} />
+                </BlurView>
+            </ReanimatedTouchable>
+        </AnimatedReanimated.View>
     );
 }
 
 function FilterSheet({ visible, title, items, selected, onSelect, onClose }: any) {
     return (
         <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-            <TouchableOpacity
-                style={styles.sheetBackdrop}
-                activeOpacity={1}
-                onPress={onClose}
-            >
-                <TouchableOpacity
-                    style={styles.filterSheet}
-                    activeOpacity={1}
-                    onPress={() => {}}
-                >
+            <TouchableOpacity style={styles.sheetBackdrop} activeOpacity={1} onPress={onClose}>
+                <BlurView intensity={25} tint="dark" style={styles.filterSheet}>
                     <View style={styles.sheetHandle} />
-
-                    <ScrollView
-                        style={styles.filterOptions}
-                        showsVerticalScrollIndicator={false}
-                        scrollEnabled={true}
-                    >
+                    <ScrollView showsVerticalScrollIndicator={false}>
                         {items.map((item: string) => (
-                            <TouchableOpacity
-                                key={item}
-                                style={styles.filterOption}
-                                onPress={() => onSelect(item)}
-                            >
-                                <Text style={styles.filterOptionText}>{item}</Text>
-                                {item === selected && (
-                                    <Ionicons name="checkmark" size={20} color={AppColors.orange} />
-                                )}
-                            </TouchableOpacity>
+                            <ReanimatedTouchable key={item} onPress={() => onSelect(item)}>
+                                <BlurView intensity={15} tint="dark" style={styles.filterOption}>
+                                    <Text style={styles.filterOptionText}>{item}</Text>
+                                    {item === selected && (
+                                        <Ionicons name="checkmark" size={20} color={AppColors.orange} />
+                                    )}
+                                </BlurView>
+                            </ReanimatedTouchable>
                         ))}
                     </ScrollView>
-                </TouchableOpacity>
+                </BlurView>
             </TouchableOpacity>
         </Modal>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: AppColors.black,
-    },
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        backgroundColor: AppColors.darkBg,
-        height: 56,
-        paddingHorizontal: 12,
-    },
+    container: { flex: 1, backgroundColor: '#090909' },
+    scrollContent: { paddingTop: 20, paddingBottom: 20, paddingHorizontal: 16 },
 
-    headerLeft: {
-        width: 60,
-        justifyContent: 'center',
-        alignItems: 'flex-start',
-    },
-
-    headerTitle: {
-        flex: 1,
-        textAlign: 'center',
-        fontSize: 18,
-        fontWeight: '700',
-        color: AppColors.orange,
-    },
-
-    headerRight: {
-        width: 60,
-        flexDirection: 'row',
-        justifyContent: 'flex-end',
-        alignItems: 'center',
-        gap: 8,
-    },
-
-    iconButton: {
-        marginRight: 8,
-    },
-
-    finishButton: {
-        backgroundColor: AppColors.black,
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 10,
-    },
-
-    finishButtonText: {
-        color: AppColors.orange,
-        fontWeight: '700',
-        fontSize: 14,
-    },
-
-    saveButton: {
-        backgroundColor: AppColors.black,
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 10,
-    },
-
-    saveButtonText: {
-        color: AppColors.orange,
-        fontWeight: '700',
-        fontSize: 14,
-    },
-    scrollView: {
-        flex: 1,
-    },
-    scrollContent: {
-        paddingHorizontal: 12,
-        paddingBottom: 20,
-    },
-    spacing: {
-        height: 12,
-    },
-    mediumSpacing: {
-        height: 22,
-    },
-    largeSpacing: {
-        height: 40,
-    },
     searchContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8,
-        backgroundColor: AppColors.darkBg,
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        borderRadius: 12,
+        gap: 10,
+        padding: 16,
+        borderRadius: 22,
+        marginBottom: 14,
+        overflow: 'hidden',
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
     },
-    searchInput: {
-        flex: 1,
-        fontSize: 16,
-        fontWeight: '700',
-        color: AppColors.orange,
-    },
+    searchInput: { flex: 1, color: AppColors.orange, fontSize: 15, fontWeight: '700' },
+
     filterRow: {
         flexDirection: 'row',
-        gap: 12,
+        gap: 10,
         alignItems: 'center',
+        marginBottom: 20,
     },
+
     filterButton: {
+        borderRadius: 20,
+        overflow: 'hidden',
+    },
+
+    filterButtonBlur: {
         flex: 1,
-        backgroundColor: AppColors.darkBg,
-        paddingHorizontal: 16,
-        paddingVertical: 11,
-        borderRadius: 12,
-    },
-    filterButtonText: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: AppColors.orange,
-        textAlign: 'center',
-    },
-    clearFiltersButton: {
-        width: 17,
-        height: 17,
         justifyContent: 'center',
         alignItems: 'center',
+        paddingVertical: 12,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+        overflow: "hidden",
+        borderRadius: 20,
     },
-    popularLabel: {
-        fontSize: 16,
+
+    filterButtonText: {
+        fontSize: 15,
         fontWeight: '700',
         color: AppColors.orange,
     },
-    noResultsText: {
-        fontSize: 14,
-        color: AppColors.grey,
-        textAlign: 'center',
-        marginTop: 20,
+
+    clearFiltersButton: { width: 40, height: 40,borderRadius: 20, },
+
+    clearButtonBlur: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderRadius: 20,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+        overflow: 'hidden',
     },
-    exerciseItem: {
+
+    card: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        backgroundColor: AppColors.darkBg,
-        paddingHorizontal: 24,
-        paddingVertical: 7,
-        borderRadius: 12,
+        paddingHorizontal: 16,
+        paddingVertical: 18,
+        borderRadius: 22,
         marginBottom: 12,
-        minHeight: 59,
+        overflow: 'hidden',
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
     },
-    exerciseItemLeft: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-        flex: 1,
-    },
-    exerciseItemText: {
-        flex: 1,
-    },
-    exerciseItemTitle: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: AppColors.white,
-        marginBottom: 6,
-    },
-    exerciseItemSubtitle: {
-        fontSize: 12,
-        fontWeight: '400',
-        color: AppColors.white,
-    },
+    cardLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    title: { fontSize: 15, fontWeight: '600', color: AppColors.white },
+    subtitle: { fontSize: 14, color: 'rgba(255,255,255,0.55)' },
+
     sheetBackdrop: {
         flex: 1,
         backgroundColor: 'rgba(0,0,0,0.5)',
         justifyContent: 'flex-end',
     },
     filterSheet: {
-        backgroundColor: AppColors.darkBg,
-        borderTopLeftRadius: 20,
-        borderTopRightRadius: 20,
-        borderWidth: 1.5,
-        //borderColor: AppColors.orange,
-        borderBottomWidth: 0,
+        borderTopLeftRadius: 22,
+        borderTopRightRadius: 22,
         paddingHorizontal: 12,
         paddingVertical: 16,
         maxHeight: '70%',
+        overflow: 'hidden',
     },
     sheetHandle: {
         width: 40,
@@ -449,24 +357,15 @@ const styles = StyleSheet.create({
         alignSelf: 'center',
         marginBottom: 12,
     },
-    filterOptions: {
-        maxHeight: 400,
-        scrollEnabled: true,
-    },
     filterOption: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        backgroundColor: AppColors.darkGrey,
-        paddingHorizontal: 24,
-        paddingVertical: 10,
-        borderRadius: 12,
-        marginBottom: 12,
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        borderRadius: 16,
+        marginBottom: 10,
+        backgroundColor: 'rgba(255,255,255,0.03)',
     },
-    filterOptionText: {
-        fontSize: 16,
-        fontWeight: '400',
-        color: AppColors.orange,
-        textAlign: 'left',
-    },
+    filterOptionText: { fontSize: 15, fontWeight: '500', color: AppColors.orange },
 });
