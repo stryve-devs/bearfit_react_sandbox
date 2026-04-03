@@ -24,8 +24,10 @@ export default function HomeLayout() {
             <Stack.Screen name="home17" />
             <Stack.Screen name="contacts" />
             <Stack.Screen name="notifications" />
-            <Stack.Screen name="routine" />
-            <Stack.Screen name="profile" />
+            <Stack.Screen name="userid" />
+            <Stack.Screen name="workout-detail" />
+            <Stack.Screen name="routine-detail" />
+
         </Stack>
     );
 }

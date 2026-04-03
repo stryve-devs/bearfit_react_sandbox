@@ -517,7 +517,16 @@ export default function HomeScreen() {
                                     cardWidth={cardWidth}
                                     isFollowed={followed.has(item.username)}
                                     onToggle={() => toggleFollow(item.username)}
-                                    onPress={() => router.push("/(tabs)/profile")}
+                                    onPress={() =>
+                                        router.push({
+                                            pathname: "/(tabs)/home/userid",
+                                            params: {
+                                                userId: item.username,
+                                                name: item.name,
+                                                image: item.avatarUrl,
+                                            },
+                                        })
+                                    }
                                 />
                             )}
                         />
@@ -646,7 +655,18 @@ export default function HomeScreen() {
                                             entering={FadeInDown.delay(index * 35).duration(280).easing(Easing.out(Easing.cubic))}
                                         >
                                             <TouchableOpacity
-                                                onPress={() => { setSearchOpen(false); setQuery(""); router.push("/(tabs)/profile"); }}
+                                                onPress={() => {
+                                                    setSearchOpen(false);
+                                                    setQuery("");
+                                                    router.push({
+                                                        pathname: "/(tabs)/home/userid",
+                                                        params: {
+                                                            userId: item.username,
+                                                            name: item.name,
+                                                            image: item.avatarUrl,
+                                                        },
+                                                    });
+                                                }}
                                                 activeOpacity={0.7}
                                                 style={st.searchRow}
                                             >
