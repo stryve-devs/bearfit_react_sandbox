@@ -83,7 +83,7 @@ const POSTS: Record<string, {
 // ─── GLASS CARD ──────────────────────────────────────────────────────────────
 const GlassCard = ({ children, style }: any) => (
     <View style={[styles.glassCard, style]}>
-        <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFill} />
+        <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFillObject} />
         <View style={styles.glassInner}>{children}</View>
     </View>
 );

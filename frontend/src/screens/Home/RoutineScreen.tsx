@@ -52,11 +52,10 @@ const ROUTINE_DATA: Record<string, {
 // ─── GLASS CARD ──────────────────────────────────────────────────────────────
 const GlassCard = ({ children, style }: any) => (
     <View style={[styles.glassCard, style]}>
-        <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFill} />
-        <View style={[styles.glassInner, style?.innerStyle]}>{children}</View>
+        <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFillObject} />
+        <View style={styles.glassInner}>{children}</View>
     </View>
 );
-
 // ─── EXERCISE ROW ─────────────────────────────────────────────────────────────
 const ExerciseRow = ({ item, index, isLast }: { item: { name: string; sets: number; image: string }; index: number; isLast: boolean }) => {
     const scale = useSharedValue(1);
