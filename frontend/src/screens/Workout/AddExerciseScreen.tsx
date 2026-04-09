@@ -89,7 +89,7 @@ export default function AddExerciseScreen() {
                 sets: 0,
                 targetWeightKg: 0,
                 targetReps: 0,
-                restSeconds: 60,
+                restSeconds: 0,
             });
             router.back();
         }
@@ -157,9 +157,8 @@ export default function AddExerciseScreen() {
                                 onPress={handleResetFilters}
                                 style={[styles.filterButton, { flex: 0.1 }]}
                             >
-                                <BlurView intensity={25} tint="dark" style={styles.filterButtonBlur}>
-                                    <Ionicons name="close-circle" size={20} color={AppColors.orange} />
-                                </BlurView>
+                                <Ionicons name="close-circle" size={24} color={AppColors.orange} />
+
                             </ReanimatedTouchable>
                         )}
                     </View>
@@ -212,7 +211,7 @@ function ExerciseItem({ exercise, onPress, delay }: any) {
     }));
 
     return (
-        <AnimatedReanimated.View entering={FadeInDown.delay(delay).springify()}>
+        <AnimatedReanimated.View entering={FadeInDown.springify().damping(16)}>
             <ReanimatedTouchable
                 style={style}
                 onPressIn={() => (scale.value = withSpring(0.97))}
@@ -338,7 +337,7 @@ const styles = StyleSheet.create({
 
     sheetBackdrop: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
+        backgroundColor: 'rgba(0,0,0,0.8)',
         justifyContent: 'flex-end',
     },
     filterSheet: {
@@ -348,6 +347,7 @@ const styles = StyleSheet.create({
         paddingVertical: 16,
         maxHeight: '70%',
         overflow: 'hidden',
+        backgroundColor: 'rgba(255,255,255,0.06)',
     },
     sheetHandle: {
         width: 40,
@@ -366,6 +366,8 @@ const styles = StyleSheet.create({
         borderRadius: 16,
         marginBottom: 10,
         backgroundColor: 'rgba(255,255,255,0.03)',
+        overflow: 'hidden',
     },
     filterOptionText: { fontSize: 15, fontWeight: '500', color: AppColors.orange },
-});
+}
+);

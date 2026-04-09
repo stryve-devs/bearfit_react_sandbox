@@ -1,5 +1,5 @@
-import React from 'react';
-import { Modal, View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useState } from 'react';
+import { Modal, View, Text, StyleSheet, Pressable } from 'react-native';
 import { AppColors } from '../../constants/colors';
 
 interface AlertButton {
@@ -22,26 +22,15 @@ export default function AlertDialog({ visible, title, message, buttons }: AlertD
                 <View style={styles.alertContainer}>
                     <Text style={styles.title}>{title}</Text>
                     <Text style={styles.message}>{message}</Text>
+
                     <View style={styles.buttonContainer}>
                         {buttons.map((button, index) => (
-                            <View key={index} style={styles.buttonWrapper}>
-                                <TouchableOpacity
-                                    style={[
-                                        styles.button,
-                                        button.style === 'destructive' ? styles.destructiveButton : styles.defaultButton,
-                                    ]}
-                                    onPress={button.onPress}
-                                >
-                                    <Text
-                                        style={[
-                                            styles.buttonText,
-                                            button.style === 'destructive' ? styles.destructiveButtonText : styles.defaultButtonText,
-                                        ]}
-                                    >
-                                        {button.text}
-                                    </Text>
-                                </TouchableOpacity>
-                            </View>
+                            <PressableButton
+                                key={index}
+                                text={button.text}
+                                onPress={button.onPress}
+                                isDestructive={button.style === 'destructive'}
+                            />
                         ))}
                     </View>
                 </View>
@@ -50,20 +39,59 @@ export default function AlertDialog({ visible, title, message, buttons }: AlertD
     );
 }
 
+// ✅ Pressable button for glass + active feedback
+function PressableButton({
+                             text,
+                             onPress,
+                             isDestructive = false,
+                         }: {
+    text: string;
+    onPress: () => void;
+    isDestructive?: boolean;
+}) {
+    const [pressed, setPressed] = useState(false);
+
+    return (
+        <Pressable
+            onPress={onPress}
+            onPressIn={() => setPressed(true)}
+            onPressOut={() => setPressed(false)}
+            style={[
+                styles.button,
+                isDestructive && styles.destructiveButton,
+                pressed && styles.buttonActive,
+            ]}
+        >
+            <Text
+                style={[
+                    styles.buttonText,
+                    isDestructive && styles.destructiveButtonText,
+                    pressed && styles.buttonTextActive,
+                ]}
+            >
+                {text}
+            </Text>
+        </Pressable>
+    );
+}
+
 const styles = StyleSheet.create({
     backdrop: {
         flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+        backgroundColor: 'rgba(0,0,0,0.8)',
         justifyContent: 'center',
         alignItems: 'center',
     },
     alertContainer: {
-        backgroundColor: AppColors.darkBg,
-        borderRadius: 20,
+        borderRadius: 24,
         paddingHorizontal: 20,
-        paddingVertical: 16,
+        paddingVertical: 20,
         width: '80%',
         maxWidth: 337,
+        backgroundColor: 'rgba(255,255,255,0.16)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+        overflow: 'hidden',
     },
     title: {
         fontSize: 18,
@@ -80,33 +108,42 @@ const styles = StyleSheet.create({
         marginBottom: 16,
     },
     buttonContainer: {
+        flexDirection: 'row',
         gap: 12,
-    },
-    buttonWrapper: {
-        width: '100%',
+        justifyContent: 'space-between',
     },
     button: {
-        paddingHorizontal: 24,
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
         paddingVertical: 12,
         borderRadius: 12,
         alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.06)',
     },
-    defaultButton: {
-        backgroundColor: AppColors.darkBg,
-        borderWidth: 1.5,
-        borderColor: AppColors.orange,
-    },
-    destructiveButton: {
+    buttonActive: {
         backgroundColor: AppColors.orange,
     },
     buttonText: {
         fontSize: 16,
         fontWeight: '700',
+        color: AppColors.white,
     },
-    defaultButtonText: {
-        color: AppColors.orange,
+    buttonTextActive: {
+        color: AppColors.black,
+    },
+    destructiveButton: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        paddingVertical: 12,
+        borderRadius: 12,
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.06)',
     },
     destructiveButtonText: {
-        color: AppColors.black,
+        fontSize: 16,
+        fontWeight: '700',
+        color: AppColors.white,
     },
 });

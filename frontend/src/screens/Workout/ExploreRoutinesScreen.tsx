@@ -193,8 +193,7 @@ function RoutineCard({
     return (
         <AnimatedReanimated.View
             entering={FadeInDown.delay(delay).springify().damping(16)}
-        >
-            <ReanimatedTouchable
+        ><ReanimatedTouchable
                 style={animatedStyle}
                 activeOpacity={0.9}
                 onPressIn={() => {
@@ -360,7 +359,9 @@ const styles = StyleSheet.create({
         paddingVertical: 12,
         backgroundColor: 'rgba(255,120,37,0.12)',
         borderWidth: 1,
+        borderRadius:16,
         borderColor: 'rgba(255,120,37,0.28)',
+        overflow:'hidden'
     },
 
     createButtonText: {

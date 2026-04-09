@@ -45,7 +45,6 @@ export default function RoutineEditorScreen() {
         removeTarget,
         clearRoutine,
     } = useRoutine();
-
     const navigation = useNavigation();
 
     const [editingTitle, setEditingTitle] = useState(false);
@@ -57,6 +56,13 @@ export default function RoutineEditorScreen() {
 
     const screenFade = useRef(new Animated.Value(0)).current;
     const screenTranslate = useRef(new Animated.Value(16)).current;
+
+    useEffect(() => {
+        if (!routeParams?.exerciseName && !routeParams?.exercisesFromWorkout) {
+            clearRoutine();
+            setIsFromWorkout(false);
+        }
+    }, [clearRoutine, routeParams?.exerciseName, routeParams?.exercisesFromWorkout]);
 
     useEffect(() => {
         Animated.parallel([
@@ -96,7 +102,7 @@ export default function RoutineEditorScreen() {
                 console.error('Error parsing exercises:', error);
             }
         }
-    }, [routeParams?.exercisesFromWorkout, addTarget]);
+    }, [routeParams?.exercisesFromWorkout]);
 
     useEffect(() => {
         const listener = navigation.addListener('event', (e: any) => {
@@ -174,21 +180,28 @@ export default function RoutineEditorScreen() {
     const handleStartWorkout = () => {
         if (savedRoutine) {
             setRoutineSavedToastVisible(false);
-            router.push({
+
+            setTimeout(() => {
+                router.push({
                 pathname: '/(tabs)/Workout/log',
                 params: { routine: JSON.stringify(savedRoutine) },
             });
+        },50);
         }
     };
 
     const handleCloseRoutine = () => {
         setRoutineSavedToastVisible(false);
         clearRoutine();
-        router.push('/(tabs)/Workout');
+        setTimeout(() => {
+            router.push('/(tabs)/Workout');
+        },50);
     };
 
     const handleAddExercise = () => {
-        router.push('/(tabs)/Workout/addexercise');
+        setTimeout(() => {
+            router.push('/(tabs)/Workout/addexercise');
+        },50);
     };
 
     const handleTargetChange = (
@@ -259,7 +272,7 @@ export default function RoutineEditorScreen() {
 
                         {targets.map((target, index) => (
                             <TargetCard
-                                key={`${index}-${target.name}`}
+                                key={`${target.name}-${index}`} // use index + name to prevent re-mount issues
                                 target={target}
                                 index={index}
                                 onTargetChange={handleTargetChange}
@@ -342,7 +355,7 @@ function TargetCard({ target, index, onTargetChange, onRemove }: any) {
     const [numberPadMode, setNumberPadMode] = useState<'sets' | 'weight' | 'reps' | null>(null);
 
     return (
-        <AnimatedReanimated.View entering={FadeInDown.springify().damping(16)}>
+        <AnimatedReanimated.View entering={FadeInDown.duration(200)}>
             <BlurView intensity={28} tint="dark" style={styles.targetCard}>
                 <View style={styles.targetCardHeader}>
                     <Text style={styles.targetName}>{target.name}</Text>
@@ -459,10 +472,9 @@ function TargetCard({ target, index, onTargetChange, onRemove }: any) {
         </AnimatedReanimated.View>
     );
 }
-
 function RestPickerSheet({ visible, initial, onSelect, onClose }: any) {
     const generateRestOptions = (): number[] => {
-        const options: number[] = [];
+        const options: number[] = [0];
         for (let i = 1; i <= 11; i++) options.push(i * 5);
         for (let m = 1; m <= 4; m++) {
             for (const q of [0, 15, 30, 45]) {
@@ -489,29 +501,29 @@ function RestPickerSheet({ visible, initial, onSelect, onClose }: any) {
                 activeOpacity={1}
                 onPress={onClose}
             >
-                <TouchableOpacity activeOpacity={1} onPress={() => {}}>
-                    <BlurView intensity={30} tint="dark" style={styles.restPickerSheet}>
-                        <View style={styles.sheetHandle} />
-                        <Text style={styles.pickerTitle}>Pick rest time</Text>
+                <BlurView intensity={25} tint="dark" style={styles.filterSheet}>
+                    <View style={styles.sheetHandle}/>
+                    <Text style={styles.pickerTitle}>Pick rest time</Text>
 
-                        <ScrollView style={styles.pickerOptions} showsVerticalScrollIndicator={false}>
-                            {options.map((seconds) => (
-                                <TouchableOpacity
-                                    key={seconds}
-                                    style={styles.pickerOption}
-                                    onPress={() => onSelect(seconds)}
-                                >
-                                    <Text style={styles.pickerOptionText}>
+                    <ScrollView showsVerticalScrollIndicator={false}>
+                        {options.map((seconds) => (
+                            <TouchableOpacity
+                                key={seconds}
+                                onPress={() => onSelect(seconds)}
+                            >
+                                <BlurView intensity={15} tint="dark" style={styles.filterOption}>
+                                    <Text style={styles.filterOptionText}>
                                         {formatRestLabel(seconds)}
                                     </Text>
+
                                     {seconds === initial && (
-                                        <Ionicons name="checkmark" size={20} color={AppColors.orange} />
+                                        <Ionicons name="checkmark" size={20} color={AppColors.orange}/>
                                     )}
-                                </TouchableOpacity>
-                            ))}
-                        </ScrollView>
-                    </BlurView>
-                </TouchableOpacity>
+                                </BlurView>
+                            </TouchableOpacity>
+                        ))}
+                    </ScrollView>
+                </BlurView>
             </TouchableOpacity>
         </Modal>
     );
@@ -520,20 +532,20 @@ function RestPickerSheet({ visible, initial, onSelect, onClose }: any) {
 function NumberPadModal({ visible, onSelect, onClose, mode }: any) {
     const [inputValue, setInputValue] = useState('');
 
-    const handleNumberPress = (num: string) => {
-        if (num === '.' && inputValue.includes('.')) return;
-        setInputValue((prev) => prev + num);
-    };
-
-    const handleBackspace = () => {
-        setInputValue((prev) => prev.slice(0, -1));
+    const handleInputChange = (text: string) => {
+        if (mode === 'weight') {
+            if (/^\d*\.?\d*$/.test(text)) {
+                setInputValue(text); // Only allow numeric input + decimal for weight
+            }
+        } else {
+            if (/^\d*$/.test(text)) {
+                setInputValue(text); // Only allow whole numbers for sets/reps
+            }
+        }
     };
 
     const handleConfirm = () => {
-        const value = mode === 'weight'
-            ? parseFloat(inputValue) || 0
-            : parseInt(inputValue) || 0;
-
+        const value = mode === 'weight' ? parseFloat(inputValue) || 0 : parseInt(inputValue) || 0;
         onSelect(value);
         setInputValue('');
         onClose();
@@ -562,42 +574,13 @@ function NumberPadModal({ visible, onSelect, onClose, mode }: any) {
                         <Text style={styles.numberPadDisplayText}>{inputValue || '0'}</Text>
                     </View>
 
-                    <View style={styles.numberPadGrid}>
-                        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
-                            <TouchableOpacity
-                                key={num}
-                                style={styles.numberPadButton}
-                                onPress={() => handleNumberPress(num.toString())}
-                            >
-                                <Text style={styles.numberPadButtonText}>{num}</Text>
-                            </TouchableOpacity>
-                        ))}
-
-                        <TouchableOpacity
-                            style={styles.numberPadButton}
-                            onPress={() => handleNumberPress('0')}
-                        >
-                            <Text style={styles.numberPadButtonText}>0</Text>
-                        </TouchableOpacity>
-
-                        {mode === 'weight' ? (
-                            <TouchableOpacity
-                                style={styles.numberPadButton}
-                                onPress={() => handleNumberPress('.')}
-                            >
-                                <Text style={styles.numberPadButtonText}>.</Text>
-                            </TouchableOpacity>
-                        ) : (
-                            <View style={[styles.numberPadButton, styles.numberPadGhostButton]} />
-                        )}
-
-                        <TouchableOpacity
-                            style={[styles.numberPadButton, styles.numberPadBackspaceButton]}
-                            onPress={handleBackspace}
-                        >
-                            <Ionicons name="backspace" size={20} color={AppColors.white} />
-                        </TouchableOpacity>
-                    </View>
+                    <TextInput
+                        style={styles.valuePillInput}
+                        value={inputValue}
+                        keyboardType="numeric"
+                        onChangeText={handleInputChange}
+                        autoFocus
+                    />
 
                     <View style={styles.numberPadButtonsRow}>
                         <TouchableOpacity
@@ -661,7 +644,7 @@ const styles = StyleSheet.create({
 
     section: {
         paddingHorizontal: 12,
-        marginTop:8,
+        marginTop: 8,
     },
 
     titleGlass: {
@@ -805,7 +788,20 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
-
+    valuePillInput: {
+        width: '100%',
+        paddingHorizontal: 16,
+        paddingVertical: 14,
+        borderRadius: 14,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+        textAlign: 'center',
+        color: AppColors.white,
+        fontWeight: '600',
+        fontSize: 15,
+        marginBottom: 16,
+    },
     inputValue: {
         fontSize: 15,
         color: AppColors.white,
@@ -813,24 +809,21 @@ const styles = StyleSheet.create({
         fontWeight: '600',
     },
 
+
     sheetBackdrop: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.52)',
+        backgroundColor: 'rgba(0,0,0,0.8)',
         justifyContent: 'flex-end',
     },
-
-    restPickerSheet: {
-        borderTopLeftRadius: 24,
-        borderTopRightRadius: 24,
+    filterSheet: {
+        borderTopLeftRadius: 22,
+        borderTopRightRadius: 22,
         paddingHorizontal: 12,
-        paddingVertical: 12,
+        paddingVertical: 16,
         maxHeight: '70%',
-        backgroundColor: 'rgba(255,255,255,0.06)',
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.08)',
         overflow: 'hidden',
+        backgroundColor: 'rgba(255,255,255,0.06)',
     },
-
     sheetHandle: {
         width: 40,
         height: 5,
@@ -839,6 +832,18 @@ const styles = StyleSheet.create({
         alignSelf: 'center',
         marginBottom: 12,
     },
+    filterOption: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        borderRadius: 16,
+        marginBottom: 10,
+        backgroundColor: 'rgba(255,255,255,0.03)',
+        overflow: 'hidden',
+    },
+    filterOptionText: {fontSize: 15, fontWeight: '500', color: AppColors.orange},
 
     pickerTitle: {
         fontSize: 16,
@@ -846,28 +851,6 @@ const styles = StyleSheet.create({
         color: AppColors.white,
         textAlign: 'center',
         marginBottom: 12,
-    },
-
-    pickerOptions: {
-        maxHeight: 400,
-    },
-
-    pickerOption: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        backgroundColor: 'rgba(255,255,255,0.05)',
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        borderRadius: 14,
-        marginBottom: 8,
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.06)',
-    },
-
-    pickerOptionText: {
-        fontSize: 16,
-        color: AppColors.white,
     },
 
     numberPadBackdrop: {
@@ -915,6 +898,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.08)',
+        display: 'none',
     },
 
     numberPadDisplayText: {
@@ -993,5 +977,5 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: '700',
         color: AppColors.black,
-    },
+    }
 });

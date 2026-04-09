@@ -22,7 +22,7 @@ export const WorkoutProvider: React.FC<{ children: ReactNode }> = ({
     const newExerciseLog: ExerciseLog = {
       name: exercise.name,
       sets: [{ weightKg: 0, reps: 0, done: false }],
-      restSeconds: 60,
+      restSeconds: 0,
       restRemaining: 0,
       restTimerRef: null,
     };

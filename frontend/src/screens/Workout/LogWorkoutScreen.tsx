@@ -7,7 +7,7 @@ import {
     TouchableOpacity,
     Modal,
     Pressable,
-    Animated,
+    Animated, TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
@@ -170,7 +170,9 @@ export default function LogWorkoutScreen() {
 
     const handleConfirmDiscard = () => {
         setDiscardConfirmAlertVisible(false);
-        router.push('/(tabs)/Workout');
+        setTimeout(() => {
+            router.push('/(tabs)/Workout');
+        }, 50);
     };
 
     const handleFinish = useCallback(() => {
@@ -180,7 +182,9 @@ export default function LogWorkoutScreen() {
         }
 
         if (currentRoutine) {
-            router.push('/(tabs)/Workout');
+            setTimeout(() => {
+                router.push('/(tabs)/Workout');
+            }, 50);
         } else {
             setSaveRoutineVisible(true);
         }
@@ -188,22 +192,32 @@ export default function LogWorkoutScreen() {
 
     const handleSaveAsRoutine = () => {
         setSaveRoutineVisible(false);
-        router.push({
-            pathname: '/(tabs)/Workout/routine',
-            params: { exercisesFromWorkout: JSON.stringify(exercises) },
-        });
+
+
+        setTimeout(() => {
+            router.push({
+                pathname: '/(tabs)/Workout/routine',
+                params: {exercisesFromWorkout: JSON.stringify(exercises)},
+            });
+        },50);
     };
 
     const handleSkipSaveRoutine = () => {
         setSaveRoutineVisible(false);
-        router.push('/(tabs)/Workout');
+        setTimeout(() => {
+            router.push('/(tabs)/Workout');
+        }, 50);
     };
 
     const handleAddExercise = () => {
-        router.push({
-            pathname: '/(tabs)/Workout/addexercise',
-            params: { fromWorkout: 'true' },
-        });
+
+        setTimeout(() => {
+            router.push({
+                pathname: '/(tabs)/Workout/addexercise',
+                params: { fromWorkout: 'true' },
+            });
+        },50);
+
     };
 
     const handleChooseRoutine = () => {
@@ -259,6 +273,10 @@ export default function LogWorkoutScreen() {
             !updatedExercises[exerciseIndex].sets[setIndex].done;
 
         if (updatedExercises[exerciseIndex].sets[setIndex].done) {
+            if (restTimersRef.current[exerciseIndex]) {
+                clearInterval(restTimersRef.current[exerciseIndex]);
+                delete restTimersRef.current[exerciseIndex];
+            }
             startRestTimer(exerciseIndex);
         }
 
@@ -266,11 +284,17 @@ export default function LogWorkoutScreen() {
     };
 
     const startRestTimer = (exerciseIndex: number) => {
+        if (restTimersRef.current[exerciseIndex]) {
+            clearInterval(restTimersRef.current[exerciseIndex]);
+            delete restTimersRef.current[exerciseIndex];
+        }
+
         const exercise = exercises[exerciseIndex];
         let remaining = exercise.restSeconds;
 
         const timer = setInterval(() => {
             remaining--;
+
             if (remaining >= 0) {
                 const updatedExercises = [...exercises];
                 updatedExercises[exerciseIndex].restRemaining = remaining;
@@ -278,12 +302,14 @@ export default function LogWorkoutScreen() {
             } else {
                 clearInterval(timer);
                 delete restTimersRef.current[exerciseIndex];
+
                 setRestCompleteExercise(exercise.name);
                 setRestCompleteVisible(true);
             }
         }, 1000);
 
         restTimersRef.current[exerciseIndex] = timer;
+
         const updatedExercises = [...exercises];
         updatedExercises[exerciseIndex].restRemaining = remaining;
         setLocalExercises(updatedExercises);
@@ -358,87 +384,87 @@ export default function LogWorkoutScreen() {
                     showsVerticalScrollIndicator={false}
                 >
                     <View style={styles.section}>
-                    <BlurView intensity={28} tint="dark" style={styles.metricsContainer}>
-                        <View style={styles.metricItem}>
-                            <Text style={styles.metricLabel}>Duration</Text>
-                            <Text style={styles.metricValue}>{formatTime(elapsed)}</Text>
-                        </View>
+                        <BlurView intensity={28} tint="dark" style={styles.metricsContainer}>
+                            <View style={styles.metricItem}>
+                                <Text style={styles.metricLabel}>Duration</Text>
+                                <Text style={styles.metricValue}>{formatTime(elapsed)}</Text>
+                            </View>
 
-                        <View style={styles.metricDivider} />
+                            <View style={styles.metricDivider} />
 
-                        <View style={styles.metricItem}>
-                            <Text style={styles.metricLabel}>Volume</Text>
-                            <Text style={styles.metricValue}>{getTotalVolume().toFixed(0)} kg</Text>
-                        </View>
+                            <View style={styles.metricItem}>
+                                <Text style={styles.metricLabel}>Volume</Text>
+                                <Text style={styles.metricValue}>{getTotalVolume().toFixed(0)} kg</Text>
+                            </View>
 
-                        <View style={styles.metricDivider} />
+                            <View style={styles.metricDivider} />
 
-                        <View style={styles.metricItem}>
-                            <Text style={styles.metricLabel}>Sets</Text>
-                            <Text style={styles.metricValue}>{getTotalSets()}</Text>
-                        </View>
-                    </BlurView>
-                    <View style={styles.spacing} />
+                            <View style={styles.metricItem}>
+                                <Text style={styles.metricLabel}>Sets</Text>
+                                <Text style={styles.metricValue}>{getTotalSets()}</Text>
+                            </View>
+                        </BlurView>
+                        <View style={styles.spacing} />
 
-                    {currentRoutine && (
-                        <>
-                            <GlassButton style={styles.routineButton} onPress={handleChooseRoutine}>
-                                <Ionicons name="list" size={20} color={AppColors.white} />
-                                <Text style={styles.routineButtonText}>{currentRoutine.title}</Text>
-                            </GlassButton>
-                            <View style={styles.spacing} />
-                        </>
-                    )}
+                        {currentRoutine && (
+                            <>
+                                <GlassButton style={styles.routineButton} onPress={handleChooseRoutine}>
+                                    <Ionicons name="list" size={20} color={AppColors.white} />
+                                    <Text style={styles.routineButtonText}>{currentRoutine.title}</Text>
+                                </GlassButton>
+                                <View style={styles.spacing} />
+                            </>
+                        )}
 
-                    <GlassButton style={styles.addExerciseButton} onPress={handleAddExercise}>
-                        <Ionicons name="add" size={20} color={AppColors.orange} />
-                        <Text style={styles.addExerciseButtonText}>Add Exercise</Text>
-                    </GlassButton>
-
-                    <View style={styles.spacing} />
-
-                    {exercises.map((exercise, exerciseIndex) => (
-                        <ExerciseCard
-                            key={`${exercise.name}-${exerciseIndex}`}
-                            exercise={exercise}
-                            exerciseIndex={exerciseIndex}
-                            onSetDone={handleSetDone}
-                            onWeightChange={handleSetWeightChange}
-                            onRepsChange={handleSetRepsChange}
-                            onAddSet={handleAddSet}
-                            onDeleteSet={handleDeleteSet}
-                            onRestTimeChange={handleRestTimeChange}
-                        />
-                    ))}
-
-                    <View style={styles.spacing} />
-
-                    {currentRoutine && (
-                        <>
-                            <GlassButton style={styles.updateRoutineButton} onPress={handleUpdateRoutine}>
-                                <Text style={styles.updateRoutineButtonText}>
-                                    Update Routine with current workout
-                                </Text>
-                            </GlassButton>
-
-                            <View style={styles.mediumSpacing} />
-                        </>
-                    )}
-
-                    <View style={styles.horizontalButtons}>
-                        <GlassButton style={styles.halfButton}>
-                            <Text style={styles.actionButtonText}>Settings</Text>
+                        <GlassButton style={styles.addExerciseButton} onPress={handleAddExercise}>
+                            <Ionicons name="add" size={20} color={AppColors.orange} />
+                            <Text style={styles.addExerciseButtonText}>Add Exercise</Text>
                         </GlassButton>
 
-                        <GlassButton
-                            style={styles.halfButton}
-                            onPress={() => setDiscardConfirmAlertVisible(true)}
-                        >
-                            <Text style={styles.actionButtonText}>Discard</Text>
-                        </GlassButton>
-                    </View>
+                        <View style={styles.spacing} />
 
-                    <View style={styles.largeSpacing} />
+                        {exercises.map((exercise, exerciseIndex) => (
+                            <ExerciseCard
+                                key={`${exercise.name}-${exerciseIndex}`}
+                                exercise={exercise}
+                                exerciseIndex={exerciseIndex}
+                                onSetDone={handleSetDone}
+                                onWeightChange={handleSetWeightChange}
+                                onRepsChange={handleSetRepsChange}
+                                onAddSet={handleAddSet}
+                                onDeleteSet={handleDeleteSet}
+                                onRestTimeChange={handleRestTimeChange}
+                            />
+                        ))}
+
+                        <View style={styles.spacing} />
+
+                        {currentRoutine && (
+                            <>
+                                <GlassButton style={styles.updateRoutineButton} onPress={handleUpdateRoutine}>
+                                    <Text style={styles.updateRoutineButtonText}>
+                                        Update Routine with current workout
+                                    </Text>
+                                </GlassButton>
+
+                                <View style={styles.mediumSpacing} />
+                            </>
+                        )}
+
+                        <View style={styles.horizontalButtons}>
+                            <GlassButton style={styles.halfButton}>
+                                <Text style={styles.actionButtonText}>Settings</Text>
+                            </GlassButton>
+
+                            <GlassButton
+                                style={styles.halfButton}
+                                onPress={() => setDiscardConfirmAlertVisible(true)}
+                            >
+                                <Text style={styles.actionButtonText}>Discard</Text>
+                            </GlassButton>
+                        </View>
+
+                        <View style={styles.largeSpacing} />
                     </View>
                 </ScrollView>
             </Animated.View>
@@ -486,19 +512,11 @@ export default function LogWorkoutScreen() {
                 animationType="fade"
                 onRequestClose={() => setChooseRoutineVisible(false)}
             >
-                <TouchableOpacity
-                    style={styles.modalBackdrop}
-                    activeOpacity={1}
-                    onPress={() => setChooseRoutineVisible(false)}
-                >
-                    <TouchableOpacity
-                        activeOpacity={1}
-                        onPress={() => {}}
-                    >
-                        <BlurView intensity={28} tint="dark" style={styles.modalContent}>
-                            <Text style={styles.modalTitle}>Choose Routine</Text>
-                            <ScrollView style={styles.routinesList}>
-                                <View style={styles.section}>
+                <View style={styles.modalBackdrop}>
+                    <BlurView intensity={28} tint="dark" style={styles.modalContent}>
+                        <Text style={styles.modalTitle}>Choose Routine</Text>
+                        <ScrollView style={styles.routinesList} showsVerticalScrollIndicator={false}>
+                            <View style={styles.section}>
                                 {savedRoutines.map((routine, index) => (
                                     <TouchableOpacity
                                         key={index}
@@ -514,17 +532,16 @@ export default function LogWorkoutScreen() {
                                         <Ionicons name="chevron-forward" size={20} color={AppColors.orange} />
                                     </TouchableOpacity>
                                 ))}
-                                </View>
-                            </ScrollView>
-                            <TouchableOpacity
-                                style={styles.modalCloseButton}
-                                onPress={() => setChooseRoutineVisible(false)}
-                            >
-                                <Text style={styles.modalCloseButtonText}>Close</Text>
-                            </TouchableOpacity>
-                        </BlurView>
-                    </TouchableOpacity>
-                </TouchableOpacity>
+                            </View>
+                        </ScrollView>
+                        <TouchableOpacity
+                            style={styles.modalCloseButton}
+                            onPress={() => setChooseRoutineVisible(false)}
+                        >
+                            <Text style={styles.modalCloseButtonText}>Close</Text>
+                        </TouchableOpacity>
+                    </BlurView>
+                </View>
             </Modal>
 
             <AlertDialog
@@ -613,10 +630,6 @@ function ExerciseCard({
                           onRestTimeChange,
                       }: any) {
     const [restPickerVisible, setRestPickerVisible] = useState(false);
-    const [numberPadVisible, setNumberPadVisible] = useState(false);
-    const [numberPadMode, setNumberPadMode] = useState<'weight' | 'reps' | null>(null);
-    const [numberPadSetIndex, setNumberPadSetIndex] = useState<number | null>(null);
-
     const scale = useSharedValue(1);
 
     const checkboxAnimatedStyle = useAnimatedStyle(() => ({
@@ -630,8 +643,31 @@ function ExerciseCard({
         onSetDone(exerciseIndex, setIndex);
     };
 
+    const handleWeightChange = (setIndex: number, text: string) => {
+        if (text === '') {
+            onWeightChange(exerciseIndex, setIndex, 0);
+            return;
+        }
+
+        const numericValue = parseFloat(text.replace(/[^0-9.]/g, ''));
+        if (!isNaN(numericValue)) {
+            onWeightChange(exerciseIndex, setIndex, numericValue);
+        }
+    };
+    const handleRepsChange = (setIndex: number, text: string) => {
+        if (text === '') {
+            onRepsChange(exerciseIndex, setIndex, 0);
+            return;
+        }
+
+        const numericValue = parseInt(text.replace(/[^0-9]/g, ''), 10);
+        if (!isNaN(numericValue)) {
+            onRepsChange(exerciseIndex, setIndex, numericValue);
+        }
+    };
+
     return (
-        <AnimatedReanimated.View entering={FadeInDown.springify().damping(16)}>
+        <AnimatedReanimated.View entering={FadeInDown.duration(200)}>
             <BlurView intensity={28} tint="dark" style={styles.exerciseCard}>
                 <View style={styles.exerciseHeader}>
                     <Text style={styles.exerciseName}>{exercise.name}</Text>
@@ -674,33 +710,21 @@ function ExerciseCard({
                         <Text style={[styles.tableCell, { flex: 0.5 }]}>{setIndex + 1}</Text>
 
                         <View style={[styles.tableCellContainer, { flex: 1.5 }]}>
-                            <TouchableOpacity
-                                onPress={() => {
-                                    setNumberPadMode('weight');
-                                    setNumberPadSetIndex(setIndex);
-                                    setNumberPadVisible(true);
-                                }}
-                                style={styles.inputTouchable}
-                            >
-                                <View style={styles.valuePill}>
-                                    <Text style={styles.tableCell}>{set.weightKg.toFixed(0)} kg</Text>
-                                </View>
-                            </TouchableOpacity>
+                            <TextInput
+                                style={styles.valuePillInput}
+                                value={set.weightKg === 0 ? '' : String(set.weightKg)}
+                                keyboardType="numeric"
+                                onChangeText={(text) => handleWeightChange(setIndex, text)}
+                            />
                         </View>
 
                         <View style={[styles.tableCellContainer, { flex: 1 }]}>
-                            <TouchableOpacity
-                                onPress={() => {
-                                    setNumberPadMode('reps');
-                                    setNumberPadSetIndex(setIndex);
-                                    setNumberPadVisible(true);
-                                }}
-                                style={styles.inputTouchable}
-                            >
-                                <View style={styles.valuePill}>
-                                    <Text style={styles.tableCell}>{set.reps}</Text>
-                                </View>
-                            </TouchableOpacity>
+                            <TextInput
+                                style={styles.valuePillInput}
+                                value={set.reps === 0 ? '' : String(set.reps)}
+                                keyboardType="numeric"
+                                onChangeText={(text) => handleRepsChange(setIndex, text)}
+                            />
                         </View>
 
                         <View style={[styles.doneCheckboxContainer, { flex: 0.8 }]}>
@@ -750,27 +774,6 @@ function ExerciseCard({
                     }}
                     onClose={() => setRestPickerVisible(false)}
                 />
-
-                <NumberPadModal
-                    visible={numberPadVisible}
-                    mode={numberPadMode}
-                    onSelect={(value: number) => {
-                        if (numberPadSetIndex !== null) {
-                            if (numberPadMode === 'weight') {
-                                onWeightChange(exerciseIndex, numberPadSetIndex, value);
-                            } else if (numberPadMode === 'reps') {
-                                onRepsChange(exerciseIndex, numberPadSetIndex, value);
-                            }
-                        }
-                        setNumberPadMode(null);
-                        setNumberPadSetIndex(null);
-                    }}
-                    onClose={() => {
-                        setNumberPadVisible(false);
-                        setNumberPadMode(null);
-                        setNumberPadSetIndex(null);
-                    }}
-                />
             </BlurView>
         </AnimatedReanimated.View>
     );
@@ -778,7 +781,7 @@ function ExerciseCard({
 
 function RestPickerSheet({ visible, initial, onSelect, onClose }: any) {
     const generateRestOptions = (): number[] => {
-        const options: number[] = [];
+        const options: number[] = [0];
         for (let i = 1; i <= 11; i++) options.push(i * 5);
         for (let m = 1; m <= 4; m++) {
             for (const q of [0, 15, 30, 45]) {
@@ -800,42 +803,29 @@ function RestPickerSheet({ visible, initial, onSelect, onClose }: any) {
 
     return (
         <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-            <TouchableOpacity
-                style={styles.sheetBackdrop}
-                activeOpacity={1}
-                onPress={onClose}
-            >
-                <TouchableOpacity
-                    activeOpacity={1}
-                    onPress={() => {}}
-                >
-                    <BlurView intensity={30} tint="dark" style={styles.restPickerSheet}>
-                        <View style={styles.sheetHandle} />
-                        <Text style={styles.pickerTitle}>Pick rest time</Text>
+            <TouchableOpacity style={styles.sheetBackdrop} activeOpacity={1} onPress={onClose}>
+                <BlurView intensity={25} tint="dark" style={styles.filterSheet}>
+                    <View style={styles.sheetHandle} />
+                    <Text style={styles.pickerTitle}>Pick rest time</Text>
 
-                        <ScrollView
-                            style={styles.pickerOptions}
-                            showsVerticalScrollIndicator={false}
-                        >
-                            <View style={styles.section}>
-                            {options.map((seconds) => (
-                                <TouchableOpacity
-                                    key={seconds}
-                                    style={styles.pickerOption}
-                                    onPress={() => onSelect(seconds)}
-                                >
-                                    <Text style={styles.pickerOptionText}>
+                    <ScrollView showsVerticalScrollIndicator={false}>
+                        {options.map((seconds) => (
+                            <TouchableOpacity
+                                key={seconds}
+                                onPress={() => onSelect(seconds)}
+                            >
+                                <BlurView intensity={15} tint="dark" style={styles.filterOption}>
+                                    <Text style={styles.filterOptionText}>
                                         {formatRestLabel(seconds)}
                                     </Text>
                                     {seconds === initial && (
                                         <Ionicons name="checkmark" size={20} color={AppColors.orange} />
                                     )}
-                                </TouchableOpacity>
-                            ))}
-                            </View>
-                        </ScrollView>
-                    </BlurView>
-                </TouchableOpacity>
+                                </BlurView>
+                            </TouchableOpacity>
+                        ))}
+                    </ScrollView>
+                </BlurView>
             </TouchableOpacity>
         </Modal>
     );
@@ -844,17 +834,20 @@ function RestPickerSheet({ visible, initial, onSelect, onClose }: any) {
 function NumberPadModal({ visible, onSelect, onClose, mode }: any) {
     const [inputValue, setInputValue] = useState('');
 
-    const handleNumberPress = (num: string) => {
-        if (num === '.' && inputValue.includes('.')) return;
-        setInputValue(prev => prev + num);
-    };
-
-    const handleBackspace = () => {
-        setInputValue(prev => prev.slice(0, -1));
+    const handleInputChange = (text: string) => {
+        if (mode === 'weight') {
+            if (/^\d*\.?\d*$/.test(text)) {
+                setInputValue(text);
+            }
+        } else {
+            if (/^\d*$/.test(text)) {
+                setInputValue(text);
+            }
+        }
     };
 
     const handleConfirm = () => {
-        const value = parseFloat(inputValue) || 0;
+        const value = mode === 'weight' ? parseFloat(inputValue) || 0 : parseInt(inputValue) || 0;
         onSelect(value);
         setInputValue('');
         onClose();
@@ -868,15 +861,11 @@ function NumberPadModal({ visible, onSelect, onClose, mode }: any) {
     return (
         <Modal visible={visible} transparent animationType="fade" onRequestClose={handleCancel}>
             <View style={styles.numberPadBackdrop}>
-                <TouchableOpacity
-                    style={StyleSheet.absoluteFill}
-                    activeOpacity={1}
-                    onPress={handleCancel}
-                />
-                <BlurView intensity={28} tint="dark" style={styles.numberPadContainer}>
+                <Pressable style={StyleSheet.absoluteFill} onPress={handleCancel} />
+                <BlurView intensity={30} tint="dark" style={styles.numberPadContainer}>
                     <View style={styles.numberPadHeader}>
                         <Text style={styles.numberPadTitle}>
-                            Enter {mode === 'weight' ? 'Weight (kg)' : 'Reps'}
+                            {mode === 'sets' ? 'Sets' : mode === 'weight' ? 'Weight (kg)' : 'Reps'}
                         </Text>
                         <TouchableOpacity onPress={handleCancel}>
                             <Ionicons name="close" size={24} color={AppColors.orange} />
@@ -884,43 +873,18 @@ function NumberPadModal({ visible, onSelect, onClose, mode }: any) {
                     </View>
 
                     <View style={styles.numberPadDisplay}>
-                        <Text style={styles.numberPadDisplayText}>
-                            {inputValue || '0'}
-                        </Text>
+                        <Text style={styles.numberPadDisplayText}>{inputValue || '0'}</Text>
                     </View>
 
-                    <View style={styles.numberPadGrid}>
-                        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
-                            <TouchableOpacity
-                                key={num}
-                                style={styles.numberPadButton}
-                                onPress={() => handleNumberPress(num.toString())}
-                            >
-                                <Text style={styles.numberPadButtonText}>{num}</Text>
-                            </TouchableOpacity>
-                        ))}
-
-                        <TouchableOpacity
-                            style={styles.numberPadButton}
-                            onPress={() => handleNumberPress('.')}
-                        >
-                            <Text style={styles.numberPadButtonText}>.</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                            style={styles.numberPadButton}
-                            onPress={() => handleNumberPress('0')}
-                        >
-                            <Text style={styles.numberPadButtonText}>0</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                            style={[styles.numberPadButton, styles.numberPadBackspaceButton]}
-                            onPress={handleBackspace}
-                        >
-                            <Ionicons name="backspace" size={20} color={AppColors.white} />
-                        </TouchableOpacity>
-                    </View>
+                    <TextInput
+                        style={styles.valuePillInput}
+                        value={inputValue}
+                        keyboardType="numeric"
+                        onChangeText={handleInputChange}
+                        autoFocus
+                        placeholder="Enter value"
+                        placeholderTextColor="rgba(255,255,255,0.3)"
+                    />
 
                     <View style={styles.numberPadButtonsRow}>
                         <TouchableOpacity
@@ -929,7 +893,6 @@ function NumberPadModal({ visible, onSelect, onClose, mode }: any) {
                         >
                             <Text style={styles.numberPadActionButtonText}>Cancel</Text>
                         </TouchableOpacity>
-
                         <TouchableOpacity
                             style={[styles.numberPadActionButton, styles.numberPadConfirmButton]}
                             onPress={handleConfirm}
@@ -1119,17 +1082,18 @@ function DurationPickerModal({ visible, onSelect, onClose }: any) {
 
                     <View style={styles.durationInputRow}>
                         <ScrollView
-                            style={{ height: ITEM_HEIGHT * 3 }}
+                            style={{ height: ITEM_HEIGHT * 3, width: '40%' }}
                             showsVerticalScrollIndicator={false}
                             snapToInterval={ITEM_HEIGHT}
                             decelerationRate="fast"
                             contentContainerStyle={{ paddingVertical: ITEM_HEIGHT }}
+                            scrollEventThrottle={16}
                             onMomentumScrollEnd={(e) => {
-                                const index = Math.round(e.nativeEvent.contentOffset.y / ITEM_HEIGHT);
-                                setMinutes(index);
+                                const offset = e.nativeEvent.contentOffset.y;
+                                const index = Math.round(offset / ITEM_HEIGHT);
+                                setMinutes(Math.max(0, Math.min(59, index)));
                             }}
                         >
-                            <View style={styles.section}>
                             {minutesList.map((m) => (
                                 <View
                                     key={m}
@@ -1144,24 +1108,23 @@ function DurationPickerModal({ visible, onSelect, onClose }: any) {
                                     </Text>
                                 </View>
                             ))}
-                            </View>
-
                         </ScrollView>
 
                         <Text style={styles.durationSeparator}>:</Text>
 
                         <ScrollView
-                            style={{ height: ITEM_HEIGHT * 3 }}
+                            style={{ height: ITEM_HEIGHT * 3, width: '40%' }}
                             showsVerticalScrollIndicator={false}
                             snapToInterval={ITEM_HEIGHT}
                             decelerationRate="fast"
                             contentContainerStyle={{ paddingVertical: ITEM_HEIGHT }}
+                            scrollEventThrottle={16}
                             onMomentumScrollEnd={(e) => {
-                                const index = Math.round(e.nativeEvent.contentOffset.y / ITEM_HEIGHT);
-                                setSeconds(index);
+                                const offset = e.nativeEvent.contentOffset.y;
+                                const index = Math.round(offset / ITEM_HEIGHT);
+                                setSeconds(Math.max(0, Math.min(59, index)));
                             }}
                         >
-                            <View style={styles.section}>
                             {secondsList.map((s) => (
                                 <View
                                     key={s}
@@ -1176,8 +1139,6 @@ function DurationPickerModal({ visible, onSelect, onClose }: any) {
                                     </Text>
                                 </View>
                             ))}
-                            </View>
-
                         </ScrollView>
 
                         <View
@@ -1186,8 +1147,8 @@ function DurationPickerModal({ visible, onSelect, onClose }: any) {
                                 position: 'absolute',
                                 top: ITEM_HEIGHT,
                                 bottom: ITEM_HEIGHT,
-                                left: 15,
-                                right: 15,
+                                left: '5%',
+                                right: '5%',
                                 borderTopWidth: 1,
                                 borderRadius: 10,
                                 borderBottomWidth: 1,
@@ -1249,6 +1210,7 @@ function WorkoutInProgressSheet({ visible, onResume, onDiscard }: any) {
                                 <Text style={styles.sheetButtonText}>Discard</Text>
                             </TouchableOpacity>
                         </View>
+                        <View style={styles.largeSpacing}/>
                     </BlurView>
                 </TouchableOpacity>
             </TouchableOpacity>
@@ -1306,11 +1268,9 @@ const styles = StyleSheet.create({
     inner: {
         width: '100%',
         alignItems: 'center',
-
         flexDirection: 'row',
         justifyContent: 'center',
         paddingVertical: 14,
-        flexDirection: 'row',
         gap:8
     },
 
@@ -1409,7 +1369,7 @@ const styles = StyleSheet.create({
         borderRadius: 20,
         padding: 14,
         marginBottom: 12,
-        
+
         backgroundColor: 'rgba(255,255,255,0.05)',
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.08)',
@@ -1442,6 +1402,48 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(255,120,37,0.20)',
     },
 
+    sheetBackdrop: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'flex-end',
+    },
+    filterSheet: {
+        borderTopLeftRadius: 22,
+        borderTopRightRadius: 22,
+        paddingHorizontal: 12,
+        paddingVertical: 16,
+        maxHeight: '70%',
+        overflow: 'hidden',
+        backgroundColor: 'rgba(255,255,255,0.06)',
+    },
+    sheetHandle: {
+        width: 40,
+        height: 5,
+        backgroundColor: AppColors.orange,
+        borderRadius: 3,
+        alignSelf: 'center',
+        marginBottom: 12,
+    },
+    filterOption: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        borderRadius: 16,
+        marginBottom: 10,
+        backgroundColor: 'rgba(255,255,255,0.03)',
+        overflow: 'hidden',
+    },
+    filterOptionText: {fontSize: 15, fontWeight: '500', color: AppColors.orange},
+
+    pickerTitle: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: AppColors.white,
+        textAlign: 'center',
+        marginBottom: 12,
+    },
     restButtonText: {
         fontSize: 14,
         color: AppColors.orange,
@@ -1513,6 +1515,22 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
 
+    valuePillInput: {
+        minWidth: 78,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        borderRadius: 14,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        textAlign: 'center',
+        color: AppColors.white,
+        fontWeight: '600',
+        fontSize: 15,
+        padding: 0,
+    },
     iconButtonText: {
         fontSize: 16,
         fontWeight: '700',
@@ -1591,7 +1609,7 @@ const styles = StyleSheet.create({
         gap: 8,
     },
 
-        updateRoutineButtonText: {
+    updateRoutineButtonText: {
         fontSize: 14,
         fontWeight: '700',
         color: AppColors.orange,
@@ -1601,7 +1619,7 @@ const styles = StyleSheet.create({
     actionButtonsRow: {
         flexDirection: 'row',
         gap: 12,
-        
+
     },
 
     actionButton: {
@@ -1624,14 +1642,14 @@ const styles = StyleSheet.create({
 
     overlayBackdrop: {
         flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.45)',
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
         justifyContent: 'center',
         alignItems: 'center',
     },
 
     toastBackdrop: {
         flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.55)',
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -1652,14 +1670,12 @@ const styles = StyleSheet.create({
         color: AppColors.white,
         textAlign: 'center',
     },
-
     clockBackdrop: {
         flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.55)',
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
         justifyContent: 'center',
         alignItems: 'center',
     },
-
     clockOverlay: {
         borderRadius: 24,
         paddingHorizontal: 20,
@@ -1858,20 +1874,13 @@ const styles = StyleSheet.create({
         color: AppColors.black,
     },
 
-    sheetBackdrop: {
-        flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        justifyContent: 'flex-end',
-    },
 
     workoutInProgressSheet: {
-        borderTopLeftRadius: 24,
-        borderTopRightRadius: 24,
+        borderTopLeftRadius: 22,
+        borderTopRightRadius: 22,
         paddingHorizontal: 12,
         paddingVertical: 16,
         backgroundColor: 'rgba(255,255,255,0.06)',
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.08)',
         overflow: 'hidden',
     },
 
@@ -1937,7 +1946,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 12,
         paddingVertical: 12,
         maxHeight: '70%',
-        backgroundColor: 'rgba(255,255,255,0.06)',
+        backgroundColor: 'rgba(255,255,255,0.09)',
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.08)',
         overflow: 'hidden',
@@ -1975,22 +1984,21 @@ const styles = StyleSheet.create({
 
     modalBackdrop: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.55)',
+        backgroundColor: 'rgba(0,0,0,0.5)',
         justifyContent: 'center',
         alignItems: 'center',
     },
-
     modalContent: {
         borderRadius: 24,
-        width: '95%',         // bigger than before
-        maxWidth: 480,        // allow it to grow on tablets
-        maxHeight: '80%',
+        width: '90%',
+        height: '50%',
         paddingHorizontal: 20,
         paddingVertical: 20,
         backgroundColor: 'rgba(255,255,255,0.06)',
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.08)',
         overflow: 'hidden',
+        flexDirection: 'column',
     },
 
     routineItemButton: {
@@ -2022,7 +2030,7 @@ const styles = StyleSheet.create({
     },
 
     routinesList: {
-        maxHeight: 300,
+        flex: 1,
         marginBottom: 12,
         width: '100%',
     },
@@ -2061,14 +2069,12 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         padding: 4,
     },
-
     numberPadBackdrop: {
         flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.55)',
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
         justifyContent: 'center',
         alignItems: 'center',
     },
-
     numberPadContainer: {
         borderRadius: 24,
         paddingHorizontal: 20,
@@ -2202,7 +2208,7 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(255,255,255,0.08)',
     },
     fullWidthButtons: {
-        
+
         gap: 12,
     },
 
@@ -2218,7 +2224,7 @@ const styles = StyleSheet.create({
     horizontalButtons: {
         flexDirection: 'row',
         gap: 8,
-        
+
         justifyContent: 'space-between',
     },
 

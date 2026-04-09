@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, ReactNode } from 'react';
+import React, { createContext, useState, useContext, ReactNode, useCallback } from 'react';
 import { ExerciseTarget } from '../types/workout.types';
 
 interface RoutineContextType {
@@ -17,28 +17,32 @@ export function RoutineProvider({ children }: { children: ReactNode }) {
     const [routineTitle, setRoutineTitle] = useState('');
     const [targets, setTargets] = useState<ExerciseTarget[]>([]);
 
-    const addTarget = (target: ExerciseTarget) => {
-        // Check if exercise already exists
-        const exists = targets.some(t => t.name === target.name);
-        if (!exists) {
-            setTargets([...targets, target]);
-        }
-    };
+    const addTarget = useCallback((target: ExerciseTarget) => {
+        setTargets(prev => {
+            const exists = prev.some(t => t.name === target.name);
+            if (!exists) {
+                return [...prev, target];
+            }
+            return prev;
+        });
+    }, []);
 
-    const updateTarget = (index: number, target: ExerciseTarget) => {
-        const updatedTargets = [...targets];
-        updatedTargets[index] = target;
-        setTargets(updatedTargets);
-    };
+    const updateTarget = useCallback((index: number, target: ExerciseTarget) => {
+        setTargets(prev => {
+            const updatedTargets = [...prev];
+            updatedTargets[index] = target;
+            return updatedTargets;
+        });
+    }, []);
 
-    const removeTarget = (index: number) => {
-        setTargets(targets.filter((_, i) => i !== index));
-    };
+    const removeTarget = useCallback((index: number) => {
+        setTargets(prev => prev.filter((_, i) => i !== index));
+    }, []);
 
-    const clearRoutine = () => {
+    const clearRoutine = useCallback(() => {
         setRoutineTitle('');
         setTargets([]);
-    };
+    }, []);
 
     return (
         <RoutineContext.Provider

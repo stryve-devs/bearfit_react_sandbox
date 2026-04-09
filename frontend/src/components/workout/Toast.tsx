@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { Modal, View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Modal, View, Text, StyleSheet, Pressable } from 'react-native';
 import { AppColors } from '../../constants/colors';
 
 interface ToastProps {
@@ -10,7 +10,13 @@ interface ToastProps {
     buttonText?: string;
 }
 
-export default function Toast({ visible, message, onClose, duration = 3000, buttonText = 'OK' }: ToastProps) {
+export default function Toast({
+                                  visible,
+                                  message,
+                                  onClose,
+                                  duration = 3000,
+                                  buttonText = 'OK',
+                              }: ToastProps) {
     useEffect(() => {
         if (visible && duration > 0) {
             const timer = setTimeout(onClose, duration);
@@ -23,12 +29,11 @@ export default function Toast({ visible, message, onClose, duration = 3000, butt
             <View style={styles.backdrop}>
                 <View style={styles.toastContainer}>
                     <Text style={styles.message}>{message}</Text>
+
                     {duration === 0 && (
                         <>
                             <View style={styles.spacing} />
-                            <TouchableOpacity style={styles.button} onPress={onClose}>
-                                <Text style={styles.buttonText}>{buttonText}</Text>
-                            </TouchableOpacity>
+                            <PressableToastButton text={buttonText} onPress={onClose} />
                         </>
                     )}
                 </View>
@@ -37,20 +42,45 @@ export default function Toast({ visible, message, onClose, duration = 3000, butt
     );
 }
 
+// ✅ Pressable button for Toast
+function PressableToastButton({
+                                  text,
+                                  onPress,
+                              }: {
+    text: string;
+    onPress: () => void;
+}) {
+    const [pressed, setPressed] = useState(false);
+
+    return (
+        <Pressable
+            onPress={onPress}
+            onPressIn={() => setPressed(true)}
+            onPressOut={() => setPressed(false)}
+            style={[styles.button, pressed && styles.buttonActive]}
+        >
+            <Text style={[styles.buttonText, pressed && styles.buttonTextActive]}>{text}</Text>
+        </Pressable>
+    );
+}
+
 const styles = StyleSheet.create({
     backdrop: {
         flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+        backgroundColor: 'rgba(0, 0, 0, 0.8)',
         justifyContent: 'center',
         alignItems: 'center',
     },
     toastContainer: {
-        backgroundColor: AppColors.darkBg,
-        borderRadius: 20,
-        paddingHorizontal: 24,
-        paddingVertical: 16,
+        borderRadius: 24,
+        paddingHorizontal: 20,
+        paddingVertical: 20,
         width: '80%',
         maxWidth: 337,
+        backgroundColor: 'rgba(255,255,255,0.16)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+        overflow: 'hidden',
     },
     message: {
         fontSize: 16,
@@ -60,15 +90,23 @@ const styles = StyleSheet.create({
     },
     spacing: { height: 12 },
     button: {
-        backgroundColor: AppColors.orange,
         paddingHorizontal: 24,
+        backgroundColor: 'rgba(0,0,0,0.5)',
         paddingVertical: 12,
         borderRadius: 12,
         alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.06)',
+    },
+    buttonActive: {
+        backgroundColor: AppColors.orange,
     },
     buttonText: {
         fontSize: 16,
         fontWeight: '700',
+        color: AppColors.white,
+    },
+    buttonTextActive: {
         color: AppColors.black,
     },
 });
