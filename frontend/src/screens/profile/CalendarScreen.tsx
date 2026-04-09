@@ -16,8 +16,31 @@ const { width } = Dimensions.get("window");
 const ORANGE = "#FF7825";
 
 const days = ["Wed", "Thu", "Fri", "Sat", "Sun", "Mon", "Tue"];
-const feb = Array.from({ length: 28 }, (_, i) => i + 1);
-const mar = Array.from({ length: 31 }, (_, i) => i + 1);
+const getDaysInMonth = (month, year) => {
+    return new Date(year, month + 1, 0).getDate();
+};
+
+const todayDate = new Date();
+const currentMonth = todayDate.getMonth(); // 0–11
+const currentYear = todayDate.getFullYear();
+
+const currentMonthDays = Array.from(
+    { length: getDaysInMonth(currentMonth, currentYear) },
+    (_, i) => i + 1
+);
+
+const nextMonth = (currentMonth + 1) % 12;
+const nextMonthYear = currentMonth === 11 ? currentYear + 1 : currentYear;
+
+const nextMonthDays = Array.from(
+    { length: getDaysInMonth(nextMonth, nextMonthYear) },
+    (_, i) => i + 1
+);
+
+const getMonthName = (month) => {
+    return new Date(0, month).toLocaleString("default", { month: "long" });
+};
+
 
 export default function CalendarScreen() {
     const [activeModal, setActiveModal] = React.useState<"streak" | "rest" | null>(null);
@@ -130,17 +153,33 @@ export default function CalendarScreen() {
                 <BlurView intensity={25} tint="dark" style={{ flex: 1 }}>
                     <ScrollView showsVerticalScrollIndicator={false}>
 
-                        <Text style={styles.month}>February 2026</Text>
+                        <Text style={styles.month}>
+                            {getMonthName(currentMonth)} {currentYear}
+                        </Text>
                         <View style={styles.grid}>
-                            {feb.map((d) => (
-                                <Day key={d} d={d} today={today} month={1} currentMonth={currentMonth} />
+                            {currentMonthDays.map((d) => (
+                                <Day
+                                    key={d}
+                                    d={d}
+                                    today={today}
+                                    month={currentMonth}
+                                    currentMonth={currentMonth}
+                                />
                             ))}
                         </View>
 
-                        <Text style={styles.month}>March 2026</Text>
+                        <Text style={styles.month}>
+                            {getMonthName(nextMonth)} {nextMonthYear}
+                        </Text>
                         <View style={styles.grid}>
-                            {mar.map((d) => (
-                                <Day key={d} d={d} today={today} month={2} currentMonth={currentMonth} />
+                            {nextMonthDays.map((d) => (
+                                <Day
+                                    key={d}
+                                    d={d}
+                                    today={today}
+                                    month={nextMonth}
+                                    currentMonth={currentMonth}
+                                />
                             ))}
                         </View>
 
@@ -221,7 +260,8 @@ export default function CalendarScreen() {
                             {["Month", "Year", "Multi-year"].map((item) => (
                                 <TouchableOpacity
                                     key={item}
-                                    style={styles.sheetRow}
+                                    style={styles.sheetCard}
+                                    activeOpacity={0.85}
                                     onPress={() => {
                                         setSelectedView(item);
                                         setShowPicker(false);
@@ -235,11 +275,31 @@ export default function CalendarScreen() {
                                         }
                                     }}
                                 >
-                                    <Text style={styles.sheetText}>{item}</Text>
+                                    <View style={styles.sheetCardContent}>
 
-                                    {selectedView === item && (
-                                        <Feather name="check" size={20} color="#FF7825" />
-                                    )}
+                                        {/* LEFT ICON (optional but makes it PREMIUM) */}
+                                        <View style={styles.sheetIcon}>
+                                            <Feather
+                                                name={
+                                                    item === "Month"
+                                                        ? "calendar"
+                                                        : item === "Year"
+                                                            ? "bar-chart"
+                                                            : "layers"
+                                                }
+                                                size={18}
+                                                color="#FF7825"
+                                            />
+                                        </View>
+
+                                        {/* TEXT */}
+                                        <Text style={styles.sheetText}>{item}</Text>
+
+                                        {/* RIGHT CHECK */}
+                                        {selectedView === item && (
+                                            <Feather name="check" size={20} color="#FF7825" />
+                                        )}
+                                    </View>
                                 </TouchableOpacity>
                             ))}
 
@@ -308,7 +368,9 @@ function Day({ d, today, month, currentMonth }: any) {
     const router = useRouter();
     const isToday = d === today && month === currentMonth;
 
-    const monthLabel = month === 1 ? "February 2026" : "March 2026";
+    const monthLabel = `${new Date(0, month).toLocaleString("default", {
+        month: "long",
+    })} ${new Date().getFullYear()}`;
 
     return (
         <TouchableOpacity
@@ -769,5 +831,30 @@ const styles = StyleSheet.create({
         fontSize: 16,
     },
 
+    sheetCard: {
+        borderRadius: 18,
+        marginBottom: 12,
+        overflow: "hidden",
+        backgroundColor: "rgba(255,255,255,0.04)",
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.08)",
+    },
+
+    sheetCardContent: {
+        flexDirection: "row",
+        alignItems: "center",
+        paddingVertical: 16,
+        paddingHorizontal: 16,
+    },
+
+    sheetIcon: {
+        width: 36,
+        height: 36,
+        borderRadius: 12,
+        backgroundColor: "rgba(255,120,37,0.1)",
+        alignItems: "center",
+        justifyContent: "center",
+        marginRight: 12,
+    },
 
 });

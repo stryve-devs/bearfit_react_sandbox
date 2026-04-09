@@ -42,7 +42,7 @@ const ACTIVE_DAY = 3;
 const DASH_ITEMS = [
     { label: "Statistics",    icon: "chart-line",        startOffset: 0    },
     { label: "Exercises",     icon: "dumbbell",          startOffset: 0.33 },
-    { label: "Measures",      icon: "human-male-height", startOffset: 0.17 },
+    { label: "Measures",      icon: "human-male-height", startOffset: 0.17,     route: "/Profile/measurements"},
     {
         label: "Calendar",
         icon: "calendar",
