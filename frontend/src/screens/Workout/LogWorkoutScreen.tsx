@@ -452,7 +452,10 @@ export default function LogWorkoutScreen() {
                         )}
 
                         <View style={styles.horizontalButtons}>
-                            <GlassButton style={styles.halfButton}>
+                            <GlassButton
+                                style={styles.halfButton}
+                                onPress={() => router.push('/(tabs)/Workout/settings')}
+                            >
                                 <Text style={styles.actionButtonText}>Settings</Text>
                             </GlassButton>
 
