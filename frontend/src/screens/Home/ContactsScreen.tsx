@@ -141,7 +141,7 @@ function ContactRow({ item, index, isDone, onAction, actionLabel, doneLabel }: {
 }) {
     return (
         <Animated.View
-            entering={FadeInDown.delay(index * 40).duration(380).springify().damping(18)}
+            entering={FadeInDown.delay(index * 40).duration(380)}
             style={st.contactRow}
         >
             <View style={st.contactAvatarWrap}>
@@ -209,7 +209,7 @@ function PrimaryButton({ label, onPress, outline }: {
 function AnimatedModalCard({ children, width }: { children: React.ReactNode; width: number }) {
     return (
         <Animated.View
-            entering={ZoomIn.duration(260).springify().damping(18)}
+            entering={ZoomIn.duration(260)}
             style={[st.modalCard, { width: Math.min(width - 36, IS_ANDROID ? 360 : 430) }]}
         >
             <LinearGradient
@@ -313,13 +313,13 @@ export default function ContactsScreen() {
     // ── Connect Content ───────────────────────────────────────────────────────
     const renderConnectContent = () => (
         <ScrollView contentContainerStyle={st.listContent} showsVerticalScrollIndicator={false}>
-            <Animated.View entering={FadeInDown.duration(400).springify()}>
+            <Animated.View entering={FadeInDown.duration(400)}>
                 <Text allowFontScaling={false} style={st.sectionEyebrow}>DISCOVERY</Text>
                 <Text allowFontScaling={false} style={st.sectionHeading}>Contact Discovery</Text>
             </Animated.View>
 
             {!phoneVerified && (
-                <Animated.View entering={FadeInDown.delay(100).duration(400).springify()} style={st.verifyCard}>
+                <Animated.View entering={FadeInDown.delay(100).duration(400)} style={st.verifyCard}>
                     <LinearGradient
                         colors={["transparent", "rgba(255,255,255,0.08)", "transparent"]}
                         start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
@@ -349,7 +349,7 @@ export default function ContactsScreen() {
                 </Animated.View>
             )}
 
-            <Animated.View entering={FadeInDown.delay(150).duration(400).springify()}>
+            <Animated.View entering={FadeInDown.delay(150).duration(400)}>
                 <Text allowFontScaling={false} style={[st.sectionEyebrow, { marginTop: 20 }]}>YOUR CONTACTS</Text>
                 <Text allowFontScaling={false} style={st.sectionHeading}>Invite your contacts</Text>
             </Animated.View>
@@ -390,7 +390,7 @@ export default function ContactsScreen() {
 
                 {/* ── Header ── */}
                 <Animated.View
-                    entering={FadeInDown.duration(400).springify().damping(18)}
+                    entering={FadeInDown.duration(400)}
                     style={st.topHeader}
                 >
                     <TouchableOpacity
@@ -426,7 +426,7 @@ export default function ContactsScreen() {
 
                 {/* ── Tab Header ── */}
                 <Animated.View
-                    entering={FadeInDown.delay(80).duration(400).springify()}
+                    entering={FadeInDown.delay(80).duration(400)}
                     style={st.tabHeader}
                 >
                     <Text allowFontScaling={false} style={st.tabText}>Contacts</Text>
@@ -534,7 +534,7 @@ export default function ContactsScreen() {
                 <Modal visible={countryPickerOpen} transparent animationType="fade">
                     <View style={st.modalBackdrop}>
                         <Animated.View
-                            entering={ZoomIn.duration(260).springify().damping(18)}
+                            entering={ZoomIn.duration(260)}
                             style={[st.countryModalCard, { width: Math.min(width - 36, IS_ANDROID ? 360 : 430) }]}
                         >
                             <LinearGradient
@@ -757,3 +757,4 @@ const st = StyleSheet.create({
     countryItemText: { flex: 1, color: TEXT, fontSize: IS_ANDROID ? 13 : 15 },
     countryCode: { color: ORANGE, fontSize: IS_ANDROID ? 12 : 13, fontWeight: "700" },
 });
+

@@ -16,7 +16,8 @@ import {
 } from 'react-native';
 
 import { useLocalSearchParams, router } from 'expo-router';
-import Animated, {
+import Animated,
+{
     FadeInDown,
     SlideInRight,
     useSharedValue,
@@ -33,6 +34,7 @@ import Animated, {
 import { useState, useEffect, useRef } from 'react';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width, height } = Dimensions.get('window');
 const HEADER_HEIGHT = 260;
@@ -263,7 +265,7 @@ const CommentsModal = ({ visible, onClose, post, onUpdatePost }: any) => {
     const modalStyle = useAnimatedStyle(() => ({ transform: [{ translateY: slideY.value }] }));
     useEffect(() => {
         slideY.value = visible
-            ? withSpring(0, { damping: 22, stiffness: 200 })
+            ? withTiming(0, { duration: 500 })
             : withTiming(height, { duration: 260 });
     }, [visible]);
 
@@ -430,7 +432,7 @@ const PeopleModal = ({ visible, onClose, title }: any) => {
     const modalStyle = useAnimatedStyle(() => ({ transform: [{ translateY: slideY.value }] }));
     useEffect(() => {
         slideY.value = visible
-            ? withSpring(0, { damping: 22, stiffness: 200 })
+            ? withTiming(0, { duration: 500 })
             : withTiming(height, { duration: 260 });
     }, [visible]);
 
@@ -493,7 +495,10 @@ const PostCard = ({ post, index, onOpenComments, onUpdatePost }: any) => {
     const heartStyle = useAnimatedStyle(() => ({ transform: [{ scale: heartScale.value }] }));
 
     const toggleLike = () => {
-        heartScale.value = withSequence(withSpring(1.5, { damping: 6 }), withSpring(1));
+        heartScale.value = withSequence(
+            withTiming(1.18, { duration: 90 }),
+            withTiming(1, { duration: 90 })
+        );
         setLiked((v: boolean) => { setLikes((l: number) => l + (v ? -1 : 1)); return !v; });
     };
 
@@ -616,6 +621,7 @@ const PostCard = ({ post, index, onOpenComments, onUpdatePost }: any) => {
 // ─── MAIN SCREEN ──────────────────────────────────────────────
 export default function UserScreen() {
     const { name } = useLocalSearchParams();
+    const insets = useSafeAreaInsets();
     const [isFollowing,    setIsFollowing]    = useState(false);
     const [posts,          setPosts]           = useState(INITIAL_POSTS);
     const [commentsPost,   setCommentsPost]    = useState<any>(null);
@@ -652,7 +658,10 @@ export default function UserScreen() {
             <StatusBar barStyle="light-content" />
 
             {/* ── BACK BUTTON ── */}
-            <Animated.View style={styles.backBtn} entering={FadeInDown.delay(50)}>
+            <Animated.View
+                style={[styles.backBtn, { top: insets.top + (Platform.OS === 'ios' ? 10 : 8) }]}
+                entering={FadeInDown.delay(50)}
+            >
                 <TouchableOpacity
                     onPress={() => router.back()}
                     style={styles.backBtnInner}
@@ -664,7 +673,14 @@ export default function UserScreen() {
             </Animated.View>
 
             {/* ── STICKY BAR ── */}
-            <Animated.View style={[styles.stickyBar, navStyle]} pointerEvents="none">
+            <Animated.View
+                style={[
+                    styles.stickyBar,
+                    { height: 60 + insets.top, paddingTop: insets.top },
+                    navStyle,
+                ]}
+                pointerEvents="none"
+            >
                 <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFillObject} />
                 <LinearGradient colors={['rgba(8,8,16,0.9)', 'transparent']} style={StyleSheet.absoluteFillObject} />
                 <Text style={styles.stickyName}>{name || 'Jessica'}</Text>
@@ -747,7 +763,8 @@ export default function UserScreen() {
                         }}
                     >
                         <Text style={styles.section}>Posts</Text>
-                    </View>             {posts.map((p, i) => (
+                    </View>
+                    {posts.map((p, i) => (
                         <PostCard key={p.id} post={p} index={i} onOpenComments={openComments} onUpdatePost={updatePost} />
                     ))}
 
@@ -767,7 +784,6 @@ const styles = StyleSheet.create({
 
     backBtn: {
         position: 'absolute',
-        top: Platform.OS === 'ios' ? 54 : 20,
         left: 16, zIndex: 200,
     },
     backBtnInner: {
@@ -779,8 +795,6 @@ const styles = StyleSheet.create({
 
     stickyBar: {
         position: 'absolute', top: 0, left: 0, right: 0,
-        height: 60 + (Platform.OS === 'ios' ? 44 : 0),
-        paddingTop: Platform.OS === 'ios' ? 44 : 0,
         alignItems: 'center', justifyContent: 'center',
         zIndex: 100, borderBottomWidth: 1, borderBottomColor: C.border,
     },
