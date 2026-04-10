@@ -143,7 +143,7 @@ function AthleteCard({
     const cardStyle = useAnimatedStyle(() => ({ transform: [{ scale: cardScale.value }] }));
     const glowStyle = useAnimatedStyle(() => ({ opacity: glowOpacity.value }));
     const btnStyle  = useAnimatedStyle(() => ({
-        backgroundColor: followed.value > 0.5 ? "transparent" : ORANGE,
+        backgroundColor: followed.value > 0.5 ? "rgba(255,120,37,0.12)" : ORANGE,
         borderColor: ORANGE,
         borderWidth: 1,
     }));
@@ -188,9 +188,7 @@ function AthleteCard({
                             <View style={cardSt.onlineDot} />
                         </View>
 
-                        <Text allowFontScaling={false} numberOfLines={1} style={cardSt.name}>
-                            {item.name}
-                        </Text>
+                        {/* sport removed as requested */}
                         <Text allowFontScaling={false} style={cardSt.sport}>
                             {item.sport ?? "Athlete"}
                         </Text>
@@ -600,7 +598,7 @@ export default function HomeScreen() {
                         start={{ x: 0.16, y: 0 }} end={{ x: 0.84, y: 1 }}
                         style={{ flex: 1 }}
                     >
-                        <SafeAreaView style={{ flex: 1 }} edges={["top", "left", "right"]}>
+                        <SafeAreaView style={{ flex: 1 }} edges={["top", "bottom", "left", "right"]}>
                             <Animated.View
                                 entering={FadeInDown.duration(280).easing(Easing.out(Easing.cubic))}
                                 style={st.searchHeader}
@@ -644,6 +642,7 @@ export default function HomeScreen() {
                                 </Animated.View>
                             ) : (
                                 <FlatList
+                                    keyboardShouldPersistTaps="handled"
                                     data={filtered}
                                     keyExtractor={(item) => item.username}
                                     contentContainerStyle={{ paddingBottom: 40, paddingHorizontal: 16 }}

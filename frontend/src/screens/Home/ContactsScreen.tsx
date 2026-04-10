@@ -293,6 +293,7 @@ export default function ContactsScreen() {
     // ── Invite List ───────────────────────────────────────────────────────────
     const renderInviteList = () => (
         <FlatList
+            keyboardShouldPersistTaps="handled"
             contentContainerStyle={st.listContent}
             data={filteredData}
             keyExtractor={(x) => x.id}

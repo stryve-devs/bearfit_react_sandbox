@@ -126,32 +126,32 @@ function TrendingCard({ item, index }: { item: typeof TRENDING[0]; index: number
                             </Text>
                         </View>
 
-                        {/* Duration badge */}
-                        <View style={styles.durationBadge}>
-                            <Ionicons name="time-outline" size={11} color="rgba(255,255,255,0.8)" />
-                            <Text allowFontScaling={false} style={styles.durationText}>{item.duration}</Text>
-                        </View>
+                    {/* Duration badge */}
+                    <View style={styles.durationBadge}>
+                        <Ionicons name="time-outline" size={11} color="rgba(255,255,255,0.8)" />
+                        <Text allowFontScaling={false} style={styles.durationText}>{item.duration}</Text>
                     </View>
+                </View>
 
-                    {/* Info */}
-                    <View style={styles.trendingInfo}>
-                        <View style={styles.trendingCategoryTag}>
-                            <Text allowFontScaling={false} style={styles.trendingCategoryText}>{item.category}</Text>
-                        </View>
-                        <Text allowFontScaling={false} style={styles.trendingTitle} numberOfLines={2}>
-                            {item.title}
-                        </Text>
-                        <View style={styles.trendingMeta}>
-                            <Ionicons name="heart" size={11} color="#FF4D6D" />
-                            <Text allowFontScaling={false} style={styles.trendingLikes}>
-                                {item.likes >= 1000 ? `${(item.likes / 1000).toFixed(1)}k` : item.likes}
-                            </Text>
-                        </View>
+                {/* Info */}
+                <View style={styles.trendingInfo}>
+                    <View style={styles.trendingCategoryTag}>
+                        <Text allowFontScaling={false} style={styles.trendingCategoryText}>{item.category}</Text>
                     </View>
-                </Animated.View>
-            </TouchableOpacity>
+                    <Text allowFontScaling={false} style={styles.trendingTitle} numberOfLines={2}>
+                        {item.title}
+                    </Text>
+                    <View style={styles.trendingMeta}>
+                        <Ionicons name="heart" size={11} color="#FF4D6D" />
+                        <Text allowFontScaling={false} style={styles.trendingLikes}>
+                            {item.likes >= 1000 ? `${(item.likes / 1000).toFixed(1)}k` : item.likes}
+                        </Text>
+                    </View>
+                </View>
         </Animated.View>
-    );
+</TouchableOpacity>
+</Animated.View>
+);
 }
 
 // ─── Athlete Card ─────────────────────────────────────────────────────────────
@@ -167,7 +167,7 @@ function AthleteCard({ item, index }: { item: typeof ATHLETES[0]; index: number 
     };
 
     const btnStyle = useAnimatedStyle(() => ({
-        backgroundColor: followedVal.value > 0.5 ? "transparent" : ORANGE,
+        backgroundColor: followedVal.value > 0.5 ? "rgba(255,120,37,0.15)" : ORANGE,
         borderWidth: 1,
         borderColor: ORANGE,
         opacity: 1,
@@ -190,7 +190,7 @@ function AthleteCard({ item, index }: { item: typeof ATHLETES[0]; index: number 
 
                     {/* Info */}
                     <Text allowFontScaling={false} style={styles.athleteName} numberOfLines={1}>{item.name}</Text>
-                    <Text allowFontScaling={false} style={styles.athleteSport}>{item.sport}</Text>
+                    {/* sport removed */}
 
                     {/* Workouts count */}
                     <View style={styles.athleteStatRow}>
@@ -279,7 +279,7 @@ export default function ExploreScreen() {
     const hasResults  = filteredAthletes.length > 0 || filteredTrending.length > 0;
 
     return (
-        <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
+        <SafeAreaView style={styles.safe} edges={["top", "bottom", "left", "right"]}>
             <StatusBar barStyle="light-content" backgroundColor={BG} />
             <View style={styles.bgAccent1} />
             <View style={styles.bgAccent2} />
@@ -342,7 +342,11 @@ export default function ExploreScreen() {
 
             {/* ── Search Results ── */}
             {isSearching ? (
-                <ScrollView contentContainerStyle={styles.searchResults} showsVerticalScrollIndicator={false}>
+                <ScrollView
+                    keyboardShouldPersistTaps="handled"
+                    contentContainerStyle={styles.searchResults}
+                    showsVerticalScrollIndicator={false}
+                >
                     {!hasResults ? (
                         <Animated.View entering={FadeIn.duration(300)} style={styles.emptyWrap}>
                             <Ionicons name="search" size={40} color={AppColors.darkGrey} />
