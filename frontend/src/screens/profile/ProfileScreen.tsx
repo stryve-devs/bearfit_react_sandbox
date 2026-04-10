@@ -40,16 +40,11 @@ const ACTIVE_DAY = 3;
 
 // HTML animation-delay offsets for a 9s cycle
 const DASH_ITEMS = [
-    { label: "Statistics",    icon: "chart-line",        startOffset: 0    },
+    {label: "Statistics", icon: "chart-line", startOffset: 0, route: "/Profile/statistics",},
     { label: "Exercises",     icon: "dumbbell",          startOffset: 0.33 },
     { label: "Measures",      icon: "human-male-height", startOffset: 0.17,     route: "/Profile/measurements"},
-    {
-        label: "Calendar",
-        icon: "calendar",
-        startOffset: 0.56,
-        sub: "",
-        route: "/Profile/calendar"
-    },
+    {label: "Calendar", icon: "calendar", startOffset: 0.56, sub: "", route: "/Profile/calendar"},
+
 ] as const;
 
 // ─── AvatarRing ───────────────────────────────────────────────────────────────
