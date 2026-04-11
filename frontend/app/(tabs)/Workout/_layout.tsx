@@ -25,6 +25,7 @@ export default function WorkoutLayout() {
                 headerStyle: { backgroundColor: AppColors.darkBg },
                 headerTintColor: AppColors.white,
                 headerTitleStyle: { color: AppColors.orange, fontWeight: 'bold', fontSize: 18 },
+                headerTitleContainerStyle: {paddingHorizontal: 12},
                 headerTitleAlign: 'center',
                 headerShadowVisible: false,
                 contentStyle: { backgroundColor: AppColors.black },
@@ -43,13 +44,13 @@ export default function WorkoutLayout() {
                 options={{
                     title: 'Create Routine',
                     headerLeft: () => (
-                        <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 12 }}>
+                        <TouchableOpacity onPress={() => router.back()} style={{ marginRight: 12 }}>
                             <Ionicons name="arrow-back" size={24} color={AppColors.orange} />
                         </TouchableOpacity>
                     ),
                     headerRight: () => (
                         <TouchableOpacity
-                            style={{ marginRight: 16, backgroundColor: AppColors.orange, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 }}
+                            style={{ marginLeft: 16, backgroundColor: AppColors.orange, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 }}
                             onPress={() => headerActionsRef.current.saveRoutine()}
                         >
                             <Text style={{ color: AppColors.black, fontWeight: '700', fontSize: 13 }}>Save</Text>
@@ -63,20 +64,20 @@ export default function WorkoutLayout() {
                 options={{
                     title: 'Log Workout',
                     headerLeft: () => (
-                        <TouchableOpacity onPress={() => headerActionsRef.current.handleBack()} style={{ marginLeft: 12 }}>
+                        <TouchableOpacity onPress={() => headerActionsRef.current.handleBack()} style={{ marginRight: 12 }}>
                             <Ionicons name="arrow-back" size={24} color={AppColors.orange} />
                         </TouchableOpacity>
                     ),
                     headerRight: () => (
-                        <TouchableOpacity style={{ marginRight: 12, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                            <TouchableOpacity onPress={() => headerActionsRef.current.openClock()}>
+                        <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap:12}}>
+                            <TouchableOpacity style={{paddingHorizontal: 12,}}onPress={() => headerActionsRef.current.openClock()}>
                                 <Ionicons name="timer-outline" size={24} color={AppColors.orange} />
                             </TouchableOpacity>
                             <TouchableOpacity
-                                style={{ backgroundColor: AppColors.orange, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 }}
+                                style={{ backgroundColor: AppColors.orange, paddingVertical: 6, borderRadius: 8 }}
                                 onPress={() => headerActionsRef.current.finishWorkout()}
                             >
-                                <Text style={{ color: AppColors.black, fontWeight: '700', fontSize: 13 }}>Finish</Text>
+                                <Text style={{ color: AppColors.black, fontWeight: '700', fontSize: 13,paddingHorizontal: 12 }}>Finish</Text>
                             </TouchableOpacity>
                         </TouchableOpacity>
                     ),
@@ -88,7 +89,7 @@ export default function WorkoutLayout() {
                 options={{
                     title: 'Add Exercise',
                     headerLeft: () => (
-                        <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 12 }}>
+                        <TouchableOpacity onPress={() => router.back()} style={{ marginRight: 12 }}>
                             <Ionicons name="arrow-back" size={24} color={AppColors.orange} />
                         </TouchableOpacity>
                     ),
@@ -100,7 +101,7 @@ export default function WorkoutLayout() {
                 options={{
                     title: 'Routines',
                     headerLeft: () => (
-                        <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 12 }}>
+                        <TouchableOpacity onPress={() => router.back()} style={{ marginRight: 12 }}>
                             <Ionicons name="arrow-back" size={24} color={AppColors.orange} />
                         </TouchableOpacity>
                     ),

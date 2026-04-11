@@ -13,18 +13,8 @@ import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import AnimatedReanimated, {
-    FadeInDown,
-    FadeInUp,
-    useAnimatedStyle,
-    useSharedValue,
-    withSpring,
-    withTiming,
-} from 'react-native-reanimated';
-import { AppColors } from '../../constants/colors';
 
-const ReanimatedPressable =
-    AnimatedReanimated.createAnimatedComponent(Pressable);
+import { AppColors } from '../../constants/colors';
 
 type GlassActionCardProps = {
     title: string;
@@ -42,53 +32,95 @@ function GlassActionCard({
                              delay = 0,
                              style,
                          }: GlassActionCardProps) {
-    const scale = useSharedValue(1);
-
-    const animatedStyle = useAnimatedStyle(() => {
-        return {
-            transform: [{ scale: scale.value }],
-            opacity: withTiming(1, { duration: 250 }),
-        };
-    });
-
     return (
-        <AnimatedReanimated.View
-            entering={FadeInDown.delay(delay).springify()}
-            style={style}
-        >
-            <ReanimatedPressable
-                onPressIn={() => {
-                    scale.value = withSpring(0.97);
-                }}
-                onPressOut={() => {
-                    scale.value = withSpring(1);
-                }}
-                onPress={onPress}
-                style={[animatedStyle]}
-            >
+        <View style={style}>
+            <Pressable onPress={onPress}>
                 <View style={styles.glassOuter}>
+                    <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFill} />
+                        <LinearGradient
+                            colors={[
+                                'rgba(255,255,255,0.05)',
+                                'rgba(255,255,255,0.02)',
+                            ]}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                            style={styles.glassInner}
+                        >
 
-                    {/* subtle inner glow */}
+
+
+                            <View
+                                style={[
+                                    styles.buttonContent,
+                                    vertical
+                                        ? styles.buttonContentVertical
+                                        : styles.buttonContentRow,
+                                ]}
+                            >
+                                {vertical ? (
+                                    <>
+                                        <Text style={styles.glassButtonText}>{title}</Text>
+
+                                                <Ionicons
+                                                    name={iconName}
+                                                    size={24}
+                                                    color={AppColors.white}
+                                                />
+
+                                    </>
+                                ) : (
+                                    <>
+                                        <View style={styles.iconWrap}>
+                                            <LinearGradient
+                                                colors={[
+                                                    'rgba(255,255,255,0.18)',
+                                                    'rgba(255,120,37,0.15)',
+                                                ]}
+                                                style={styles.iconGradient}
+                                            >
+                                                <Ionicons
+                                                    name={iconName}
+                                                    size={20}
+                                                    color={AppColors.white}
+                                                />
+                                            </LinearGradient>
+                                        </View>
+
+                                        <Text style={styles.glassButtonText}>{title}</Text>
+                                    </>
+                                )}
+                            </View>
+                        </LinearGradient>
+
+                </View>
+            </Pressable>
+        </View>
+    );
+}
+
+
+function GlassActionCardMain({
+                             title,
+                             iconName,
+                             onPress,
+                             vertical = false,
+                             delay = 0,
+                             style,
+                         }: GlassActionCardProps) {
+    return (
+        <View style={style}>
+            <Pressable onPress={onPress}>
+                <View style={styles.glassOuter}>
+                    <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFill} />
                     <LinearGradient
                         colors={[
-                            'rgba(255,255,255,0.10)',
-                            'rgba(255,255,255,0.03)',
-                            'rgba(255,120,37,0.06)',
+                            'rgba(255,255,255,0.05)',
+                            'rgba(255,255,255,0.02)',
                         ]}
                         start={{ x: 0, y: 0 }}
                         end={{ x: 1, y: 1 }}
                         style={styles.glassInner}
                     >
-                        {/* highlight overlay */}
-                        <LinearGradient
-                            colors={[
-                                'rgba(255,255,255,0.18)',
-                                'transparent',
-                            ]}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 1 }}
-                            style={styles.glassHighlight}
-                        />
 
                         <View
                             style={[
@@ -100,23 +132,14 @@ function GlassActionCard({
                         >
                             {vertical ? (
                                 <>
-                                    <Text style={styles.glassButtonText}>{title}</Text>
+                                    <Ionicons
+                                        name={iconName}
+                                        size={34}
+                                        color={AppColors.white}
 
-                                    <View style={styles.iconWrap}>
-                                        <LinearGradient
-                                            colors={[
-                                                'rgba(255,255,255,0.18)',
-                                                'rgba(255,120,37,0.15)',
-                                            ]}
-                                            style={styles.iconGradient}
-                                        >
-                                            <Ionicons
-                                                name={iconName}
-                                                size={20}
-                                                color={AppColors.white}
-                                            />
-                                        </LinearGradient>
-                                    </View>
+                                    />
+                                    <Text style={styles.glassButtonTextMain}>{title}</Text>
+
                                 </>
                             ) : (
                                 <>
@@ -142,10 +165,11 @@ function GlassActionCard({
                         </View>
                     </LinearGradient>
                 </View>
-            </ReanimatedPressable>
-        </AnimatedReanimated.View>
+            </Pressable>
+        </View>
     );
 }
+
 
 export default function MainWorkoutScreen() {
     const router = useRouter();
@@ -162,10 +186,30 @@ export default function MainWorkoutScreen() {
     };
 
     return (
-        <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
+        <LinearGradient
+            colors={["#0e0e11", "#0a0906", "#080808", "#0a0906", "#0b0b0e"]}
+            locations={[0, 0.2, 0.5, 0.75, 1]}
+            start={{ x: 0.16, y: 0 }}
+            end={{ x: 0.84, y: 1 }}
+            style={{ flex: 1 }}
+        >
+            <LinearGradient
+                colors={["rgba(255,100,20,0.12)", "transparent"]}
+                start={{ x: 1, y: 0 }}
+                end={{ x: 0.3, y: 0.4 }}
+                style={StyleSheet.absoluteFill}
+                pointerEvents="none"
+            />
 
+            <LinearGradient
+                colors={["rgba(80,50,200,0.03)", "transparent"]}
+                start={{ x: 0, y: 1 }}
+                end={{ x: 0.5, y: 0.6 }}
+                style={StyleSheet.absoluteFill}
+                pointerEvents="none"
+            />
 
-
+            <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
                         <ScrollView
                             style={styles.scrollView}
                             contentContainerStyle={styles.scrollContent}
@@ -181,11 +225,11 @@ export default function MainWorkoutScreen() {
 
                                 <View style={styles.mediumSpacing} />
 
-                                <GlassActionCard
+                                <GlassActionCardMain
                                     title="Start Empty Workout"
-                                    iconName="add"
-                                    vertical={false}
-                                    delay={180}
+                                    iconName="add-circle-sharp"
+                                    vertical
+                                    style={styles.cardButton}
                                     onPress={() => {
                                         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                                         setTimeout(() => {
@@ -208,9 +252,9 @@ export default function MainWorkoutScreen() {
                                 <View style={styles.cardsRow}>
                                     <GlassActionCard
                                         title="New Routine"
-                                        iconName="sparkles"
+                                        iconName="create-outline"
                                         vertical
-                                        delay={260}
+
                                         style={styles.cardButton}
                                         onPress={() => {
                                             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -224,9 +268,8 @@ export default function MainWorkoutScreen() {
 
                                     <GlassActionCard
                                         title="Explore Routines"
-                                        iconName="compass"
+                                        iconName="compass-outline"
                                         vertical
-                                        delay={340}
                                         style={styles.cardButton}
                                         onPress={() => {
                                             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -241,14 +284,15 @@ export default function MainWorkoutScreen() {
                             <View style={styles.bottomGap} />
                         </ScrollView>
 
-        </SafeAreaView>
+            </SafeAreaView>
+        </LinearGradient>
     );
 }
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#090909',
+        //backgroundColor: '#090909',
     },
 
     scrollView: {
@@ -264,6 +308,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 14,
         marginTop: 8,
     },
+
 
     sectionTitle: {
         fontSize: 16,
@@ -337,7 +382,13 @@ const styles = StyleSheet.create({
     glassButtonText: {
         color: '#FFFFFF',
         fontSize: 15,
-        fontWeight: '600',
+        fontWeight: '400',
+        flexShrink: 1,
+    },
+    glassButtonTextMain: {
+        color: '#FFFFFF',
+        fontSize: 16,
+        fontWeight: '700',
         flexShrink: 1,
     },
 
@@ -359,21 +410,22 @@ const styles = StyleSheet.create({
     glassOuter: {
         borderRadius: 22,
         overflow: 'hidden',
-        backgroundColor: 'rgba(20,20,20,0.75)',
+        backgroundColor: 'rgba(255,255,255,0.02)', // softer
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.08)',
+        borderColor: 'rgba(255,255,255,0.03)', // almost invisible
         shadowColor: '#000',
-        shadowOpacity: 0.25,
-        shadowRadius: 12,
-        shadowOffset: { width: 0, height: 6 },
-        elevation: 4,
+        shadowOpacity: 0.08, // softer shadow
+        shadowRadius: 10,
+        shadowOffset: { width: 0, height: 4 },
+        elevation: 1,
+        marginTop: -6,
     },
 
     glassInner: {
         borderRadius: 22,
         paddingHorizontal: 16,
         paddingVertical: 18,
-        minHeight: 92,
+        minHeight:60,
         justifyContent: 'center',
     },
 

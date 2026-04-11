@@ -77,7 +77,7 @@ const styles = StyleSheet.create({
         paddingVertical: 20,
         width: '80%',
         maxWidth: 337,
-        backgroundColor: 'rgba(255,255,255,0.16)',
+        backgroundColor: 'rgba(255,255,255,0.06)',
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.08)',
         overflow: 'hidden',
@@ -104,7 +104,7 @@ const styles = StyleSheet.create({
     buttonText: {
         fontSize: 16,
         fontWeight: '700',
-        color: AppColors.white,
+        color: AppColors.orange,
     },
     buttonTextActive: {
         color: AppColors.black,

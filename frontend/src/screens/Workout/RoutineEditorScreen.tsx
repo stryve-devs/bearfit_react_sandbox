@@ -14,13 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
-import AnimatedReanimated, {
-    FadeInDown,
-    FadeInUp,
-    useSharedValue,
-    useAnimatedStyle,
-    withSpring,
-} from 'react-native-reanimated';
+
 import { AppColors } from '../../constants/colors';
 import { ExerciseTarget, Routine, ExerciseLog } from '../../types/workout.types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -29,9 +23,6 @@ import AlertDialog from '../../components/workout/AlertDialog';
 import { useRoutine } from '../../context/RoutineContext';
 import { setHeaderActions } from '../../../app/(tabs)/Workout/_layout';
 import { useNavigation } from '@react-navigation/native';
-
-const ReanimatedTouchable =
-    AnimatedReanimated.createAnimatedComponent(TouchableOpacity);
 
 export default function RoutineEditorScreen() {
     const router = useRouter();
@@ -54,9 +45,6 @@ export default function RoutineEditorScreen() {
     const [savedRoutine, setSavedRoutine] = useState<Routine | null>(null);
     const [isFromWorkout, setIsFromWorkout] = useState(false);
 
-    const screenFade = useRef(new Animated.Value(0)).current;
-    const screenTranslate = useRef(new Animated.Value(16)).current;
-
     useEffect(() => {
         if (!routeParams?.exerciseName && !routeParams?.exercisesFromWorkout) {
             clearRoutine();
@@ -64,20 +52,7 @@ export default function RoutineEditorScreen() {
         }
     }, [clearRoutine, routeParams?.exerciseName, routeParams?.exercisesFromWorkout]);
 
-    useEffect(() => {
-        Animated.parallel([
-            Animated.timing(screenFade, {
-                toValue: 1,
-                duration: 420,
-                useNativeDriver: true,
-            }),
-            Animated.timing(screenTranslate, {
-                toValue: 0,
-                duration: 420,
-                useNativeDriver: true,
-            }),
-        ]).start();
-    }, [screenFade, screenTranslate]);
+
 
     useEffect(() => {
         if (routeParams?.exercisesFromWorkout) {
@@ -219,15 +194,7 @@ export default function RoutineEditorScreen() {
 
     return (
         <SafeAreaView style={styles.container} edges={['left', 'right']}>
-            <Animated.View
-                style={[
-                    styles.animatedScreen,
-                    {
-                        opacity: screenFade,
-                        transform: [{ translateY: screenTranslate }],
-                    },
-                ]}
-            >
+            <View style={styles.animatedScreen}>
 
                 <ScrollView
                     style={styles.scrollView}
@@ -235,7 +202,7 @@ export default function RoutineEditorScreen() {
                     showsVerticalScrollIndicator={false}
                 >
 
-                    <AnimatedReanimated.View entering={FadeInUp.duration(420)} style={styles.section}>
+                    <View style={styles.section}>
                         {!editingTitle ? (
                             <TouchableOpacity onPress={() => setEditingTitle(true)}>
                                 <Text style={styles.routineTitle}>
@@ -279,11 +246,10 @@ export default function RoutineEditorScreen() {
                                 onRemove={handleRemoveExercise}
                             />
                         ))}
-                    </AnimatedReanimated.View>
-
+                    </View>
                     <View style={styles.largeSpacing} />
                 </ScrollView>
-            </Animated.View>
+            </View>
 
             <Toast
                 visible={emptyRoutineToastVisible}
@@ -313,7 +279,6 @@ export default function RoutineEditorScreen() {
         </SafeAreaView>
     );
 }
-
 function GlassButton({
                          children,
                          onPress,
@@ -323,39 +288,20 @@ function GlassButton({
     onPress?: () => void;
     style?: any;
 }) {
-    const scale = useSharedValue(1);
-
-    const animatedStyle = useAnimatedStyle(() => ({
-        transform: [{ scale: scale.value }],
-    }));
-
     return (
-        <AnimatedReanimated.View style={animatedStyle}>
-            <ReanimatedTouchable
-                activeOpacity={0.92}
-                onPress={onPress}
-                onPressIn={() => {
-                    scale.value = withSpring(0.97);
-                }}
-                onPressOut={() => {
-                    scale.value = withSpring(1);
-                }}
-            >
-                <BlurView intensity={26} tint="dark" style={[styles.glassButtonBase, style]}>
-                    {children}
-                </BlurView>
-            </ReanimatedTouchable>
-        </AnimatedReanimated.View>
+        <TouchableOpacity onPress={onPress} activeOpacity={0.8}>
+            <BlurView intensity={26} tint="dark" style={[styles.glassButtonBase, style]}>
+                {children}
+            </BlurView>
+        </TouchableOpacity>
     );
 }
-
 function TargetCard({ target, index, onTargetChange, onRemove }: any) {
     const [restPickerVisible, setRestPickerVisible] = useState(false);
     const [numberPadVisible, setNumberPadVisible] = useState(false);
     const [numberPadMode, setNumberPadMode] = useState<'sets' | 'weight' | 'reps' | null>(null);
 
     return (
-        <AnimatedReanimated.View entering={FadeInDown.duration(200)}>
             <BlurView intensity={28} tint="dark" style={styles.targetCard}>
                 <View style={styles.targetCardHeader}>
                     <Text style={styles.targetName}>{target.name}</Text>
@@ -469,7 +415,6 @@ function TargetCard({ target, index, onTargetChange, onRemove }: any) {
                     }}
                 />
             </BlurView>
-        </AnimatedReanimated.View>
     );
 }
 function RestPickerSheet({ visible, initial, onSelect, onClose }: any) {

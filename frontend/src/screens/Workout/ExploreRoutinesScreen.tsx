@@ -12,42 +12,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
-import AnimatedReanimated, {
-    FadeInDown,
-    FadeInUp,
-    useAnimatedStyle,
-    useSharedValue,
-    withSpring,
-} from 'react-native-reanimated';
 import { AppColors } from '../../constants/colors';
 import { Routine } from '../../types/workout.types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-const ReanimatedTouchable =
-    AnimatedReanimated.createAnimatedComponent(TouchableOpacity);
 
 export default function ExploreRoutinesScreen() {
     const router = useRouter();
     const [routines, setRoutines] = useState<Routine[]>([]);
     const [loading, setLoading] = useState(true);
 
-    const fadeAnim = useRef(new Animated.Value(0)).current;
-    const translateAnim = useRef(new Animated.Value(18)).current;
-
-    useEffect(() => {
-        Animated.parallel([
-            Animated.timing(fadeAnim, {
-                toValue: 1,
-                duration: 420,
-                useNativeDriver: true,
-            }),
-            Animated.timing(translateAnim, {
-                toValue: 0,
-                duration: 420,
-                useNativeDriver: true,
-            }),
-        ]).start();
-    }, [fadeAnim, translateAnim]);
 
     useFocusEffect(
         React.useCallback(() => {
@@ -82,15 +55,7 @@ export default function ExploreRoutinesScreen() {
 
     return (
         <SafeAreaView style={styles.container} edges={['left', 'right']}>
-            <Animated.View
-                style={[
-                    styles.animatedScreen,
-                    {
-                        opacity: fadeAnim,
-                        transform: [{ translateY: translateAnim }],
-                    },
-                ]}
-            >
+            <View style={styles.animatedScreen}>
                 <ScrollView
                     style={styles.scrollView}
                     contentContainerStyle={styles.scrollContent}
@@ -98,8 +63,8 @@ export default function ExploreRoutinesScreen() {
                 >
 
 
-                    <AnimatedReanimated.View entering={FadeInUp.duration(450)}>
-                        <View style={styles.section}>
+                    <View>
+                    <View style={styles.section}>
                             <Text style={styles.sectionTitle}>Saved Routines</Text>
                             <Text style={styles.sectionSubtitle}>
                                 Pick a saved plan and start quickly
@@ -126,55 +91,40 @@ export default function ExploreRoutinesScreen() {
                                 ))
                             )}
                         </View>
-                    </AnimatedReanimated.View>
+                    </View>
                 </ScrollView>
-            </Animated.View>
+            </View>
         </SafeAreaView>
     );
 }
 
 function EmptyState({ onCreatePress }: { onCreatePress: () => void }) {
-    const scale = useSharedValue(1);
-
-    const animatedStyle = useAnimatedStyle(() => ({
-        transform: [{ scale: scale.value }],
-    }));
-
     return (
-        <AnimatedReanimated.View entering={FadeInDown.springify().damping(16)}>
-            <BlurView intensity={28} tint="dark" style={styles.emptyState}>
-                <View style={styles.emptyIconWrap}>
-                    <Ionicons name="barbell-outline" size={26} color={AppColors.orange} />
-                </View>
+        <BlurView intensity={28} tint="dark" style={styles.emptyState}>
+            <View style={styles.emptyIconWrap}>
+                <Ionicons name="barbell-outline" size={26} color={AppColors.orange} />
+            </View>
 
-                <Text style={styles.emptyStateTitle}>No routines saved yet</Text>
-                <View style={styles.emptyStateSpacing} />
-                <Text style={styles.emptyStateSubtitle}>
-                    Create a routine to see it here
-                </Text>
-                <View style={styles.emptyStateSpacing} />
+            <Text style={styles.emptyStateTitle}>No routines saved yet</Text>
+            <View style={styles.emptyStateSpacing} />
+            <Text style={styles.emptyStateSubtitle}>
+                Create a routine to see it here
+            </Text>
+            <View style={styles.emptyStateSpacing} />
 
-                <ReanimatedTouchable
-                    style={[styles.createButton, animatedStyle]}
-                    activeOpacity={0.9}
-                    onPressIn={() => {
-                        scale.value = withSpring(0.97);
-                    }}
-                    onPressOut={() => {
-                        scale.value = withSpring(1);
-                    }}
-                    onPress={onCreatePress}
-                >
-                    <BlurView intensity={18} tint="dark" style={styles.createButtonInner}>
-                        <Ionicons name="add" size={18} color={AppColors.orange} />
-                        <Text style={styles.createButtonText}>Create Routine</Text>
-                    </BlurView>
-                </ReanimatedTouchable>
-            </BlurView>
-        </AnimatedReanimated.View>
+            <TouchableOpacity
+                style={styles.createButton}
+                activeOpacity={0.8}
+                onPress={onCreatePress}
+            >
+                <BlurView intensity={18} tint="dark" style={styles.createButtonInner}>
+                    <Ionicons name="add" size={18} color={AppColors.orange} />
+                    <Text style={styles.createButtonText}>Create Routine</Text>
+                </BlurView>
+            </TouchableOpacity>
+        </BlurView>
     );
 }
-
 function RoutineCard({
                          routine,
                          onSelect,
@@ -184,47 +134,28 @@ function RoutineCard({
     onSelect: () => void;
     delay?: number;
 }) {
-    const scale = useSharedValue(1);
-
-    const animatedStyle = useAnimatedStyle(() => ({
-        transform: [{ scale: scale.value }],
-    }));
-
     return (
-        <AnimatedReanimated.View
-            entering={FadeInDown.delay(delay).springify().damping(16)}
-        ><ReanimatedTouchable
-                style={animatedStyle}
-                activeOpacity={0.9}
-                onPressIn={() => {
-                    scale.value = withSpring(0.985);
-                }}
-                onPressOut={() => {
-                    scale.value = withSpring(1);
-                }}
-                onPress={onSelect}
-            >
-                <BlurView intensity={28} tint="dark" style={styles.routineCard}>
-                    <View style={styles.routineCardLeft}>
-                        <View style={styles.routineIconWrap}>
-                            <Ionicons name="star" size={20} color={AppColors.orange} />
-                        </View>
-
-                        <View style={styles.routineCardText}>
-                            <Text style={styles.routineCardTitle}>{routine.title}</Text>
-                            <Text style={styles.routineCardSubtitle}>
-                                {routine.targets.length} exercise
-                                {routine.targets.length !== 1 ? 's' : ''}
-                            </Text>
-                        </View>
+        <TouchableOpacity activeOpacity={0.8} onPress={onSelect}>
+            <BlurView intensity={28} tint="dark" style={styles.routineCard}>
+                <View style={styles.routineCardLeft}>
+                    <View style={styles.routineIconWrap}>
+                        <Ionicons name="star" size={20} color={AppColors.orange} />
                     </View>
 
-                    <View style={styles.chevronWrap}>
-                        <Ionicons name="chevron-forward" size={18} color={AppColors.white} />
+                    <View style={styles.routineCardText}>
+                        <Text style={styles.routineCardTitle}>{routine.title}</Text>
+                        <Text style={styles.routineCardSubtitle}>
+                            {routine.targets.length} exercise
+                            {routine.targets.length !== 1 ? 's' : ''}
+                        </Text>
                     </View>
-                </BlurView>
-            </ReanimatedTouchable>
-        </AnimatedReanimated.View>
+                </View>
+
+                <View style={styles.chevronWrap}>
+                    <Ionicons name="chevron-forward" size={18} color={AppColors.white} />
+                </View>
+            </BlurView>
+        </TouchableOpacity>
     );
 }
 

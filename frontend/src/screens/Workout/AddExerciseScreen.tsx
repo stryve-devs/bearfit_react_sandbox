@@ -7,19 +7,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
-import AnimatedReanimated, {
-    FadeInDown,
-    useSharedValue,
-    useAnimatedStyle,
-    withSpring,
-} from 'react-native-reanimated';
 
 import { AppColors } from '../../constants/colors';
 import { Exercise } from '../../types/workout.types';
 import { useRoutine } from '../../context/RoutineContext';
-
-const ReanimatedTouchable =
-    AnimatedReanimated.createAnimatedComponent(TouchableOpacity);
 
 const SAMPLE_EXERCISES: Exercise[] = [
     { name: 'Bench Press (Barbell)', muscle: 'Chest', equipment: 'Barbell', imageAsset: 'icon' },
@@ -57,15 +48,6 @@ export default function AddExerciseScreen() {
     const [equipmentSheetVisible, setEquipmentSheetVisible] = useState(false);
     const [muscleSheetVisible, setMuscleSheetVisible] = useState(false);
 
-    const fadeAnim = useRef(new Animated.Value(0)).current;
-    const translateAnim = useRef(new Animated.Value(20)).current;
-
-    useEffect(() => {
-        Animated.parallel([
-            Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
-            Animated.timing(translateAnim, { toValue: 0, duration: 400, useNativeDriver: true }),
-        ]).start();
-    }, []);
 
     const filteredExercises = useMemo(() => {
         const query = searchText.toLowerCase();
@@ -102,14 +84,9 @@ export default function AddExerciseScreen() {
 
     return (
         <SafeAreaView style={styles.container} edges={['left', 'right']}>
-            <Animated.View
-                style={{
-                    flex: 1,
-                    opacity: fadeAnim,
-                    transform: [{ translateY: translateAnim }],
-                }}
-            >
-                <ScrollView contentContainerStyle={styles.scrollContent}>
+            <View style={{ flex: 1 }}>
+
+            <ScrollView contentContainerStyle={styles.scrollContent}>
                     {/* SEARCH BAR */}
                     <BlurView intensity={25} tint="dark" style={styles.searchContainer}>
                         <Ionicons name="search" size={20} color={AppColors.orange} />
@@ -124,7 +101,7 @@ export default function AddExerciseScreen() {
 
                     {/* FILTER BUTTONS */}
                     <View style={styles.filterRow}>
-                        <ReanimatedTouchable
+                        <TouchableOpacity
                             onPress={() => setEquipmentSheetVisible(true)}
                             style={[
                                 styles.filterButton,
@@ -136,9 +113,9 @@ export default function AddExerciseScreen() {
                                     {selectedEquipment || 'All Equipment'}
                                 </Text>
                             </BlurView>
-                        </ReanimatedTouchable>
+                        </TouchableOpacity >
 
-                        <ReanimatedTouchable
+                        <TouchableOpacity
                             onPress={() => setMuscleSheetVisible(true)}
                             style={[
                                 styles.filterButton,
@@ -150,16 +127,16 @@ export default function AddExerciseScreen() {
                                     {selectedMuscle || 'All Muscles'}
                                 </Text>
                             </BlurView>
-                        </ReanimatedTouchable>
+                        </TouchableOpacity >
 
                         {(selectedEquipment || selectedMuscle) && (
-                            <ReanimatedTouchable
+                            <TouchableOpacity
                                 onPress={handleResetFilters}
                                 style={[styles.filterButton, { flex: 0.1 }]}
                             >
                                 <Ionicons name="close-circle" size={24} color={AppColors.orange} />
 
-                            </ReanimatedTouchable>
+                            </TouchableOpacity >
                         )}
                     </View>
 
@@ -198,40 +175,28 @@ export default function AddExerciseScreen() {
                     }}
                     onClose={() => setMuscleSheetVisible(false)}
                 />
-            </Animated.View>
+            </View>
         </SafeAreaView>
     );
 }
 
 function ExerciseItem({ exercise, onPress, delay }: any) {
-    const scale = useSharedValue(1);
-
-    const style = useAnimatedStyle(() => ({
-        transform: [{ scale: scale.value }],
-    }));
-
     return (
-        <AnimatedReanimated.View entering={FadeInDown.springify().damping(16)}>
-            <ReanimatedTouchable
-                style={style}
-                onPressIn={() => (scale.value = withSpring(0.97))}
-                onPressOut={() => (scale.value = withSpring(1))}
-                onPress={onPress}
-            >
-                <BlurView intensity={25} tint="dark" style={styles.card}>
-                    <View style={styles.cardLeft}>
-                        <Ionicons name="barbell" size={22} color={AppColors.orange} />
-                        <View>
-                            <Text style={styles.title}>{exercise.name}</Text>
-                            <Text style={styles.subtitle}>{exercise.muscle}</Text>
-                        </View>
+        <TouchableOpacity onPress={onPress} activeOpacity={0.8}>
+            <BlurView intensity={25} tint="dark" style={styles.card}>
+                <View style={styles.cardLeft}>
+                    <Ionicons name="barbell" size={22} color={AppColors.orange} />
+                    <View>
+                        <Text style={styles.title}>{exercise.name}</Text>
+                        <Text style={styles.subtitle}>{exercise.muscle}</Text>
                     </View>
-                    <Ionicons name="chevron-forward" size={20} color={AppColors.white} />
-                </BlurView>
-            </ReanimatedTouchable>
-        </AnimatedReanimated.View>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={AppColors.white} />
+            </BlurView>
+        </TouchableOpacity>
     );
 }
+
 
 function FilterSheet({ visible, title, items, selected, onSelect, onClose }: any) {
     return (
@@ -241,14 +206,14 @@ function FilterSheet({ visible, title, items, selected, onSelect, onClose }: any
                     <View style={styles.sheetHandle} />
                     <ScrollView showsVerticalScrollIndicator={false}>
                         {items.map((item: string) => (
-                            <ReanimatedTouchable key={item} onPress={() => onSelect(item)}>
+                            <TouchableOpacity  key={item} onPress={() => onSelect(item)}>
                                 <BlurView intensity={15} tint="dark" style={styles.filterOption}>
                                     <Text style={styles.filterOptionText}>{item}</Text>
                                     {item === selected && (
                                         <Ionicons name="checkmark" size={20} color={AppColors.orange} />
                                     )}
                                 </BlurView>
-                            </ReanimatedTouchable>
+                            </TouchableOpacity >
                         ))}
                     </ScrollView>
                 </BlurView>

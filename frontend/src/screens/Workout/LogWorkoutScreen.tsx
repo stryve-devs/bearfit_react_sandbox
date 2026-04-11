@@ -13,13 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
-import AnimatedReanimated, {
-    FadeInDown,
-    FadeInUp,
-    useSharedValue,
-    useAnimatedStyle,
-    withSpring,
-} from 'react-native-reanimated';
+
 import { AppColors } from '../../constants/colors';
 import { Routine, SetEntry, ExerciseLog } from '../../types/workout.types';
 import Toast from '../../components/workout/Toast';
@@ -49,24 +43,6 @@ export default function LogWorkoutScreen() {
 
     const elapsedTimerRef = useRef<NodeJS.Timeout | null>(null);
     const restTimersRef = useRef<{ [key: number]: NodeJS.Timeout }>({});
-
-    const screenFade = useRef(new Animated.Value(0)).current;
-    const screenTranslate = useRef(new Animated.Value(16)).current;
-
-    useEffect(() => {
-        Animated.parallel([
-            Animated.timing(screenFade, {
-                toValue: 1,
-                duration: 450,
-                useNativeDriver: true,
-            }),
-            Animated.timing(screenTranslate, {
-                toValue: 0,
-                duration: 450,
-                useNativeDriver: true,
-            }),
-        ]).start();
-    }, [screenFade, screenTranslate]);
 
     useEffect(() => {
         elapsedTimerRef.current = setInterval(() => {
@@ -369,16 +345,9 @@ export default function LogWorkoutScreen() {
 
     return (
         <SafeAreaView style={styles.container} edges={['left', 'right']}>
-            <Animated.View
-                style={[
-                    styles.animatedScreen,
-                    {
-                        opacity: screenFade,
-                        transform: [{ translateY: screenTranslate }],
-                    },
-                ]}
-            >
-                <ScrollView
+            <View style={styles.animatedScreen}>
+
+            <ScrollView
                     style={styles.scrollView}
                     contentContainerStyle={styles.scrollContent}
                     showsVerticalScrollIndicator={false}
@@ -470,7 +439,7 @@ export default function LogWorkoutScreen() {
                         <View style={styles.largeSpacing} />
                     </View>
                 </ScrollView>
-            </Animated.View>
+            </View>
 
             <ClockOverlay
                 visible={clockOverlayVisible}
@@ -632,17 +601,10 @@ function ExerciseCard({
                           onDeleteSet,
                           onRestTimeChange,
                       }: any) {
-    const [restPickerVisible, setRestPickerVisible] = useState(false);
-    const scale = useSharedValue(1);
 
-    const checkboxAnimatedStyle = useAnimatedStyle(() => ({
-        transform: [{ scale: scale.value }],
-    }));
+    const [restPickerVisible, setRestPickerVisible] = useState(false);
 
     const handlePressDone = (setIndex: number) => {
-        scale.value = withSpring(0.88, { damping: 12, stiffness: 180 }, () => {
-            scale.value = withSpring(1);
-        });
         onSetDone(exerciseIndex, setIndex);
     };
 
@@ -670,115 +632,111 @@ function ExerciseCard({
     };
 
     return (
-        <AnimatedReanimated.View entering={FadeInDown.duration(200)}>
-            <BlurView intensity={28} tint="dark" style={styles.exerciseCard}>
-                <View style={styles.exerciseHeader}>
-                    <Text style={styles.exerciseName}>{exercise.name}</Text>
+    <BlurView intensity={28} tint="dark" style={styles.exerciseCard}>
+        <View style={styles.exerciseHeader}>
+            <Text style={styles.exerciseName}>{exercise.name}</Text>
 
+            <TouchableOpacity
+                style={styles.restButton}
+                onPress={() => setRestPickerVisible(true)}
+            >
+                <Ionicons name="timer-outline" size={18} color={AppColors.orange} />
+                <Text style={styles.restButtonText}>
+                    Rest: {exercise.restSeconds >= 60
+                    ? `${Math.floor(exercise.restSeconds / 60)}m`
+                    : `${exercise.restSeconds}s`}
+                </Text>
+            </TouchableOpacity>
+        </View>
+
+        {exercise.restRemaining > 0 && (
+            <View style={styles.restCountdown}>
+                <Text style={styles.restCountdownText}>
+                    Rest: {String(Math.floor(exercise.restRemaining / 60)).padStart(2, '0')}:
+                    {String(exercise.restRemaining % 60).padStart(2, '0')}
+                </Text>
+            </View>
+        )}
+
+        <View style={styles.exerciseSpacing} />
+
+        <View style={styles.tableHeaderRow}>
+            <Text style={[styles.tableHeaderCell, { flex: 0.5 }]}>Set</Text>
+            <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Weight</Text>
+            <Text style={[styles.tableHeaderCell, { flex: 1 }]}>Reps</Text>
+            <Text style={[styles.tableHeaderCell, { flex: 0.8 }]}>Done</Text>
+        </View>
+
+        <View style={styles.exerciseSpacing} />
+
+        {exercise.sets.map((set: SetEntry, setIndex: number) => (
+            <View key={setIndex} style={styles.tableDataRow}>
+                <Text style={[styles.tableCell, { flex: 0.5 }]}>{setIndex + 1}</Text>
+
+                <View style={[styles.tableCellContainer, { flex: 1.5 }]}>
+                    <TextInput
+                        style={styles.valuePillInput}
+                        value={set.weightKg === 0 ? '' : String(set.weightKg)}
+                        keyboardType="numeric"
+                        onChangeText={(text) => handleWeightChange(setIndex, text)}
+                    />
+                </View>
+
+                <View style={[styles.tableCellContainer, { flex: 1 }]}>
+                    <TextInput
+                        style={styles.valuePillInput}
+                        value={set.reps === 0 ? '' : String(set.reps)}
+                        keyboardType="numeric"
+                        onChangeText={(text) => handleRepsChange(setIndex, text)}
+                    />
+                </View>
+
+                <View style={[styles.doneCheckboxContainer, { flex: 0.8 }]}>
                     <TouchableOpacity
-                        style={styles.restButton}
-                        onPress={() => setRestPickerVisible(true)}
+                        style={[
+                            styles.doneCheckbox,
+                            set.done && styles.doneCheckboxChecked,
+                        ]}
+                        onPress={() => handlePressDone(setIndex)}
                     >
-                        <Ionicons name="timer-outline" size={18} color={AppColors.orange} />
-                        <Text style={styles.restButtonText}>
-                            Rest: {exercise.restSeconds >= 60
-                            ? `${Math.floor(exercise.restSeconds / 60)}m`
-                            : `${exercise.restSeconds}s`}
-                        </Text>
+                        {set.done && (
+                            <Ionicons name="checkmark" size={18} color={AppColors.white} />
+                        )}
                     </TouchableOpacity>
                 </View>
+            </View>
+        ))}
 
-                {exercise.restRemaining > 0 && (
-                    <View style={styles.restCountdown}>
-                        <Text style={styles.restCountdownText}>
-                            Rest: {String(Math.floor(exercise.restRemaining / 60)).padStart(2, '0')}:
-                            {String(exercise.restRemaining % 60).padStart(2, '0')}
-                        </Text>
-                    </View>
-                )}
+        <View style={styles.exerciseSpacing} />
 
-                <View style={styles.exerciseSpacing} />
+        <View style={styles.setButtonsRow}>
+            <TouchableOpacity
+                style={styles.addSetButton}
+                onPress={() => onAddSet(exerciseIndex)}
+            >
+                <Text style={styles.addSetButtonText}>+ Add Set</Text>
+            </TouchableOpacity>
 
-                <View style={styles.tableHeaderRow}>
-                    <Text style={[styles.tableHeaderCell, { flex: 0.5 }]}>Set</Text>
-                    <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Weight</Text>
-                    <Text style={[styles.tableHeaderCell, { flex: 1 }]}>Reps</Text>
-                    <Text style={[styles.tableHeaderCell, { flex: 0.8 }]}>Done</Text>
-                </View>
+            {exercise.sets.length > 1 && (
+                <TouchableOpacity
+                    style={styles.deleteSetButton}
+                    onPress={() => onDeleteSet(exerciseIndex, exercise.sets.length - 1)}
+                >
+                    <Text style={styles.deleteSetButtonText}>- Delete Set</Text>
+                </TouchableOpacity>
+            )}
+        </View>
 
-                <View style={styles.exerciseSpacing} />
-
-                {exercise.sets.map((set: SetEntry, setIndex: number) => (
-                    <View key={setIndex} style={styles.tableDataRow}>
-                        <Text style={[styles.tableCell, { flex: 0.5 }]}>{setIndex + 1}</Text>
-
-                        <View style={[styles.tableCellContainer, { flex: 1.5 }]}>
-                            <TextInput
-                                style={styles.valuePillInput}
-                                value={set.weightKg === 0 ? '' : String(set.weightKg)}
-                                keyboardType="numeric"
-                                onChangeText={(text) => handleWeightChange(setIndex, text)}
-                            />
-                        </View>
-
-                        <View style={[styles.tableCellContainer, { flex: 1 }]}>
-                            <TextInput
-                                style={styles.valuePillInput}
-                                value={set.reps === 0 ? '' : String(set.reps)}
-                                keyboardType="numeric"
-                                onChangeText={(text) => handleRepsChange(setIndex, text)}
-                            />
-                        </View>
-
-                        <View style={[styles.doneCheckboxContainer, { flex: 0.8 }]}>
-                            <AnimatedReanimated.View style={checkboxAnimatedStyle}>
-                                <TouchableOpacity
-                                    style={[
-                                        styles.doneCheckbox,
-                                        set.done && styles.doneCheckboxChecked,
-                                    ]}
-                                    onPress={() => handlePressDone(setIndex)}
-                                >
-                                    {set.done && (
-                                        <Ionicons name="checkmark" size={18} color={AppColors.white} />
-                                    )}
-                                </TouchableOpacity>
-                            </AnimatedReanimated.View>
-                        </View>
-                    </View>
-                ))}
-
-                <View style={styles.exerciseSpacing} />
-
-                <View style={styles.setButtonsRow}>
-                    <TouchableOpacity
-                        style={styles.addSetButton}
-                        onPress={() => onAddSet(exerciseIndex)}
-                    >
-                        <Text style={styles.addSetButtonText}>+ Add Set</Text>
-                    </TouchableOpacity>
-
-                    {exercise.sets.length > 1 && (
-                        <TouchableOpacity
-                            style={styles.deleteSetButton}
-                            onPress={() => onDeleteSet(exerciseIndex, exercise.sets.length - 1)}
-                        >
-                            <Text style={styles.deleteSetButtonText}>- Delete Set</Text>
-                        </TouchableOpacity>
-                    )}
-                </View>
-
-                <RestPickerSheet
-                    visible={restPickerVisible}
-                    initial={exercise.restSeconds}
-                    onSelect={(seconds: number) => {
-                        onRestTimeChange(exerciseIndex, seconds);
-                        setRestPickerVisible(false);
-                    }}
-                    onClose={() => setRestPickerVisible(false)}
-                />
-            </BlurView>
-        </AnimatedReanimated.View>
+        <RestPickerSheet
+            visible={restPickerVisible}
+            initial={exercise.restSeconds}
+            onSelect={(seconds: number) => {
+                onRestTimeChange(exerciseIndex, seconds);
+                setRestPickerVisible(false);
+            }}
+            onClose={() => setRestPickerVisible(false)}
+        />
+    </BlurView>
     );
 }
 
@@ -1685,7 +1643,7 @@ const styles = StyleSheet.create({
         paddingVertical: 20,
         width: '80%',
         maxWidth: 337,
-        backgroundColor: 'rgba(255,255,255,0.06)',
+        backgroundColor: 'rgba(0,0,0,0.5)',
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.08)',
         overflow: 'hidden',
@@ -2008,7 +1966,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between', // text left, chevron right
-        backgroundColor: 'rgba(255,255,255,0.05)',
+        backgroundColor: 'rgba(0,0,0,0.5)',
         paddingHorizontal: 16,
         paddingVertical: 12,
         borderRadius: 14,
@@ -2051,7 +2009,7 @@ const styles = StyleSheet.create({
     },
 
     modalCloseButton: {
-        backgroundColor: 'rgba(255,255,255,0.05)',
+        backgroundColor: 'rgba(0,0,0,0.5)',
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.08)',
         paddingHorizontal: 24,
