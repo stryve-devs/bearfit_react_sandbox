@@ -148,6 +148,11 @@ export default function BodyDistributionScreen() {
                     contentContainerStyle={{ paddingBottom: 40 }}
                     showsVerticalScrollIndicator={false}
                 >
+                    {/* BODY */}
+                    <View style={styles.bodyImages}>
+                        <View style={styles.bodyPlaceholder}/>
+                        <View style={styles.bodyPlaceholder}/>
+                    </View>
 
                     {/* TABLE HEADER */}
                     <View style={styles.tableHeader}>
@@ -162,12 +167,6 @@ export default function BodyDistributionScreen() {
                             <Text style={styles.rowValue}>0</Text>
                         </View>
                     ))}
-
-                    {/* BODY */}
-                    <View style={styles.bodyImages}>
-                        <View style={styles.bodyPlaceholder}/>
-                        <View style={styles.bodyPlaceholder}/>
-                    </View>
 
                 </ScrollView>
 
