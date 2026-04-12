@@ -1,3 +1,3 @@
-import MainWorkoutScreen from '../../../src/screens/Workout/MainWorkoutScreen';
+import WorkoutScreen from '@/screens/Workout/WorkoutScreen';
 
-export default MainWorkoutScreen;
+export default WorkoutScreen;

@@ -171,7 +171,7 @@ function GlassActionCardMain({
 }
 
 
-export default function MainWorkoutScreen() {
+export default function WorkoutScreen() {
     const router = useRouter();
     const [navIndex, setNavIndex] = useState(1);
 
