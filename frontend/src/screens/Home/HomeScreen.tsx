@@ -188,7 +188,10 @@ function AthleteCard({
                             <View style={cardSt.onlineDot} />
                         </View>
 
-                        {/* sport removed as requested */}
+                        <Text allowFontScaling={false} style={cardSt.name}>
+                            {item.name}
+                        </Text>
+
                         <Text allowFontScaling={false} style={cardSt.sport}>
                             {item.sport ?? "Athlete"}
                         </Text>
