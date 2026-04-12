@@ -5,7 +5,8 @@ import {
     StyleSheet,
     ScrollView,
     TouchableOpacity,
-    Modal
+    Modal,
+    Share,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -16,11 +17,36 @@ import { useRouter } from "expo-router";
 const ORANGE = "#FF7825";
 
 const muscles = [
-    "Total","Abdominals","Abductors","Adductors","Biceps","Calves",
+    "Total","Abs","Abductors","Adductors","Biceps","Calves",
     "Cardio","Chest","Forearms","Full Body","Glutes","Hamstrings",
     "Lats","Lower Back","Neck","Quadriceps","Shoulders","Traps",
     "Triceps","Upper Back","Other"
 ];
+
+// Dummy data for muscle sets
+const muscleData: Record<string, number> = {
+    "Total": 48,
+    "Abs": 8,
+    "Abductors": 4,
+    "Adductors": 3,
+    "Biceps": 12,
+    "Calves": 6,
+    "Cardio": 0,
+    "Chest": 9,
+    "Forearms": 3,
+    "Full Body": 0,
+    "Glutes": 7,
+    "Hamstrings": 5,
+    "Lats": 6,
+    "Lower Back": 4,
+    "Neck": 0,
+    "Quadriceps": 8,
+    "Shoulders": 7,
+    "Traps": 4,
+    "Triceps": 10,
+    "Upper Back": 5,
+    "Other": 1,
+};
 
 const generateWeekDates = (offset = 0) => {
     const today = new Date();
@@ -61,34 +87,46 @@ export default function BodyDistributionScreen() {
     const startDate = datesData[0];
     const endDate = datesData[6];
 
+    const handleShare = async () => {
+        try {
+            const topMuscles = muscles
+                .filter(m => muscleData[m] > 0)
+                .sort((a, b) => muscleData[b] - muscleData[a])
+                .slice(0, 5)
+                .map(m => `${m}: ${muscleData[m]} sets`)
+                .join("\n");
+
+            await Share.share({
+                message: `Check out my body distribution statistics!\n\nBody Distribution - ${startDate.date}–${endDate.date} ${endDate.month}\n\nTop Muscles Worked:\n${topMuscles}\n\nTotal Sets: ${muscleData["Total"]}\n\n💪 HEVY`,
+                title: "My Body Distribution",
+            });
+        } catch (error) {
+            console.error("Share failed:", error);
+        }
+    };
+
     return (
         <LinearGradient colors={["#0e0e11", "#080808"]} style={{ flex: 1 }}>
             <SafeAreaView style={{ flex: 1 }}>
 
-                {/* HEADER */}
                 <View style={styles.header}>
                     <TouchableOpacity onPress={() => router.back()}>
-                        <BlurView intensity={50} tint="dark" style={styles.glassBtn}>
-                            <Feather name="chevron-left" size={20} color="#fff" />
-                        </BlurView>
+                        <Feather name="chevron-left" size={24} color="#fff" />
                     </TouchableOpacity>
 
                     <Text style={styles.title}>Body distribution</Text>
 
                     <View style={{ flexDirection: "row", gap: 10 }}>
                         <TouchableOpacity onPress={() => setShowInfo(true)}>
-                            <BlurView intensity={50} tint="dark" style={styles.glassBtn}>
-                                <Feather name="help-circle" size={18} color="#fff" />
-                            </BlurView>
+                            <Feather name="help-circle" size={20} color="#fff" />
                         </TouchableOpacity>
 
-                        <BlurView intensity={50} tint="dark" style={styles.glassBtn}>
-                            <Feather name="share" size={18} color="#fff" />
-                        </BlurView>
+                        <TouchableOpacity onPress={handleShare}>
+                            <Feather name="share" size={20} color="#fff" />
+                        </TouchableOpacity>
                     </View>
                 </View>
 
-                {/* ✅ UPDATED: WEEK TEXT BETWEEN ARROWS */}
                 <View style={styles.arrowRow}>
                     <TouchableOpacity onPress={() => setWeekOffset(prev => prev - 1)}>
                         <Feather name="chevron-left" size={22} color="#fff" />
@@ -164,7 +202,7 @@ export default function BodyDistributionScreen() {
                     {muscles.map((m, i) => (
                         <View key={i} style={styles.row}>
                             <Text style={styles.rowText}>{m}</Text>
-                            <Text style={styles.rowValue}>0</Text>
+                            <Text style={styles.rowValue}>{muscleData[m]}</Text>
                         </View>
                     ))}
 
@@ -205,8 +243,12 @@ const styles = StyleSheet.create({
         color: "#FF7825",
         fontSize: 18,
         fontWeight: "600",
+        position: "absolute",
+        left: 0,
+        right: 0,
+        textAlign: "center",
+        pointerEvents: "none",
     },
-
     glassBtn: {
         width: 36,
         height: 36,
@@ -236,7 +278,8 @@ const styles = StyleSheet.create({
         flexDirection: "row",
         justifyContent: "space-between",
         paddingHorizontal: 16,
-        marginTop: 8,
+        paddingVertical: 12,
+        //marginTop: 8,
     },
 
     dateItem: {

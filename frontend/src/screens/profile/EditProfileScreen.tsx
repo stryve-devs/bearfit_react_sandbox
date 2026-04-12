@@ -17,6 +17,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons, Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import Toast from "@/components/profile/Toast";
 
 const ORANGE = "#ff7a00";
 
@@ -42,7 +43,6 @@ const GlassCard = ({ children, style }: { children: React.ReactNode; style?: any
         {children}
     </LinearGradient>
 );
-
 // ─── Input row with Animated Focus Line ───────────────────────────────────────
 const InputRow = ({
                       label,
@@ -130,9 +130,14 @@ export default function EditProfileScreen() {
         setShowBirthday(false);
     };
 
+    const [toastVisible, setToastVisible] = useState(false);
+    const [toastMessage, setToastMessage] = useState("");
     const handleDone = () => {
-        Alert.alert("Profile Updated", "Changes saved successfully.");
-        router.back();
+        setToastMessage("Profile updated successfully.");
+        setToastVisible(true);
+        setTimeout(() => {
+            router.back();
+        }, 500);
     };
 
     // ─── Calendar Logic ───
@@ -446,6 +451,12 @@ export default function EditProfileScreen() {
                         </LinearGradient>
                     </View>
                 </Modal>
+                <Toast
+                    visible={toastVisible}
+                    message={toastMessage}
+                    onClose={() => setToastVisible(false)}
+                    duration={3000}
+                />
             </SafeAreaView>
         </LinearGradient>
     );

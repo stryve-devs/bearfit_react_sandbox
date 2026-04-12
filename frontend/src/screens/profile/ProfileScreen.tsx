@@ -35,7 +35,7 @@ const BAR_DATA: Record<string, number[]> = {
     Volume:   [60, 30, 80, 45, 70, 55, 20],
     Reps:     [40, 65, 30, 55, 80, 45, 60],
 };
-const DAY_LABELS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
+const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const ACTIVE_DAY = 3;
 
 // HTML animation-delay offsets for a 9s cycle
@@ -164,43 +164,49 @@ function GlowCard({
 }
 
 // ─── SparkBars ────────────────────────────────────────────────────────────────
-function SparkBars({ tab }: { tab: string }) {
+function SparkBars({ tab, selectedDay, setSelectedDay }: { tab: string; selectedDay: number | null; setSelectedDay: (day: number | null) => void }) {
     const heights = BAR_DATA[tab] ?? BAR_DATA.Duration;
+
     return (
         <View>
             <View style={chartSt.row}>
                 {heights.map((h, i) => (
-                    <LinearGradient
+                    <TouchableOpacity
                         key={i}
-                        colors={
-                            i === ACTIVE_DAY
-                                ? ["rgba(255,120,37,0.20)", "rgba(255,120,37,0.65)"]
-                                : ["rgba(255,120,37,0.04)", "rgba(255,120,37,0.15)"]
-                        }
-                        start={{ x: 0.5, y: 0 }}
-                        end={{ x: 0.5, y: 1 }}
-                        style={[
-                            chartSt.bar,
-                            { height: (h / 100) * 80 },
-                            i === ACTIVE_DAY && chartSt.barActive,
-                        ]}
-                    />
+                        onPress={() => setSelectedDay(selectedDay === i ? null : i)}
+                        style={{ flex: 1, alignItems: "center" }}
+                        activeOpacity={0.8}
+                    >
+                        <LinearGradient
+                            colors={
+                                selectedDay === null || selectedDay === i
+                                    ? ["rgba(255,120,37,0.20)", "rgba(255,120,37,0.65)"]
+                                    : ["rgba(255,120,37,0.04)", "rgba(255,120,37,0.15)"]
+                            }
+                            start={{ x: 0.5, y: 0 }}
+                            end={{ x: 0.5, y: 1 }}
+                            style={[
+                                chartSt.bar,
+                                { height: (h / 100) * 80 },
+                                (selectedDay === null || selectedDay === i) && chartSt.barActive,
+                            ]}
+                        />
+                    </TouchableOpacity>
                 ))}
             </View>
             <View style={chartSt.labelsRow}>
-                {DAY_LABELS.map((d) => (
-                    <Text key={d} style={chartSt.lbl}>{d}</Text>
+                {DAY_LABELS.map((d, i) => (
+                    <Text key={d} style={[chartSt.lbl, { flex: 1, textAlign: "center" }]}>{d}</Text>
                 ))}
             </View>
         </View>
     );
 }
-
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function ProfileScreen() {
     const router = useRouter();
     const [tab, setTab] = useState<"Duration" | "Volume" | "Reps">("Duration");
-
+    const [selectedDay, setSelectedDay] = useState<number | null>(null);
     return (
         <LinearGradient
             colors={[
@@ -302,7 +308,7 @@ export default function ProfileScreen() {
                         />
                         <View style={st.chartInner}>
                             <Text style={st.chartLabel}>{tab} — This week</Text>
-                            <SparkBars tab={tab} />
+                            <SparkBars tab={tab} selectedDay={selectedDay} setSelectedDay={setSelectedDay} />
                         </View>
                     </LinearGradient>
 
@@ -366,7 +372,7 @@ export default function ProfileScreen() {
                     </LinearGradient>
 
                     {/* Start tracking */}
-                    <TouchableOpacity style={st.startRow} activeOpacity={0.8}>
+                    <TouchableOpacity style={st.startRow} activeOpacity={0.8} onPress={() => router.push("/(tabs)/workout")}>
                         <Text style={st.startText}>Start tracking here</Text>
                         <Feather name="chevron-down" size={16} color={ORANGE} />
                     </TouchableOpacity>
@@ -542,10 +548,10 @@ const glowSt = StyleSheet.create({
         ...StyleSheet.absoluteFillObject, zIndex: 2,
     },
     dashContent: {
-        padding: 22,
-        paddingHorizontal: 18,
+        padding: 12,
+        paddingHorizontal: 12,
         flexDirection: "column",
-        gap: 14,
+        gap: 12,
     },
     iconCircle: {
         width: 38, height: 38, borderRadius: 12,
@@ -569,12 +575,13 @@ const chartSt = StyleSheet.create({
         gap: 5, height: 80, paddingHorizontal: 4,
     },
     bar: {
-        flex: 1,
+        width: "100%",
         borderTopLeftRadius: 4, borderTopRightRadius: 4,
         borderBottomLeftRadius: 0, borderBottomRightRadius: 0,
         borderWidth: 0.5, borderColor: "rgba(255,120,37,0.15)",
         overflow: "hidden",
     },
+
     barActive: {
         borderColor: "rgba(255,120,37,0.4)",
         ...Platform.select({
@@ -583,8 +590,10 @@ const chartSt = StyleSheet.create({
         }),
     },
     labelsRow: {
-        flexDirection: "row", justifyContent: "space-between",
-        paddingHorizontal: 4, marginTop: 6,
+        flexDirection: "row",
+        paddingHorizontal: 4,
+        marginTop: 6,
     },
+
     lbl: { fontSize: 9, color: HINT },
 });

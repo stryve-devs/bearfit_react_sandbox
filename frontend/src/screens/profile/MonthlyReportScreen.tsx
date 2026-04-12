@@ -23,6 +23,55 @@ const days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 const getDaysInMonth = (month, year) =>
     new Date(year, month + 1, 0).getDate();
 
+const getGroupedMuscleData = (data) => ({
+    Back:
+        data["Lats"] +
+        data["Upper Back"] +
+        data["Lower Back"] +
+        data["Traps"],
+
+    Chest: data["Chest"],
+    Core: data["Abs"],
+    Shoulders: data["Shoulders"],
+
+    Arms:
+        data["Biceps"] +
+        data["Triceps"] +
+        data["Forearms"],
+
+    Legs:
+        data["Quadriceps"] +
+        data["Hamstrings"] +
+        data["Calves"] +
+        data["Glutes"] +
+        data["Adductors"] +
+        data["Abductors"],
+});
+
+const normalize = (grouped) => {
+    const values = Object.values(grouped);
+    const max = Math.max(...values, 1);
+    return values.map(v => (v / max) * 100);
+};
+
+const getPoints = (values) => {
+    const center = 130;
+    const maxRadius = 90;
+    const angles = [-90, -30, 30, 90, 150, 210];
+
+    return values
+        .map((val, i) => {
+            const angle = (angles[i] * Math.PI) / 180;
+            const r = (val / 100) * maxRadius;
+
+            const x = center + r * Math.cos(angle);
+            const y = center + r * Math.sin(angle);
+
+            return `${x},${y}`;
+        })
+        .join(" ");
+};
+
 export default function MonthlyReport() {
     const router = useRouter();
 
@@ -37,17 +86,56 @@ export default function MonthlyReport() {
         { length: getDaysInMonth(month, year) },
         (_, i) => i + 1
     );
+    const thisMonthData = {
+        "Abs": 8,
+        "Abductors": 4,
+        "Adductors": 3,
+        "Biceps": 12,
+        "Calves": 6,
+        "Chest": 9,
+        "Forearms": 3,
+        "Glutes": 7,
+        "Hamstrings": 5,
+        "Lats": 6,
+        "Lower Back": 4,
+        "Quadriceps": 8,
+        "Shoulders": 7,
+        "Traps": 4,
+        "Triceps": 10,
+        "Upper Back": 5,
+    };
 
+    const lastMonthData = {
+        "Abs": 5,
+        "Abductors": 2,
+        "Adductors": 2,
+        "Biceps": 8,
+        "Calves": 4,
+        "Chest": 6,
+        "Forearms": 2,
+        "Glutes": 5,
+        "Hamstrings": 4,
+        "Lats": 4,
+        "Lower Back": 3,
+        "Quadriceps": 6,
+        "Shoulders": 5,
+        "Traps": 3,
+        "Triceps": 7,
+        "Upper Back": 3,
+    };
+    const [selectedMonth, setSelectedMonth] = React.useState("current");
+    const chartData = {
+        current: normalize(getGroupedMuscleData(thisMonthData)),
+        previous: normalize(getGroupedMuscleData(lastMonthData)),
+    };
     return (
         <View style={{ flex: 1, backgroundColor: "#080808" }}>
             <SafeAreaView style={{ flex: 1 }}>
 
                 {/* HEADER */}
                 <View style={styles.header}>
-                    <TouchableOpacity onPress={() => router.back()}>
-                        <View style={styles.glassBtn}>
-                            <Feather name="arrow-left" size={18} color="#fff" />
-                        </View>
+                    <TouchableOpacity onPress={() => router.back()} style={{ zIndex: 10 }}>
+                        <Feather name="chevron-left" size={24} color="#fff" />
                     </TouchableOpacity>
 
                     <Text style={styles.headerTitle}>March Report</Text>
@@ -152,70 +240,79 @@ export default function MonthlyReport() {
                                 <Polygon
                                     key={i}
                                     points={`
-                                    130,${130 - r}
-                                    ${130 + r * 0.87},${130 - r * 0.5}
-                                    ${130 + r * 0.87},${130 + r * 0.5}
-                                    130,${130 + r}
-                                    ${130 - r * 0.87},${130 + r * 0.5}
-                                    ${130 - r * 0.87},${130 - r * 0.5}
-                                    `}
+                130,${130 - r}
+                ${130 + r * 0.87},${130 - r * 0.5}
+                ${130 + r * 0.87},${130 + r * 0.5}
+                130,${130 + r}
+                ${130 - r * 0.87},${130 + r * 0.5}
+                ${130 - r * 0.87},${130 - r * 0.5}
+                `}
                                     stroke="rgba(255,255,255,0.1)"
                                     fill="none"
                                 />
                             ))}
 
+                            {/* 🔥 LAST MONTH (GRAY) */}
                             <Polygon
-                                points="
-                                130,40
-                                200,90
-                                200,170
-                                130,220
-                                60,170
-                                60,90
-                                "
-                                fill="rgba(255,120,37,0.3)"
-                                stroke="#FF7825"
+                                points={getPoints(chartData[selectedMonth])}
+                                fill={
+                                    selectedMonth === "current"
+                                        ? "rgba(255,120,37,0.3)"
+                                        : "rgba(136,136,136,0.2)"
+                                }
+                                stroke={selectedMonth === "current" ? "#FF7825" : "#888"}
                                 strokeWidth="2"
                             />
                         </Svg>
 
-                        {/* ✅ FIX 3: BETTER ALIGNMENT */}
+                        {/* LABELS */}
                         <Text style={{ position: "absolute", top: 10, color: "#aaa" }}>Back</Text>
-
-                        <Text style={{ position: "absolute", top: 90, right: 95, color: "#aaa" }}>
-                            Chest
-                        </Text>
-
-                        <Text style={{ position: "absolute", top: 155, right: 95, color: "#aaa" }}>
-                            Core
-                        </Text>
-
-                        <Text style={{ position: "absolute", bottom: 10, color: "#aaa" }}>
-                            Shoulders
-                        </Text>
-
-                        <Text style={{ position: "absolute", bottom: 70, left: 95, color: "#aaa" }}>
-                            Arms
-                        </Text>
-
-                        <Text style={{ position: "absolute", top: 90, left: 95, color: "#aaa" }}>
-                            Legs
-                        </Text>
+                        <Text style={{ position: "absolute", top: 90, right: 95, color: "#aaa" }}>Chest</Text>
+                        <Text style={{ position: "absolute", top: 155, right: 95, color: "#aaa" }}>Core</Text>
+                        <Text style={{ position: "absolute", bottom: 10, color: "#aaa" }}>Shoulders</Text>
+                        <Text style={{ position: "absolute", bottom: 70, left: 95, color: "#aaa" }}>Arms</Text>
+                        <Text style={{ position: "absolute", top: 90, left: 95, color: "#aaa" }}>Legs</Text>
 
                     </View>
 
                     {/* LEGEND */}
                     <View style={{ flexDirection: "row", justifyContent: "center", gap: 20, marginTop: 20 }}>
 
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                        {/* PREVIOUS */}
+                        <TouchableOpacity
+                            onPress={() => setSelectedMonth("previous")}
+                            style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                gap: 6,
+                                borderBottomWidth: selectedMonth === "previous" ? 2 : 0,
+                                borderBottomColor: "#888",
+                                paddingBottom: 4,
+                            }}
+                        >
                             <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: "#888" }} />
-                            <Text style={{ color: "#aaa", fontSize: 12 }}>February 2026</Text>
-                        </View>
+                            <Text style={{ color: "#aaa", fontSize: 12 }}>
+                                February 2026
+                            </Text>
+                        </TouchableOpacity>
 
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                        {/* CURRENT */}
+                        <TouchableOpacity
+                            onPress={() => setSelectedMonth("current")}
+                            style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                gap: 6,
+                                borderBottomWidth: selectedMonth === "current" ? 2 : 0,
+                                borderBottomColor: "#FF7825",
+                                paddingBottom: 4,
+                            }}
+                        >
                             <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: "#FF7825" }} />
-                            <Text style={{ color: "#aaa", fontSize: 12 }}>March 2026</Text>
-                        </View>
+                            <Text style={{ color: "#aaa", fontSize: 12 }}>
+                                March 2026
+                            </Text>
+                        </TouchableOpacity>
 
                     </View>
 

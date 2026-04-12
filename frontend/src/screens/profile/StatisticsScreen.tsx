@@ -75,10 +75,8 @@ export default function StatisticsScreen() {
 
                 {/* HEADER */}
                 <View style={styles.header}>
-                    <TouchableOpacity onPress={() => router.back()} activeOpacity={0.8}>
-                        <BlurView intensity={50} tint="dark" style={styles.backBtn}>
-                            <Feather name="chevron-left" size={22} color="#fff" />
-                        </BlurView>
+                    <TouchableOpacity onPress={() => router.back()} activeOpacity={0.8} style={{ zIndex: 10 }}>
+                        <Feather name="chevron-left" size={22} color="#fff" />
                     </TouchableOpacity>
 
                     <Text style={styles.title}>Statistics</Text>
@@ -279,7 +277,7 @@ function Item({ icon, title, sub, pro, route }: any) {
                         <Text style={styles.proText}>PRO</Text>
                     </View>
                 )}
-                <Feather name="chevron-right" size={18} color="#777" />
+                <Feather name="chevron-right" size={24} color="#777" />
             </View>
         </TouchableOpacity>
     );

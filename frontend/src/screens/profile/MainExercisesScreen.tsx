@@ -26,20 +26,16 @@ export default function MainExercisesScreen() {
                 {/* HEADER */}
                 <View style={styles.header}>
 
-                    {/* 🔥 GLASS BACK BUTTON */}
+                    {/* BACK BUTTON */}
                     <TouchableOpacity onPress={() => router.back()}>
-                        <BlurView intensity={50} tint="dark" style={styles.glassBtn}>
-                            <Feather name="chevron-left" size={20} color="#fff" />
-                        </BlurView>
+                        <Feather name="chevron-left" size={24} color="#fff" />
                     </TouchableOpacity>
 
                     <Text style={styles.title}>Main exercises</Text>
 
-                    {/* ❓ HELP BUTTON */}
+                    {/* HELP BUTTON */}
                     <TouchableOpacity onPress={() => setShowPopup(true)}>
-                        <BlurView intensity={50} tint="dark" style={styles.glassBtn}>
-                            <Feather name="help-circle" size={18} color="#fff" />
-                        </BlurView>
+                        <Feather name="help-circle" size={20} color="#fff" />
                     </TouchableOpacity>
 
                 </View>
@@ -60,7 +56,7 @@ export default function MainExercisesScreen() {
                     <Text style={styles.emptyText}>No data yet</Text>
                 </View>
 
-                {/* 🔥 POPUP */}
+                {/* POPUP */}
                 <Modal
                     visible={showPopup}
                     transparent
@@ -69,7 +65,7 @@ export default function MainExercisesScreen() {
                     <View style={styles.overlay}>
                         <View style={styles.popup}>
 
-                            {/* 🔥 ICON */}
+                            {/* ICON */}
                             <View style={styles.popupIcon}>
                                 <Feather name="activity" size={28} color="#FF7825" />
                             </View>
@@ -117,6 +113,7 @@ export default function MainExercisesScreen() {
                                 { label: "Last 7 days", icon: "calendar" },
                                 { label: "Last 30 days", icon: "calendar" },
                                 { label: "Last 3 months", icon: "calendar" },
+                                { label: "Last year", icon: "calendar" },
                             ].map((item) => (
                                 <TouchableOpacity
                                     key={item.label}
@@ -171,6 +168,11 @@ const styles = StyleSheet.create({
         color: "#FF7825",
         fontSize: 18,
         fontWeight: "600",
+        position: "absolute",
+        left: 0,
+        right: 0,
+        textAlign: "center",
+        pointerEvents: "none",
     },
 
     glassBtn: {
@@ -229,17 +231,30 @@ const styles = StyleSheet.create({
         padding: 20,
     },
 
+    popupIcon: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        backgroundColor: "rgba(255,120,37,0.1)",
+        alignItems: "center",
+        justifyContent: "center",
+        alignSelf: "center",
+        marginBottom: 12,
+    },
+
     popupTitle: {
         color: "#fff",
         fontSize: 16,
         fontWeight: "600",
         marginBottom: 10,
+        textAlign: "center",
     },
 
     popupText: {
         color: "#aaa",
         fontSize: 13,
         lineHeight: 18,
+        textAlign: "center",
     },
 
     closeBtn: {
