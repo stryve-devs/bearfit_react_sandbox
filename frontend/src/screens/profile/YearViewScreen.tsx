@@ -1,149 +1,148 @@
 import React from "react";
-import { BlurView } from "expo-blur";
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import {
+    View,
+    Text,
+    StyleSheet,
+    TouchableOpacity,
+    Dimensions,
+    ScrollView
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { BlurView } from "expo-blur";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const PADDING = 16;
+const COLUMN_GAP = 20;
+// Calculate width for 2 columns
+const GRID_WIDTH = (SCREEN_WIDTH - (PADDING * 2) - COLUMN_GAP) / 2;
+
 export default function YearViewScreen() {
     const router = useRouter();
+    const currentYear = 2026;
 
     const months = [
-        "Jan","Feb","Mar","Apr","May","Jun",
-        "Jul","Aug","Sep","Oct","Nov","Dec"
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
     ];
 
-    return (
-        <View style={styles.container}>
-            <SafeAreaView style={{ flex: 1 }}>
-
-                {/* HEADER */}
-                <View style={styles.header}>
-                    <BlurView intensity={60} tint="dark" style={styles.iconBtn}>
-                        <TouchableOpacity
-                            onPress={() => router.back()}
-                            style={styles.iconPress}
-                        >
-                            <Feather name="chevron-left" size={20} color="#fff" />
-                        </TouchableOpacity>
-                    </BlurView>
-
-                    <Text style={styles.title}>Year</Text>
-
-                    <View style={styles.headerRight}>
-                        <View style={{ flexDirection: "row", gap: 10 }}>
-
-                            <BlurView intensity={60} tint="dark" style={styles.iconBtn}>
-                                <TouchableOpacity style={styles.iconPress}>
-                                    <Feather name="upload" size={18} color="#fff" />
-                                </TouchableOpacity>
-                            </BlurView>
-
-                            <BlurView intensity={60} tint="dark" style={styles.iconBtn}>
-                                <TouchableOpacity style={styles.iconPress}>
-                                    <Feather name="sliders" size={18} color="#fff" />
-                                </TouchableOpacity>
-                            </BlurView>
-
-                        </View>
-                    </View>
-                </View>
-
-                {/* YEAR */}
-                <Text style={styles.year}>2026</Text>
-
-                {/* MONTH LABELS */}
-                <View style={styles.monthRow}>
-                    {months.map((m) => (
-                        <Text key={m} style={styles.monthText}>{m}</Text>
-                    ))}
-                </View>
-
-                {/* CONTINUOUS GRID */}
-                <View style={styles.grid}>
-                    {Array.from({ length: 365 }).map((_, i) => (
+    const renderMonth = (monthName: string) => {
+        return (
+            <View key={monthName} style={styles.monthContainer}>
+                <Text style={styles.monthLabel}>{monthName}</Text>
+                <View style={styles.monthGrid}>
+                    {/* Always render exactly 30 boxes */}
+                    {Array.from({ length: 30 }).map((_, i) => (
                         <View key={i} style={styles.box} />
                     ))}
                 </View>
+            </View>
+        );
+    };
 
+    return (
+        <View style={styles.container}>
+            <SafeAreaView style={{ flex: 1 }} edges={['top', 'left', 'right']}>
+
+                <View style={styles.header}>
+                    <BlurContainer style={styles.iconBtn}>
+                        <TouchableOpacity onPress={() => router.back()} style={styles.iconPress}>
+                            <Feather name="chevron-left" size={20} color="#fff" />
+                        </TouchableOpacity>
+                    </BlurContainer>
+
+                    <Text style={styles.title}>Yearly Activity</Text>
+
+                    <View style={styles.headerRight}>
+                        <BlurContainer style={styles.iconBtn}>
+                            <TouchableOpacity style={styles.iconPress}>
+                                <Feather name="upload" size={18} color="#fff" />
+                            </TouchableOpacity>
+                        </BlurContainer>
+                    </View>
+                </View>
+
+                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+                    <Text style={styles.yearText}>{currentYear}</Text>
+
+                    <View style={styles.yearGrid}>
+                        {months.map((name) => renderMonth(name))}
+                    </View>
+                </ScrollView>
             </SafeAreaView>
         </View>
     );
 }
 
+const BlurContainer = ({ children, style }: any) => (
+    <View style={[style, { overflow: 'hidden' }]}>
+        <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
+        {children}
+    </View>
+);
+
 const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: "#080808",
-        paddingHorizontal: 16,
     },
-
     header: {
         flexDirection: "row",
         justifyContent: "space-between",
         alignItems: "center",
-        marginTop: 10,
+        paddingHorizontal: PADDING,
+        paddingBottom: 10,
     },
-
-    title: {
-        color: "#FF7825",
-        fontSize: 18,
-        fontWeight: "600",
-    },
-
-    headerRight: {
-        flexDirection: "row",
-        gap: 12,
-    },
-
-    year: {
+    headerRight: { width: 44, alignItems: 'flex-end' },
+    title: { color: "#FF7825", fontSize: 16, fontWeight: "700" },
+    scrollContent: { paddingHorizontal: PADDING, paddingBottom: 40 },
+    yearText: {
         color: "#fff",
-        fontSize: 28,
-        fontWeight: "700",
-        marginTop: 20,
+        fontSize: 32,
+        fontWeight: "800",
+        marginTop: 10,
+        marginBottom: 8,
     },
-
-    monthRow: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        marginTop: 20,
-    },
-
-    monthText: {
-        color: "#aaa",
-        fontSize: 12,
-    },
-
-    grid: {
+    yearGrid: {
         flexDirection: "row",
         flexWrap: "wrap",
-        marginTop: 10,
+        justifyContent: "space-between",
     },
-
+    monthContainer: {
+        width: GRID_WIDTH,
+        marginBottom: 12,
+    },
+    monthLabel: {
+        color: "#555",
+        fontSize: 11,
+        fontWeight: "700",
+        marginBottom: 2,
+        textTransform: 'uppercase',
+    },
+    monthGrid: {
+        flexDirection: "row",
+        flexWrap: "wrap",
+    },
     box: {
-        width: 6,
-        height: 6,
-        margin: 1.5,
-        borderRadius: 2,
-        backgroundColor: "#333",
+        // Fits 6 columns across for a cleaner 30-count grid (5 rows of 6)
+        width: (GRID_WIDTH - 12) / 6,
+        aspectRatio: 1,
+        margin: 0.8,
+        borderRadius: 1.5,
+        backgroundColor: "#222",
+        borderWidth: 0.5,
+        borderColor: "rgba(255,255,255,0.05)",
     },
-
-
     iconBtn: {
-        width: 42,
-        height: 42,
+        width: 44,
+        height: 44,
         borderRadius: 14,
-        overflow: "hidden",
-        backgroundColor: "rgba(255,255,255,0.05)",
         borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.08)",
-        alignItems: "center",
-        justifyContent: "center",
+        borderColor: "rgba(255,255,255,0.1)",
     },
-
     iconPress: {
-        width: "100%",
-        height: "100%",
+        flex: 1,
         alignItems: "center",
         justifyContent: "center",
     },

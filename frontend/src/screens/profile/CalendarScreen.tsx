@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useCallback } from "react";
 import {
     View,
     Text,
@@ -12,31 +12,83 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const ORANGE = "#FF7825";
 
-const days = ["Wed", "Thu", "Fri", "Sat", "Sun", "Mon", "Tue"];
-const getDaysInMonth = (month, year) => new Date(year, month + 1, 0).getDate();
-
-const todayDate = new Date();
-const currentMonth = todayDate.getMonth();
-const currentYear = todayDate.getFullYear();
-
-const currentMonthDays = Array.from({ length: getDaysInMonth(currentMonth, currentYear) }, (_, i) => i + 1);
-const nextMonth = (currentMonth + 1) % 12;
-const nextMonthYear = currentMonth === 11 ? currentYear + 1 : currentYear;
-const nextMonthDays = Array.from({ length: getDaysInMonth(nextMonth, nextMonthYear) }, (_, i) => i + 1);
-
-const getMonthName = (month) => new Date(0, month).toLocaleString("default", { month: "long" });
+// All possible weekdays
+const ALL_WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 export default function CalendarScreen() {
     const [activeModal, setActiveModal] = React.useState<"streak" | "rest" | null>(null);
     const [showPicker, setShowPicker] = React.useState(false);
     const [selectedView, setSelectedView] = React.useState("Month");
+    const [firstDayOfWeek, setFirstDayOfWeek] = useState(0); // Default to 0 (Sunday)
+
     const router = useRouter();
-    const today = new Date().getDate();
+    const todayDate = new Date();
+    const currentMonth = todayDate.getMonth();
+    const currentYear = todayDate.getFullYear();
+    const today = todayDate.getDate();
+
+    // 🔥 REFRESH LOGIC: Loads preference whenever screen is focused
+    useFocusEffect(
+        useCallback(() => {
+            const getPref = async () => {
+                const saved = await AsyncStorage.getItem("firstDayOfWeek");
+                if (saved !== null) {
+                    setFirstDayOfWeek(parseInt(saved));
+                }
+            };
+            getPref();
+        }, [])
+    );
+
+    // 🔥 DYNAMIC LABELS: Reorder labels based on preference
+    const shiftedWeekdays = [
+        ...ALL_WEEKDAYS.slice(firstDayOfWeek),
+        ...ALL_WEEKDAYS.slice(0, firstDayOfWeek),
+    ];
+
+    const getMonthName = (month) => new Date(currentYear, month).toLocaleString("default", { month: "long" });
+
+    // 🔥 GRID LOGIC: Generates leading blanks + day numbers
+    const generateMonthDays = (month, year) => {
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const firstDayOfMonth = new Date(year, month, 1).getDay();
+
+        // Calculate empty slots needed at the start based on firstDayOfWeek
+        const blanksCount = (firstDayOfMonth - firstDayOfWeek + 7) % 7;
+
+        const daysArray = [];
+        for (let i = 0; i < blanksCount; i++) daysArray.push(null);
+        for (let i = 1; i <= daysInMonth; i++) daysArray.push(i);
+
+        return daysArray;
+    };
+
+    const renderCalendarGrid = (month, year) => {
+        const monthDays = generateMonthDays(month, year);
+        const monthLabel = `${getMonthName(month)} ${year}`;
+
+        return (
+            <View key={`${month}-${year}`}>
+                <Text style={styles.monthTitle}>{monthLabel}</Text>
+                <View style={styles.grid}>
+                    {monthDays.map((d, index) => (
+                        <Day
+                            key={`${month}-${index}`}
+                            d={d}
+                            isToday={d === today && month === currentMonth}
+                            monthLabel={monthLabel}
+                        />
+                    ))}
+                </View>
+            </View>
+        );
+    };
 
     return (
         <View style={{ flex: 1, backgroundColor: "#080808" }}>
@@ -87,26 +139,16 @@ export default function CalendarScreen() {
                     </TouchableOpacity>
                 </View>
 
+                {/* WEEKDAY LABELS (Dynamic) */}
                 <BlurView intensity={40} tint="dark" style={styles.daysContainer}>
-                    {days.map((d) => (
+                    {shiftedWeekdays.map((d) => (
                         <Text key={d} style={styles.dayHeaderText}>{d}</Text>
                     ))}
                 </BlurView>
 
                 <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
-                    <Text style={styles.monthTitle}>{getMonthName(currentMonth)} {currentYear}</Text>
-                    <View style={styles.grid}>
-                        {currentMonthDays.map((d) => (
-                            <Day key={`curr-${d}`} d={d} isToday={d === today} monthLabel={`${getMonthName(currentMonth)} ${currentYear}`} />
-                        ))}
-                    </View>
-
-                    <Text style={styles.monthTitle}>{getMonthName(nextMonth)} {nextMonthYear}</Text>
-                    <View style={styles.grid}>
-                        {nextMonthDays.map((d) => (
-                            <Day key={`next-${d}`} d={d} isToday={false} monthLabel={`${getMonthName(nextMonth)} ${nextMonthYear}`} />
-                        ))}
-                    </View>
+                    {renderCalendarGrid(currentMonth, currentYear)}
+                    {renderCalendarGrid((currentMonth + 1) % 12, currentMonth === 11 ? currentYear + 1 : currentYear)}
                 </ScrollView>
 
                 {/* MODALS & PICKERS */}
@@ -160,8 +202,8 @@ export default function CalendarScreen() {
     );
 }
 
-// Helper to prevent BlurView from swallowing border radius on Android
-const BlurContainer = ({ children, style }) => (
+// Sub-components
+const BlurContainer = ({ children, style }: any) => (
     <View style={[style, { overflow: 'hidden' }]}>
         <BlurView intensity={60} tint="dark" style={StyleSheet.absoluteFill} />
         {children}
@@ -186,6 +228,8 @@ function GlassCard({ text, icon, blue }: any) {
 
 function Day({ d, isToday, monthLabel }: any) {
     const router = useRouter();
+    if (!d) return <View style={styles.dayWrap} />;
+
     return (
         <TouchableOpacity
             style={styles.dayWrap}
@@ -205,73 +249,25 @@ function Day({ d, isToday, monthLabel }: any) {
 }
 
 const styles = StyleSheet.create({
-    headerRow: {
-        flexDirection: "row",
-        alignItems: "center",
-        paddingHorizontal: 16,
-        paddingVertical: 10,
-    },
+    headerRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 10 },
     headerCenter: { flex: 1, alignItems: "center" },
     pickerTrigger: { flexDirection: "row", alignItems: "center", gap: 6 },
     monthText: { color: "#fff", fontSize: 18, fontWeight: "700" },
     rightIcons: { flexDirection: "row", gap: 10 },
-    iconBtn: {
-        width: 42,
-        height: 42,
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.1)",
-    },
+    iconBtn: { width: 42, height: 42, borderRadius: 12, borderWidth: 1, borderColor: "rgba(255,255,255,0.1)" },
     iconPress: { flex: 1, alignItems: "center", justifyContent: "center" },
     statsRow: { flexDirection: "row", gap: 12, paddingHorizontal: 16, marginTop: 16 },
-    card: {
-        padding: 12,
-        borderRadius: 20,
-        backgroundColor: "rgba(255,255,255,0.03)",
-        borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.08)",
-    },
+    card: { padding: 12, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.03)", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" },
     cardTitle: { fontSize: 14, fontWeight: "700" },
     subText: { color: "#888", fontSize: 10, marginTop: 2 },
-    iconCircle: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        backgroundColor: "rgba(255,255,255,0.08)",
-        alignItems: "center",
-        justifyContent: "center",
-        marginRight: 8,
-    },
-    daysContainer: {
-        marginHorizontal: 16,
-        marginTop: 20,
-        paddingVertical: 12,
-        borderRadius: 16,
-        flexDirection: "row",
-        justifyContent: "space-around",
-        borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.05)",
-        overflow: 'hidden'
-    },
-    dayHeaderText: { color: "#666", fontSize: 12, fontWeight: "600" },
+    iconCircle: { width: 32, height: 32, borderRadius: 16, backgroundColor: "rgba(255,255,255,0.08)", alignItems: "center", justifyContent: "center", marginRight: 8 },
+    daysContainer: { marginHorizontal: 16, marginTop: 20, paddingVertical: 12, borderRadius: 16, flexDirection: "row", justifyContent: "space-around", borderWidth: 1, borderColor: "rgba(255,255,255,0.05)", overflow: 'hidden' },
+    dayHeaderText: { color: "#666", fontSize: 12, fontWeight: "600", width: (SCREEN_WIDTH - 64) / 7, textAlign: 'center' },
     monthTitle: { color: "#fff", fontSize: 18, fontWeight: "600", marginHorizontal: 20, marginTop: 24, marginBottom: 12 },
     grid: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 8 },
-    dayWrap: {
-        width: (SCREEN_WIDTH - 16) / 7,
-        height: 50,
-        alignItems: "center",
-        justifyContent: "center",
-    },
+    dayWrap: { width: (SCREEN_WIDTH - 16) / 7, height: 50, alignItems: "center", justifyContent: "center" },
     dayTextNormal: { color: "#aaa", fontSize: 14 },
-    ring: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        borderWidth: 1.5,
-        borderColor: ORANGE,
-        alignItems: "center",
-        justifyContent: "center",
-    },
+    ring: { width: 40, height: 40, borderRadius: 20, borderWidth: 1.5, borderColor: ORANGE, alignItems: "center", justifyContent: "center" },
     inner: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" },
     todayText: { color: "#fff", fontWeight: "800", fontSize: 13 },
     modalOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.7)", justifyContent: "center", alignItems: "center", zIndex: 1000 },

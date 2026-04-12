@@ -5,10 +5,10 @@ import {
     StyleSheet,
     TouchableOpacity,
     Platform,
+    Dimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
-
 import { BlurView } from "expo-blur";
 import { useRouter } from "expo-router";
 import Animated, {
@@ -16,292 +16,188 @@ import Animated, {
     useAnimatedStyle,
     withTiming,
     Easing,
+    interpolate,
 } from "react-native-reanimated";
 
+const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const ORANGE = "#FF7825";
 
 export default function MeasurementsScreen() {
-    const router = useRouter(); // ✅ navigation added
-
+    const router = useRouter();
     const [showPicker, setShowPicker] = useState(false);
-
-    const translateY = useSharedValue(400);
-
-    const [showInfoModal, setShowInfoModal] = useState(false);
+    const translateY = useSharedValue(SCREEN_HEIGHT);
+    const contentOpacity = useSharedValue(1);
 
     useEffect(() => {
-        translateY.value = withTiming(showPicker ? 0 : 400, {
-            duration: 260,
-            easing: Easing.out(Easing.cubic),
+        translateY.value = withTiming(showPicker ? 0 : SCREEN_HEIGHT, {
+            duration: 400,
+            easing: Easing.bezier(0.33, 1, 0.68, 1),
         });
+        contentOpacity.value = withTiming(showPicker ? 0.5 : 1, { duration: 300 });
     }, [showPicker]);
 
     const sheetStyle = useAnimatedStyle(() => ({
         transform: [{ translateY: translateY.value }],
     }));
 
+    const animatedContentStyle = useAnimatedStyle(() => ({
+        opacity: contentOpacity.value,
+        transform: [{ scale: interpolate(contentOpacity.value, [0.5, 1], [0.98, 1]) }]
+    }));
+
     return (
         <View style={styles.container}>
-            <SafeAreaView style={{ flex: 1 }}>
+            <SafeAreaView style={{ flex: 1 }} edges={['top']}>
 
                 {/* HEADER */}
                 <View style={styles.header}>
-                    <BlurView intensity={60} tint="dark" style={styles.iconBtn}>
-                        <TouchableOpacity onPress={() => router.push("/Profile")}>
-                            <Feather name="chevron-left" size={20} color="#fff" />
+                    <BlurContainer style={styles.iconBtn}>
+                        <TouchableOpacity onPress={() => router.back()} style={styles.iconPress}>
+                            <Feather name="chevron-left" size={22} color="#fff" />
                         </TouchableOpacity>
-                    </BlurView>
-
+                    </BlurContainer>
                     <Text style={styles.title}>Measurements</Text>
-
-                    <View style={{ width: 42 }} />
+                    <View style={{ width: 44 }} />
                 </View>
 
-                {/* BODY */}
-                <View style={styles.content}>
-                    <Feather name="user" size={60} color="rgba(255,255,255,0.2)" />
+                <Animated.View style={[styles.content, animatedContentStyle]}>
+                    {/* Feature Card */}
+                    <BlurContainer style={styles.featureCard}>
+                        <View style={styles.cardHeader}>
+                            <View style={styles.cardIcon}>
+                                <Feather name="user" size={26} color={ORANGE} />
+                            </View>
+                        </View>
 
-                    <Text style={styles.mainText}>Tracking coming soon</Text>
+                        <Text style={styles.mainText}>Body Metrics</Text>
+                        <Text style={styles.subText}>
+                            Tracking your physical progress will be available here soon. We are building a better way to log your journey.
+                        </Text>
+                    </BlurContainer>
 
-                    <Text style={styles.subText}>
-                        Body measurements and progress tracking will be available soon
-                    </Text>
+                    {/* Action Buttons */}
+                    <View style={styles.actionSection}>
+                        <TouchableOpacity
+                            style={styles.primaryBtn}
+                            activeOpacity={0.8}
+                            onPress={() => router.push("/Profile/add-measurement")}
+                        >
+                            <Text style={styles.primaryBtnText}>+ Add Measurement</Text>
+                        </TouchableOpacity>
 
-                    {/* ✅ ADD MEASUREMENT (FIXED) */}
-                    <TouchableOpacity
-                        style={styles.primaryBtn}
-                        onPress={() => router.push("/Profile/add-measurement")}
-                    >
-                        <Text style={styles.primaryText}>+ Add Measurement</Text>
-                    </TouchableOpacity>
-
-                    {/* ADD PROGRESS */}
-                    <TouchableOpacity
-                        style={styles.secondaryBtn}
-                        onPress={() => setShowPicker(true)}
-                    >
-                        <Text style={styles.secondaryText}>📷 Add Progress Picture</Text>
-                    </TouchableOpacity>
-                </View>
-
+                        <TouchableOpacity
+                            style={styles.secondaryBtn}
+                            activeOpacity={0.7}
+                            onPress={() => setShowPicker(true)}
+                        >
+                            <BlurView intensity={15} tint="light" style={StyleSheet.absoluteFill} />
+                            <Text style={styles.secondaryBtnText}>📷 Add Progress Picture</Text>
+                        </TouchableOpacity>
+                    </View>
+                </Animated.View>
             </SafeAreaView>
 
-            {/* 🔥 BOTTOM SHEET */}
-            <View
-                pointerEvents={showPicker ? "auto" : "none"}
-                style={[
-                    styles.overlay,
-                    { opacity: showPicker ? 1 : 0 },
-                ]}
-            >
-                {/* BACKDROP */}
-                <TouchableOpacity
-                    style={StyleSheet.absoluteFill}
-                    activeOpacity={1}
-                    onPress={() => setShowPicker(false)}
-                />
+            {/* BOTTOM SHEET */}
+            {showPicker && (
+                <View style={StyleSheet.absoluteFill}>
+                    <TouchableOpacity
+                        style={styles.backdrop}
+                        activeOpacity={1}
+                        onPress={() => setShowPicker(false)}
+                    />
+                    <Animated.View style={[styles.sheet, sheetStyle]}>
+                        <BlurContainer style={styles.sheetInner}>
+                            <View style={styles.handle} />
+                            <Text style={styles.sheetTitle}>Select Source</Text>
 
-                {/* SHEET */}
-                <Animated.View style={[styles.sheet, sheetStyle]}>
+                            <View style={styles.optionRow}>
+                                <TouchableOpacity style={styles.optionItem}>
+                                    <View style={styles.optionIconBox}>
+                                        <Feather name="camera" size={24} color="#fff" />
+                                    </View>
+                                    <Text style={styles.optionLabel}>Camera</Text>
+                                </TouchableOpacity>
 
-                    {Platform.OS === "android" ? (
-                        <View style={styles.androidSheet}>
-                            {renderOptions()}
-                        </View>
-                    ) : (
-                        <BlurView intensity={90} tint="dark" style={styles.sheetInner}>
-                            {renderOptions()}
-                        </BlurView>
-                    )}
-
-                </Animated.View>
-            </View>
+                                <TouchableOpacity style={styles.optionItem}>
+                                    <View style={[styles.optionIconBox, { backgroundColor: 'rgba(255,255,255,0.06)' }]}>
+                                        <Feather name="image" size={24} color="#fff" />
+                                    </View>
+                                    <Text style={styles.optionLabel}>Gallery</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </BlurContainer>
+                    </Animated.View>
+                </View>
+            )}
         </View>
     );
 }
 
-/* 🔥 OPTIONS */
-function renderOptions() {
-    return (
-        <>
-            <View style={styles.handle} />
-
-            {/* PRIMARY */}
-            <TouchableOpacity style={styles.primaryOption}>
-                <Feather name="camera" size={18} color="#fff" />
-                <Text style={styles.primaryText}>Take Picture</Text>
-            </TouchableOpacity>
-
-            {/* SECONDARY */}
-            <TouchableOpacity style={styles.option}>
-                <Feather name="image" size={18} color="#fff" />
-                <Text style={styles.optionText}>Upload Picture</Text>
-            </TouchableOpacity>
-        </>
-    );
-}
+const BlurContainer = ({ children, style }: any) => (
+    <View style={[style, { overflow: 'hidden' }]}>
+        <BlurView intensity={Platform.OS === 'ios' ? 40 : 100} tint="dark" style={StyleSheet.absoluteFill} />
+        {children}
+    </View>
+);
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: "#080808",
-        paddingHorizontal: 20,
-    },
-
+    container: { flex: 1, backgroundColor: "#080808" },
     header: {
         flexDirection: "row",
         justifyContent: "space-between",
         alignItems: "center",
-        marginTop: 10,
-    },
-
-    title: {
-        color: ORANGE,
-        fontSize: 18,
-        fontWeight: "600",
-    },
-
-    iconBtn: {
-        width: 42,
-        height: 42,
-        borderRadius: 14,
-        overflow: "hidden",
-        backgroundColor: "rgba(255,255,255,0.05)",
-        borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.08)",
-        alignItems: "center",
-        justifyContent: "center",
-    },
-
-    content: {
-        flex: 1,
-        justifyContent: "center",
-        alignItems: "center",
-    },
-
-    mainText: {
-        color: "#fff",
-        fontSize: 18,
-        marginTop: 20,
-    },
-
-    subText: {
-        color: "#aaa",
-        textAlign: "center",
-        marginVertical: 20,
         paddingHorizontal: 20,
+        paddingVertical: 10,
     },
+    title: { color: ORANGE, fontSize: 18, fontWeight: "700" },
+    iconBtn: { width: 44, height: 44, borderRadius: 14, borderWidth: 1, borderColor: "rgba(255,255,255,0.1)" },
+    iconPress: { flex: 1, alignItems: "center", justifyContent: "center" },
+    content: { flex: 1, paddingHorizontal: 24, justifyContent: 'center' },
 
-    primaryBtn: {
-        width: "80%",
-        backgroundColor: ORANGE,
-        paddingVertical: 14,
-        paddingHorizontal: 40,
-        borderRadius: 14,
-        marginBottom: 12,
-        alignItems: "center",
-        justifyContent: "center",
-    },
-
-    primaryText: {
-        color: "#fff",
-        fontWeight: "600",
-    },
-
-    secondaryBtn: {
-        width: "80%",
-        backgroundColor: "rgba(255,255,255,0.08)",
-        paddingVertical: 14,
-        paddingHorizontal: 40,
-        borderRadius: 14,
-        alignItems: "center",
-        justifyContent: "center",
-    },
-
-    secondaryText: {
-        color: "#ddd",
-    },
-
-    overlay: {
-        ...StyleSheet.absoluteFillObject,
-        justifyContent: "flex-end",
-        backgroundColor: "rgba(0,0,0,0.4)",
-    },
-
-    sheet: {
-        width: "100%",
-        paddingHorizontal: 16,
-        paddingBottom: 30,
-    },
-
-    sheetInner: {
-        borderRadius: 28,
-        padding: 16,
-        backgroundColor: "rgba(20,20,20,0.55)",
-        borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.12)",
-
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: -4 },
-        shadowOpacity: 0.4,
-        shadowRadius: 12,
-        elevation: 20,
-    },
-
-    androidSheet: {
-        borderRadius: 28,
-        padding: 16,
-        backgroundColor: "rgba(20,20,20,0.9)",
-    },
-
-    handle: {
-        width: 40,
-        height: 5,
-        borderRadius: 10,
-        backgroundColor: "rgba(255,255,255,0.3)",
-        alignSelf: "center",
-        marginBottom: 12,
-    },
-
-    option: {
-        width: "100%",
-        height: 56,
-
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 10,
-
-        borderRadius: 12,
-
-        backgroundColor: "rgba(255,255,255,0.06)",
+    featureCard: {
+        borderRadius: 30,
+        padding: 28,
         borderWidth: 1,
         borderColor: "rgba(255,255,255,0.08)",
+        backgroundColor: "rgba(255,255,255,0.01)",
+        marginBottom: 35,
     },
+    cardHeader: { marginBottom: 20 },
+    cardIcon: { width: 54, height: 54, borderRadius: 18, backgroundColor: 'rgba(255, 120, 37, 0.1)', alignItems: 'center', justifyContent: 'center' },
+    mainText: { color: "#fff", fontSize: 26, fontWeight: "800", marginBottom: 12 },
+    subText: { color: "#888", fontSize: 15, lineHeight: 24, fontWeight: "500" },
 
-    optionText: {
-        color: "#fff",
-        fontSize: 16,
-        fontWeight: "500",
-    },
-
-    primaryOption: {
-        width: "100%",
-        height: 56,
-
-        flexDirection: "row",
+    actionSection: { gap: 14 },
+    primaryBtn: {
+        height: 60,
+        backgroundColor: ORANGE,
+        borderRadius: 18,
         alignItems: "center",
         justifyContent: "center",
-        gap: 10,
-
-        borderRadius: 12,
-        marginBottom: 12,
-        backgroundColor: "#FF7825", // ✅ THIS IS WHAT YOU WANT
+        shadowColor: ORANGE,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.2,
+        shadowRadius: 15,
     },
-
-    primaryText: {
-        color: "#fff",
-        fontWeight: "600",
-        fontSize: 15,
+    primaryBtnText: { color: "#fff", fontWeight: "700", fontSize: 16 },
+    secondaryBtn: {
+        height: 60,
+        borderRadius: 18,
+        alignItems: "center",
+        justifyContent: "center",
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.1)",
+        overflow: 'hidden'
     },
+    secondaryBtnText: { color: "#fff", fontWeight: "600", fontSize: 15 },
+
+    backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.8)" },
+    sheet: { position: 'absolute', bottom: 0, width: "100%", paddingHorizontal: 12, paddingBottom: 30 },
+    sheetInner: { borderRadius: 35, padding: 25, borderWidth: 1, borderColor: "rgba(255,255,255,0.12)" },
+    handle: { width: 38, height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.2)", alignSelf: "center", marginBottom: 20 },
+    sheetTitle: { color: '#fff', fontSize: 17, fontWeight: '700', textAlign: 'center', marginBottom: 25 },
+    optionRow: { flexDirection: 'row', justifyContent: 'space-around', gap: 15 },
+    optionItem: { alignItems: 'center', gap: 12, flex: 1 },
+    optionIconBox: { width: '100%', height: 75, backgroundColor: ORANGE, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+    optionLabel: { color: '#fff', fontSize: 14, fontWeight: '600', opacity: 0.9 }
 });

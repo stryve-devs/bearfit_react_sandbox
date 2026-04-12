@@ -7,13 +7,15 @@ import {
     TouchableOpacity,
     ScrollView,
     Modal,
-    TextInput, // ✅ ADDED
+    TextInput,
+    Dimensions,
+    Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { useRouter } from "expo-router";
-import { LinearGradient } from "expo-linear-gradient";
+import { LinearGradient } from "expo-linear-gradient"; // Ensure this is installed
 import Animated, {
     useSharedValue,
     useAnimatedStyle,
@@ -21,6 +23,7 @@ import Animated, {
     Easing,
 } from "react-native-reanimated";
 
+const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const ORANGE = "#FF7825";
 
 const MONTHS = [
@@ -35,10 +38,8 @@ export default function LogMeasurementsScreen() {
     const [showCalendar, setShowCalendar] = useState(false);
     const [selectedDate, setSelectedDate] = useState(new Date());
     const [viewDate, setViewDate] = useState(new Date());
-
     const [showInfo, setShowInfo] = useState(false);
 
-    // ✅ NEW STATE FOR INPUTS
     const [measurements, setMeasurements] = useState({
         "Body Weight (kg)": "",
         "Waist (cm)": "",
@@ -58,35 +59,12 @@ export default function LogMeasurementsScreen() {
         "Right Calf (cm)": "",
     });
 
-    const translateY = useSharedValue(400);
-
-    function generateCalendar(date: Date) {
-        const year = date.getFullYear();
-        const month = date.getMonth();
-
-        const firstDay = new Date(year, month, 1);
-        const lastDay = new Date(year, month + 1, 0);
-
-        const days = [];
-
-        let startDay = firstDay.getDay();
-        startDay = startDay === 0 ? 6 : startDay - 1;
-
-        for (let i = startDay; i > 0; i--) {
-            days.push(new Date(year, month, 1 - i));
-        }
-
-        for (let i = 1; i <= lastDay.getDate(); i++) {
-            days.push(new Date(year, month, i));
-        }
-
-        return days;
-    }
+    const translateY = useSharedValue(SCREEN_HEIGHT);
 
     useEffect(() => {
-        translateY.value = withTiming(showPicker ? 0 : 400, {
-            duration: 250,
-            easing: Easing.out(Easing.cubic),
+        translateY.value = withTiming(showPicker ? 0 : SCREEN_HEIGHT, {
+            duration: 400,
+            easing: Easing.bezier(0.33, 1, 0.68, 1),
         });
     }, [showPicker]);
 
@@ -94,542 +72,222 @@ export default function LogMeasurementsScreen() {
         transform: [{ translateY: translateY.value }],
     }));
 
+    function generateCalendar(date: Date) {
+        const year = date.getFullYear();
+        const month = date.getMonth();
+        const firstDay = new Date(year, month, 1);
+        const lastDay = new Date(year, month + 1, 0);
+        const days = [];
+        let startDay = firstDay.getDay();
+        startDay = startDay === 0 ? 6 : startDay - 1;
+        for (let i = startDay; i > 0; i--) days.push(new Date(year, month, 1 - i));
+        for (let i = 1; i <= lastDay.getDate(); i++) days.push(new Date(year, month, i));
+        return days;
+    }
+
     return (
         <View style={styles.container}>
-            <SafeAreaView style={{ flex: 1 }}>
+            <SafeAreaView style={{ flex: 1 }} edges={['top']}>
 
                 {/* HEADER */}
                 <View style={styles.header}>
-                    <BlurView intensity={60} tint="dark" style={styles.iconBtn}>
-                        <TouchableOpacity onPress={() => router.back()}>
-                            <Feather name="chevron-left" size={20} color="#fff" />
+                    <BlurContainer style={styles.iconBtn}>
+                        <TouchableOpacity onPress={() => router.back()} style={styles.iconPress}>
+                            <Feather name="chevron-left" size={22} color="#fff" />
                         </TouchableOpacity>
-                    </BlurView>
+                    </BlurContainer>
 
                     <Text style={styles.title}>Log Measurements</Text>
 
-                    <BlurView intensity={60} tint="dark" style={styles.saveBtn}>
+                    <BlurContainer style={styles.saveBtn}>
                         <TouchableOpacity
+                            style={styles.savePress}
                             onPress={() => {
-                                const entry = {
-                                    date: selectedDate.toISOString(),
-                                    measurements,
-                                };
-
-                                GLOBAL_HISTORY.push(entry); // ✅ STORE
-
-                                router.push({
-                                    pathname: "/(tabs)/Profile/log-measurements",
-                                    params: {
-                                        data: JSON.stringify(entry),
-                                    },
-                                });
+                                const entry = { date: selectedDate.toISOString(), measurements };
+                                GLOBAL_HISTORY.push(entry);
+                                // ✅ Redirect back to Overview
+                                router.replace("/(tabs)/Profile/log-measurements");
                             }}
                         >
                             <Text style={styles.saveText}>Save</Text>
                         </TouchableOpacity>
-                    </BlurView>
+                    </BlurContainer>
                 </View>
 
-                <ScrollView showsVerticalScrollIndicator={false}>
+                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
 
-                    {/* DATE */}
-                    <TouchableOpacity
-                        style={styles.row}
-                        onPress={() => setShowCalendar(true)}
-                    >
-                        <Text style={styles.label}>Date</Text>
-                        <Text style={styles.value}>
-                            {selectedDate.toDateString()}
-                        </Text>
+                    {/* DATE SELECTOR (FIXED TRIGGER) */}
+                    <TouchableOpacity style={styles.dateRow} onPress={() => setShowCalendar(true)}>
+                        <Text style={styles.label}>Log Date</Text>
+                        <View style={styles.dateValueBox}>
+                            <Text style={styles.value}>{selectedDate.toDateString()}</Text>
+                            <Feather name="calendar" size={14} color={ORANGE} style={{marginLeft: 8}} />
+                        </View>
                     </TouchableOpacity>
 
-                    {/* PROGRESS */}
+                    {/* PROGRESS PIC SECTION */}
                     <View style={styles.section}>
-                        <View style={styles.row}>
+                        <View style={styles.rowNoBorder}>
                             <Text style={styles.label}>Progress Picture</Text>
+                            {/* ✅ FIXED INFO TRIGGER */}
                             <TouchableOpacity onPress={() => setShowInfo(true)}>
-                                <Feather name="help-circle" size={18} color="#aaa" />
+                                <Feather name="help-circle" size={18} color="#555" />
                             </TouchableOpacity>
                         </View>
 
-                        <TouchableOpacity
-                            style={styles.imageBox}
-                            onPress={() => setShowPicker(true)}
-                        >
-                            <Feather name="camera" size={22} color={ORANGE} />
+                        <TouchableOpacity style={styles.imageBox} onPress={() => setShowPicker(true)}>
+                            <Feather name="camera" size={24} color={ORANGE} />
                             <Text style={styles.addPic}>Add Picture</Text>
                         </TouchableOpacity>
                     </View>
 
-                    {/* MEASUREMENTS */}
-                    <Text style={styles.sectionTitle}>Measurement</Text>
+                    <Text style={styles.sectionTitle}>Details</Text>
 
                     {Object.keys(measurements).map((item, index) => (
                         <View key={index} style={styles.row}>
                             <Text style={styles.measureText}>{item}</Text>
-
                             <TextInput
                                 style={styles.input}
-                                value={measurements[item]}
-                                onChangeText={(text) =>
-                                    setMeasurements({
-                                        ...measurements,
-                                        [item]: text,
-                                    })
-                                }
-                                placeholder="-"
-                                placeholderTextColor="#555"
-                                keyboardType="numeric"
+                                value={measurements[item as keyof typeof measurements]}
+                                onChangeText={(text) => setMeasurements({...measurements, [item]: text})}
+                                placeholder="0.0"
+                                placeholderTextColor="#333"
+                                keyboardType="decimal-pad"
                             />
                         </View>
                     ))}
-
                 </ScrollView>
-
             </SafeAreaView>
 
-            {/* IMAGE PICKER */}
-            <View
-                pointerEvents={showPicker ? "auto" : "none"}
-                style={[styles.overlay, { opacity: showPicker ? 1 : 0 }]}
-            >
-                <TouchableOpacity
-                    style={StyleSheet.absoluteFill}
-                    onPress={() => setShowPicker(false)}
-                />
-
-                <Animated.View style={[styles.sheet, sheetStyle]}>
-                    <BlurView intensity={100} tint="dark" style={styles.sheetInner}>
-
-                        <View style={styles.handle} />
-
-                        {/* TAKE PHOTO (PRIMARY) */}
-                        <TouchableOpacity style={styles.primaryOption}>
-                            <Feather name="camera" size={18} color="#fff" />
-                            <Text style={styles.primaryText}>Take Picture</Text>
-                        </TouchableOpacity>
-
-                        {/* UPLOAD */}
-                        <TouchableOpacity style={styles.option}>
-                            <Feather name="image" size={18} color="#fff" />
-                            <Text style={styles.optionText}>Upload Picture</Text>
-                        </TouchableOpacity>
-
-                    </BlurView>
-                </Animated.View>
-            </View>
-
-            {/* INFO POPUP */}
-            <Modal visible={showInfo} transparent animationType="fade">
-                <View style={styles.popupOverlay}>
-
-                    <View style={styles.popupCard}>
-
-                        <View style={{ marginBottom: 12 }}>
-                            {/* ICON */}
-                            <Feather
-                                name="camera"
-                                size={26}
-                                color="#FF7825"
-                                style={{ marginBottom: 6 }}
-                            />
-                            {/* TITLE */}
-                            <Text style={styles.popupTitle}>
-                                Progress Pictures
-                            </Text>
-                        </View>
-
-                        <Text style={styles.popupText}>
-                            You can upload pictures of yourself and track your physical transformation over time.
-                            Your photos are securely stored and will not be shared with your followers.
-                        </Text>
-
-                        <TouchableOpacity
-                            style={styles.popupButton}
-                            onPress={() => setShowInfo(false)}
-                        >
-                            <Text style={styles.popupButtonText}>Got it</Text>
-                        </TouchableOpacity>
-
-                    </View>
-
-                </View>
-            </Modal>
-
-            {/* CALENDAR */}
+            {/* ✅ FIXED CALENDAR MODAL */}
             <Modal visible={showCalendar} transparent animationType="slide">
-                <View style={styles.overlay}>
-                    <TouchableOpacity
-                        style={StyleSheet.absoluteFill}
-                        onPress={() => setShowCalendar(false)}
-                    />
-
-                    <LinearGradient
-                        colors={["#16161a", "#0e0e10"]}
-                        style={styles.calendarSheet}
-                    >
+                <View style={styles.modalOverlay}>
+                    <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => setShowCalendar(false)} />
+                    <LinearGradient colors={["#1A1A1A", "#080808"]} style={styles.calendarSheet}>
                         <View style={styles.handle} />
-
                         <View style={styles.calHeader}>
-                            <Text style={styles.monthText}>
-                                {MONTHS[viewDate.getMonth()]} {viewDate.getFullYear()}
-                            </Text>
-
-                            <View style={{ flexDirection: "row", gap: 10 }}>
-                                <TouchableOpacity
-                                    onPress={() =>
-                                        setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1))
-                                    }
-                                >
+                            <Text style={styles.monthText}>{MONTHS[viewDate.getMonth()]} {viewDate.getFullYear()}</Text>
+                            <View style={{ flexDirection: "row", gap: 15 }}>
+                                <TouchableOpacity onPress={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1))}>
                                     <Feather name="chevron-left" size={20} color="#fff" />
                                 </TouchableOpacity>
-
-                                <TouchableOpacity
-                                    onPress={() =>
-                                        setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1))
-                                    }
-                                >
+                                <TouchableOpacity onPress={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1))}>
                                     <Feather name="chevron-right" size={20} color="#fff" />
                                 </TouchableOpacity>
                             </View>
                         </View>
-
-                        <View style={styles.weekRow}>
-                            {["MON","TUE","WED","THU","FRI","SAT","SUN"].map((d, i) => (
-                                <Text key={i} style={styles.weekText}>{d}</Text>
-                            ))}
-                        </View>
-
                         <View style={styles.grid}>
                             {generateCalendar(viewDate).map((day, i) => {
-                                const isSelected =
-                                    selectedDate.toDateString() === day.toDateString();
-
+                                const isSelected = selectedDate.toDateString() === day.toDateString();
                                 return (
-                                    <TouchableOpacity
-                                        key={i}
-                                        style={[
-                                            styles.day,
-                                            isSelected && styles.selectedDay,
-                                        ]}
-                                        onPress={() => setSelectedDate(day)}
-                                    >
-                                        <Text style={{ color: isSelected ? "#fff" : "#aaa" }}>
-                                            {day.getDate()}
-                                        </Text>
+                                    <TouchableOpacity key={i} style={[styles.day, isSelected && styles.selectedDay]} onPress={() => setSelectedDate(day)}>
+                                        <Text style={{ color: isSelected ? "#fff" : "#aaa", fontWeight: isSelected ? "700" : "400" }}>{day.getDate()}</Text>
                                     </TouchableOpacity>
                                 );
                             })}
                         </View>
-
-                        <TouchableOpacity
-                            style={styles.confirmBtn}
-                            onPress={() => setShowCalendar(false)}
-                        >
-                            <Text style={{ color: "#fff", fontWeight: "600" }}>
-                                Confirm Date
-                            </Text>
+                        <TouchableOpacity style={styles.confirmBtn} onPress={() => setShowCalendar(false)}>
+                            <Text style={styles.confirmBtnText}>Confirm Date</Text>
                         </TouchableOpacity>
-
                     </LinearGradient>
                 </View>
             </Modal>
 
+            {/* ✅ FIXED INFO MODAL */}
+            <Modal visible={showInfo} transparent animationType="fade">
+                <View style={styles.modalOverlay}>
+                    <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => setShowInfo(false)} />
+                    <BlurContainer style={styles.popupCard}>
+                        <Feather name="camera" size={30} color={ORANGE} style={{ marginBottom: 15 }} />
+                        <Text style={styles.popupTitle}>Progress Photos</Text>
+                        <Text style={styles.popupText}>Visual tracking helps you see changes the scale might miss. These photos stay private.</Text>
+                        <TouchableOpacity style={styles.popupButton} onPress={() => setShowInfo(false)}>
+                            <Text style={styles.popupButtonText}>Got it</Text>
+                        </TouchableOpacity>
+                    </BlurContainer>
+                </View>
+            </Modal>
+
+            {/* BOTTOM SHEET PICKER */}
+            {showPicker && (
+                <View style={StyleSheet.absoluteFill}>
+                    <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={() => setShowPicker(false)} />
+                    <Animated.View style={[styles.sheet, sheetStyle]}>
+                        <BlurContainer style={styles.sheetInner}>
+                            <View style={styles.handle} />
+                            <Text style={styles.sheetTitle}>Select Source</Text>
+                            <View style={styles.optionRow}>
+                                <TouchableOpacity style={styles.optionItem} onPress={() => setShowPicker(false)}>
+                                    <View style={styles.optionIconBox}><Feather name="camera" size={24} color="#fff" /></View>
+                                    <Text style={styles.optionLabel}>Camera</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.optionItem} onPress={() => setShowPicker(false)}>
+                                    <View style={[styles.optionIconBox, { backgroundColor: 'rgba(255,255,255,0.06)' }]}><Feather name="image" size={24} color="#fff" /></View>
+                                    <Text style={styles.optionLabel}>Gallery</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </BlurContainer>
+                    </Animated.View>
+                </View>
+            )}
         </View>
     );
 }
 
+const BlurContainer = ({ children, style }: any) => (
+    <View style={[style, { overflow: 'hidden' }]}>
+        <BlurView intensity={Platform.OS === 'ios' ? 40 : 100} tint="dark" style={StyleSheet.absoluteFill} />
+        {children}
+    </View>
+);
+
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: "#080808",
-        paddingHorizontal: 20,
-    },
+    container: { flex: 1, backgroundColor: "#080808" },
+    header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 16, paddingVertical: 10 },
+    title: { color: ORANGE, fontSize: 18, fontWeight: "700" },
+    iconBtn: { width: 44, height: 44, borderRadius: 14, borderWidth: 1, borderColor: "rgba(255,255,255,0.1)" },
+    iconPress: { flex: 1, alignItems: "center", justifyContent: "center" },
+    saveBtn: { borderRadius: 14, borderWidth: 1, borderColor: "rgba(255,120,37,0.3)" },
+    savePress: { paddingHorizontal: 20, paddingVertical: 8 },
+    saveText: { color: ORANGE, fontWeight: "700" },
+    scrollContent: { paddingHorizontal: 20, paddingBottom: 40 },
+    dateRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 20, borderBottomWidth: 1, borderColor: "#1A1A1A" },
+    dateValueBox: { flexDirection: 'row', alignItems: 'center' },
+    label: { color: "#666", fontWeight: "600" },
+    value: { color: "#fff", fontWeight: "600" },
+    section: { marginTop: 10 },
+    rowNoBorder: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 10 },
+    imageBox: { backgroundColor: "rgba(255,255,255,0.01)", borderWidth: 1, borderStyle: 'dashed', borderColor: "#333", borderRadius: 24, padding: 30, alignItems: "center" },
+    addPic: { color: ORANGE, marginTop: 8, fontWeight: "700" },
+    sectionTitle: { color: "#444", fontWeight: "800", textTransform: 'uppercase', fontSize: 11, letterSpacing: 1.5, marginTop: 35, marginBottom: 10 },
+    row: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 16, borderBottomWidth: 1, borderColor: "#111" },
+    measureText: { color: "#eee", fontSize: 15 },
+    input: { color: "#fff", textAlign: "right", fontSize: 16, fontWeight: "700", width: 120 },
 
-    header: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "center",
-        marginTop: 10,
-    },
+    // Modal & Calendar Styles
+    modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.85)", justifyContent: "center", alignItems: "center" },
+    calendarSheet: { width: "90%", borderRadius: 30, padding: 20, borderWidth: 1, borderColor: "rgba(255,255,255,0.1)" },
+    calHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
+    monthText: { color: "#fff", fontSize: 18, fontWeight: "700" },
+    grid: { flexDirection: "row", flexWrap: "wrap" },
+    day: { width: "14.28%", height: 45, alignItems: "center", justifyContent: "center", borderRadius: 12 },
+    selectedDay: { backgroundColor: ORANGE },
+    confirmBtn: { backgroundColor: ORANGE, height: 56, borderRadius: 18, alignItems: "center", justifyContent: "center", marginTop: 20 },
+    confirmBtnText: { color: "#fff", fontWeight: "700", fontSize: 16 },
 
-    title: {
-        color: "#FF7825",
-        fontSize: 18,
-        fontWeight: "600",
-    },
+    popupCard: { width: "80%", borderRadius: 30, padding: 25, alignItems: 'center', borderWidth: 1, borderColor: "rgba(255,255,255,0.1)" },
+    popupTitle: { color: "#fff", fontSize: 18, fontWeight: "700", marginBottom: 10 },
+    popupText: { color: "#888", textAlign: "center", lineHeight: 22, marginBottom: 25 },
+    popupButton: { backgroundColor: ORANGE, paddingHorizontal: 40, paddingVertical: 14, borderRadius: 16 },
+    popupButtonText: { color: "#fff", fontWeight: "700" },
 
-    saveBtn: {
-        paddingHorizontal: 14,
-        paddingVertical: 6,
-        borderRadius: 14,
-        overflow: "hidden",
-        backgroundColor: "rgba(255,120,37,0.15)",
-        borderWidth: 1,
-        borderColor: "rgba(255,120,37,0.4)",
-    },
-
-    saveText: {
-        color: "#FF7825",
-        fontWeight: "600",
-    },
-
-    iconBtn: {
-        width: 42,
-        height: 42,
-        borderRadius: 14,
-        overflow: "hidden",
-        alignItems: "center",
-        justifyContent: "center",
-    },
-
-    section: {
-        marginTop: 20,
-    },
-
-    sectionTitle: {
-        color: "#888",
-        marginTop: 25,
-        marginBottom: 10,
-    },
-
-    row: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        paddingVertical: 14,
-        borderBottomWidth: 0.5,
-        borderColor: "#222",
-    },
-
-    label: {
-        color: "#aaa",
-    },
-
-    value: {
-        color: ORANGE,
-    },
-
-    measureText: {
-        color: "#fff",
-    },
-
-    input: {
-        color: "#fff",
-        minWidth: 60,
-        textAlign: "right",
-        fontSize: 15,
-    },
-
-    imageBox: {
-        borderWidth: 1,
-        borderColor: "#333",
-        borderRadius: 14,
-        padding: 30,
-        alignItems: "center",
-        marginTop: 10,
-    },
-
-    addPic: {
-        color: ORANGE,
-        marginTop: 8,
-    },
-
-    overlay: {
-        ...StyleSheet.absoluteFillObject,
-        justifyContent: "flex-end",
-        alignItems: "center",
-        backgroundColor: "rgba(0,0,0,0.6)",
-    },
-
-    // ✅ FIXED BOTTOM SHEET
-    sheet: {
-        width: "100%",
-        paddingHorizontal: 16,
-        paddingBottom: 30,
-    },
-
-    sheetInner: {
-        borderRadius: 28,
-        padding: 16,
-
-        // GLASS BASE
-        backgroundColor: "rgba(20,20,20,0.55)",
-
-        // BORDER GLOW (glass edge)
-        borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.12)",
-
-        // SHADOW = FLOATING EFFECT (ANDROID + IOS)
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: -4 },
-        shadowOpacity: 0.4,
-        shadowRadius: 12,
-        elevation: 20, // Android depth
-    },
-
-    handle: {
-        width: 40,
-        height: 5,
-        backgroundColor: "#666",
-        borderRadius: 10,
-        alignSelf: "center",
-        marginBottom: 14,
-    },
-
-    // ✅ PRIMARY BUTTON (NEW)
-    primaryOption: {
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 10,
-        padding: 16,
-        borderRadius: 12,
-        backgroundColor: "#FF7825",
-        marginBottom: 12,
-
-        // 🔽 REDUCED GLOW (CLEAN + PREMIUM)
-        shadowColor: "#FF7825",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.15, // ↓ was 0.6
-        shadowRadius: 4,     // ↓ was 10
-        elevation: 3,        // ↓ was 12
-    },
-
-    primaryText: {
-        color: "#fff",
-        fontWeight: "600",
-        fontSize: 15,
-    },
-
-    // ✅ SECONDARY BUTTON (UPDATED)
-    option: {
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 10,
-        padding: 16,
-        borderRadius: 12,
-
-        backgroundColor: "rgba(255,255,255,0.06)",
-        borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.08)",
-    },
-
-    optionText: {
-        color: "#fff",
-        fontSize: 15,
-    },
-
-    weekRow: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        marginBottom: 14,
-    },
-
-    weekText: {
-        color: "#777",
-        width: "14.28%",
-        textAlign: "center",
-    },
-
-    grid: {
-        flexDirection: "row",
-        flexWrap: "wrap",
-        marginBottom: 20,
-    },
-
-    day: {
-        width: "14.28%",
-        height: 46,
-        alignItems: "center",
-        justifyContent: "center",
-        borderRadius: 14,
-    },
-
-    selectedDay: {
-        backgroundColor: "#FF7825",
-        borderRadius: 14,
-    },
-
-    calendarSheet: {
-        width: "94%",
-        borderRadius: 30,
-        padding: 20,
-        marginBottom: 12,
-        backgroundColor: "rgba(18,18,22,0.98)",
-        borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.08)",
-    },
-
-    calHeader: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "center",
-        marginBottom: 12,
-    },
-
-    monthText: {
-        color: "#fff",
-        fontSize: 16,
-        fontWeight: "600",
-    },
-
-    confirmBtn: {
-        backgroundColor: "#FF7825",
-        paddingVertical: 16,
-        borderRadius: 22,
-        alignItems: "center",
-    },
-
-    popupOverlay: {
-        flex: 1,
-        backgroundColor: "rgba(0,0,0,0.6)",
-        justifyContent: "center",
-        alignItems: "center",
-    },
-
-    popupCard: {
-        width: "85%",
-        borderRadius: 24,
-        padding: 20,
-
-        // GLASS LOOK
-        backgroundColor: "rgba(25,25,25,0.85)",
-        borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.08)",
-
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.4,
-        shadowRadius: 10,
-        elevation: 10,
-    },
-
-    popupTitle: {
-        color: "#fff",
-        fontSize: 18,
-        fontWeight: "600",
-        marginBottom: 10,
-    },
-
-    popupText: {
-        color: "#aaa",
-        fontSize: 14,
-        lineHeight: 20,
-        marginBottom: 20,
-    },
-
-    popupButton: {
-        backgroundColor: "#FF7825",
-        paddingVertical: 14,
-        borderRadius: 16,
-        alignItems: "center",
-    },
-
-    popupButtonText: {
-        color: "#fff",
-        fontWeight: "600",
-    },
-
+    backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.85)" },
+    sheet: { position: 'absolute', bottom: 0, width: "100%", paddingHorizontal: 12, paddingBottom: 30 },
+    sheetInner: { borderRadius: 35, padding: 25, borderWidth: 1, borderColor: "rgba(255,255,255,0.12)" },
+    handle: { width: 38, height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.2)", alignSelf: "center", marginBottom: 20 },
+    sheetTitle: { color: '#fff', fontSize: 17, fontWeight: '700', textAlign: 'center', marginBottom: 25 },
+    optionRow: { flexDirection: 'row', justifyContent: 'space-around', gap: 15 },
+    optionItem: { alignItems: 'center', gap: 12, flex: 1 },
+    optionIconBox: { width: '100%', height: 75, backgroundColor: ORANGE, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+    optionLabel: { color: '#fff', fontSize: 14, fontWeight: '600', opacity: 0.9 }
 });

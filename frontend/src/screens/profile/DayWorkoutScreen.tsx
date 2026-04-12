@@ -5,6 +5,7 @@ import {
     StyleSheet,
     TouchableOpacity,
     Animated,
+    Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { BlurView } from "expo-blur";
@@ -20,6 +21,14 @@ import AnimatedRe, {
 
 const ORANGE = "#FF7825";
 
+// Helper to prevent BlurView from clipping border radius on Android
+const BlurContainer = ({ children, style, intensity = 60 }) => (
+    <View style={[style, { overflow: 'hidden' }]}>
+        <BlurView intensity={intensity} tint="dark" style={StyleSheet.absoluteFill} />
+        {children}
+    </View>
+);
+
 export default function DayWorkoutScreen() {
     const router = useRouter();
     const params = useLocalSearchParams();
@@ -27,10 +36,7 @@ export default function DayWorkoutScreen() {
     const day = params.day ?? "Today";
     const monthLabel = params.monthLabel ?? "February 2026";
 
-    // Animated API
     const fadeAnim = useRef(new Animated.Value(0)).current;
-
-    // Reanimated 2
     const cardScale = useSharedValue(0.92);
     const contentOpacity = useSharedValue(0);
 
@@ -41,15 +47,9 @@ export default function DayWorkoutScreen() {
             useNativeDriver: true,
         }).start();
 
-        cardScale.value = withSpring(1, {
-            damping: 14,
-            stiffness: 120,
-        });
-
-        contentOpacity.value = withTiming(1, {
-            duration: 500,
-        });
-    }, [cardScale, contentOpacity, fadeAnim]);
+        cardScale.value = withSpring(1, { damping: 14, stiffness: 120 });
+        contentOpacity.value = withTiming(1, { duration: 500 });
+    }, []);
 
     const animatedCardStyle = useAnimatedStyle(() => ({
         transform: [{ scale: cardScale.value }],
@@ -65,9 +65,10 @@ export default function DayWorkoutScreen() {
                 style={StyleSheet.absoluteFill}
             />
 
-            <SafeAreaView style={styles.safeArea}>
+            <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+                {/* FIXED HEADER: Ensuring title is perfectly centered */}
                 <View style={styles.header}>
-                    <BlurView intensity={60} tint="dark" style={styles.iconBtn}>
+                    <BlurContainer style={styles.iconBtn} intensity={60}>
                         <TouchableOpacity
                             onPress={() => router.back()}
                             style={styles.iconPress}
@@ -75,18 +76,21 @@ export default function DayWorkoutScreen() {
                         >
                             <Feather name="chevron-left" size={20} color="#fff" />
                         </TouchableOpacity>
-                    </BlurView>
+                    </BlurContainer>
 
-                    <Text style={styles.headerTitle}>
-                        {day} • {monthLabel}
-                    </Text>
+                    <View style={styles.headerTitleContainer}>
+                        <Text style={styles.headerTitle} numberOfLines={1}>
+                            {day} • {monthLabel}
+                        </Text>
+                    </View>
 
+                    {/* Spacer to balance the back button for true centering */}
                     <View style={styles.headerSpacer} />
                 </View>
 
                 <Animated.View style={[styles.centerWrap, { opacity: fadeAnim }]}>
                     <AnimatedRe.View style={[styles.glassCard, animatedCardStyle]}>
-                        <BlurView intensity={75} tint="dark" style={styles.blurFill}>
+                        <BlurContainer style={styles.blurFill} intensity={75}>
                             <View style={styles.iconCircle}>
                                 <Feather name="calendar" size={42} color="#d9d9d9" />
                             </View>
@@ -96,7 +100,7 @@ export default function DayWorkoutScreen() {
                             </Text>
 
                             <TouchableOpacity
-                                activeOpacity={0.85}
+                                activeOpacity={0.8}
                                 style={styles.buttonWrap}
                                 onPress={() => router.push("/Profile/workout-log")}
                             >
@@ -111,7 +115,7 @@ export default function DayWorkoutScreen() {
                                     </Text>
                                 </LinearGradient>
                             </TouchableOpacity>
-                        </BlurView>
+                        </BlurContainer>
                     </AnimatedRe.View>
                 </Animated.View>
             </SafeAreaView>
@@ -132,86 +136,92 @@ const styles = StyleSheet.create({
         marginTop: 8,
         flexDirection: "row",
         alignItems: "center",
+        justifyContent: "space-between",
+    },
+    headerTitleContainer: {
+        flex: 1,
+        alignItems: "center",
+        paddingHorizontal: 8,
     },
     headerTitle: {
-        flex: 1,
-        textAlign: "center",
         color: "#FF7825",
         fontSize: 18,
-        fontWeight: "600",
-        marginRight: 44,
+        fontWeight: "700",
     },
     headerSpacer: {
-        width: 44,
+        width: 44, // Matches iconBtn width
     },
     iconBtn: {
         width: 44,
         height: 44,
         borderRadius: 14,
-        overflow: "hidden",
         backgroundColor: "rgba(255,255,255,0.05)",
         borderWidth: 1,
         borderColor: "rgba(255,255,255,0.08)",
-        alignItems: "center",
-        justifyContent: "center",
     },
     iconPress: {
-        width: "100%",
-        height: "100%",
+        flex: 1,
         alignItems: "center",
         justifyContent: "center",
     },
     centerWrap: {
         flex: 1,
         paddingHorizontal: 20,
-        paddingTop: 70,
+        justifyContent: 'center', // Centers the card vertically
+        paddingBottom: 60, // Slight offset for visual balance
     },
     glassCard: {
-        borderRadius: 28,
-        overflow: "hidden",
+        borderRadius: 32,
         backgroundColor: "rgba(255,255,255,0.035)",
         borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.10)",
-        shadowColor: ORANGE,
-        shadowOpacity: 0.08,
-        shadowRadius: 18,
-        shadowOffset: { width: 0, height: 6 },
+        borderColor: "rgba(255,255,255,0.12)",
+        // Shadow fixes for iOS
+        ...Platform.select({
+            ios: {
+                shadowColor: ORANGE,
+                shadowOpacity: 0.1,
+                shadowRadius: 20,
+                shadowOffset: { width: 0, height: 10 },
+            }
+        })
     },
     blurFill: {
-        paddingVertical: 28,//40
-        paddingHorizontal: 16,//20
+        paddingVertical: 40,
+        paddingHorizontal: 24,
         alignItems: "center",
+        borderRadius: 32,
     },
     iconCircle: {
-        width: 104,
-        height: 104,
-        borderRadius: 52,
+        width: 100,
+        height: 100,
+        borderRadius: 50,
         alignItems: "center",
         justifyContent: "center",
         backgroundColor: "rgba(255,255,255,0.04)",
         borderWidth: 1,
         borderColor: "rgba(255,255,255,0.08)",
-        marginBottom: 22,
+        marginBottom: 24,
     },
     emptyText: {
-        color: "#9d9d9d",
+        color: "#aaa",
         fontSize: 16,
+        fontWeight: "500",
         textAlign: "center",
-        marginBottom: 30,
+        marginBottom: 32,
     },
     buttonWrap: {
         width: "100%",
     },
     logButton: {
         width: "100%",
-        paddingVertical: 18,
+        paddingVertical: 16,
         borderRadius: 18,
         alignItems: "center",
         justifyContent: "center",
     },
     logButtonText: {
         color: "#fff",
-        fontSize: 17,
+        fontSize: 16,
         fontWeight: "700",
     },
 });
