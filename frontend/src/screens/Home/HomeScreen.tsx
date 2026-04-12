@@ -20,14 +20,13 @@ import Animated, {
     withTiming,
     withSequence,
     withRepeat,
-    interpolate,
     Easing,
     FadeIn,
     FadeInDown,
     FadeInUp,
     runOnJS,
 } from "react-native-reanimated";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import { router } from "expo-router";
@@ -384,6 +383,7 @@ function MenuItem({ icon, label, active, onPress }: {
 
 // ─── HomeScreen ───────────────────────────────────────────────────────────────
 export default function HomeScreen() {
+    const insets = useSafeAreaInsets();
     const { width }    = useWindowDimensions();
     const [followed,   setFollowed]   = useState<Set<string>>(new Set());
     const [menuOpen,   setMenuOpen]   = useState(false);
@@ -594,14 +594,18 @@ export default function HomeScreen() {
                     </Animated.View>
                 </Modal>
 
-                {/* ── Search Modal ── */}
-                <Modal visible={searchOpen} animationType="slide">
-                    <LinearGradient
-                        colors={["#0e0e11", "#080808", "#0b0b0e"]}
-                        start={{ x: 0.16, y: 0 }} end={{ x: 0.84, y: 1 }}
-                        style={{ flex: 1 }}
+                {/* ── Search Overlay ── */}
+                {searchOpen && (
+                    <Animated.View
+                        entering={FadeIn.duration(180).easing(Easing.out(Easing.cubic))}
+                        style={st.searchOverlay}
                     >
-                        <SafeAreaView style={{ flex: 1 }} edges={["top", "bottom", "left", "right"]}>
+                        <Pressable style={st.searchBackdrop} onPress={() => { setSearchOpen(false); setQuery(""); }} />
+                        <LinearGradient
+                            colors={["#0e0e11", "#080808", "#0b0b0e"]}
+                            start={{ x: 0.16, y: 0 }} end={{ x: 0.84, y: 1 }}
+                            style={[st.searchOverlayContent, { paddingTop: insets.top, paddingBottom: insets.bottom }]}
+                        >
                             <Animated.View
                                 entering={FadeInDown.duration(280).easing(Easing.out(Easing.cubic))}
                                 style={st.searchHeader}
@@ -629,7 +633,7 @@ export default function HomeScreen() {
                                         selectionColor={ORANGE}
                                     />
                                     {query.length > 0 && (
-                                        <TouchableOpacity onPress={() => setQuery("")}>
+                                        <TouchableOpacity onPress={() => setQuery("") }>
                                             <Ionicons name="close-circle" size={15} color={MUTED} />
                                         </TouchableOpacity>
                                     )}
@@ -691,9 +695,9 @@ export default function HomeScreen() {
                                     )}
                                 />
                             )}
-                        </SafeAreaView>
-                    </LinearGradient>
-                </Modal>
+                        </LinearGradient>
+                    </Animated.View>
+                )}
             </SafeAreaView>
         </LinearGradient>
     );
@@ -704,7 +708,8 @@ const st = StyleSheet.create({
     safe: { flex: 1 },
 
     header: {
-        height: IS_ANDROID ? 54 : 60,
+        minHeight: IS_ANDROID ? 54 : 60,
+        paddingBottom: 10,
         paddingHorizontal: 18,
         flexDirection: "row", alignItems: "center", justifyContent: "space-between",
         borderBottomWidth: 0.5, borderBottomColor: "rgba(255,255,255,0.05)",
@@ -857,4 +862,17 @@ const st = StyleSheet.create({
         alignItems: "center", justifyContent: "center",
     },
     emptySearchText: { color: MUTED, fontSize: IS_ANDROID ? 14 : 15 },
-});
+
+    searchOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        zIndex: 50,
+        elevation: 50,
+    },
+    searchBackdrop: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: "rgba(0,0,0,0.55)",
+    },
+    searchOverlayContent: {
+        flex: 1,
+    },
+ });
