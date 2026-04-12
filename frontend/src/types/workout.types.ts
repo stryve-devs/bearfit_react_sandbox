@@ -32,6 +32,19 @@ export interface ExerciseLog {
     restTimerRef: NodeJS.Timeout | null;
 }
 
+export interface SavedWorkout {
+    id: string;
+    title: string;
+    duration: number; // in seconds
+    volume: number; // total kg
+    sets: number;
+    exercises: ExerciseLog[];
+    description: string;
+    timestamp: string;
+    visibility: 'private' | 'public' | 'friends';
+    photo?: string;
+}
+
 export interface WorkoutContextType {
     currentRoutine: Routine | null;
     exercises: ExerciseLog[];

@@ -157,14 +157,18 @@ export default function LogWorkoutScreen() {
             return;
         }
 
-        if (currentRoutine) {
-            setTimeout(() => {
-                router.push('/(tabs)/Workout');
-            }, 50);
-        } else {
-            setSaveRoutineVisible(true);
-        }
-    }, [exercises.length, currentRoutine, router]);
+        const workoutData = {
+            elapsed,
+            totalVolume: getTotalVolume(),
+            totalSets: getTotalSets(),
+            exercises,
+        };
+
+        router.push({
+            pathname: '/(tabs)/Workout/save',
+            params: { workoutData: JSON.stringify(workoutData) },
+        });
+    }, [elapsed, exercises, router]);
 
     const handleSaveAsRoutine = () => {
         setSaveRoutineVisible(false);
