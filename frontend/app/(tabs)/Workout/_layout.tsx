@@ -69,7 +69,7 @@ export default function WorkoutLayout() {
                         </TouchableOpacity>
                     ),
                     headerRight: () => (
-                        <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap:12}}>
+                        <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap:8}}>
                             <TouchableOpacity style={{paddingHorizontal: 12,}}onPress={() => headerActionsRef.current.openClock()}>
                                 <Ionicons name="timer-outline" size={24} color={AppColors.orange} />
                             </TouchableOpacity>

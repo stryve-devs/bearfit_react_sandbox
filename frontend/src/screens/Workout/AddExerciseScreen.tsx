@@ -312,7 +312,7 @@ const styles = StyleSheet.create({
         paddingVertical: 16,
         maxHeight: '70%',
         overflow: 'hidden',
-        backgroundColor: 'rgba(255,255,255,0.06)',
+        backgroundColor: AppColors.darkBg,//'rgba(255,255,255,0.06)',
     },
     sheetHandle: {
         width: 40,
@@ -330,7 +330,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         borderRadius: 16,
         marginBottom: 10,
-        backgroundColor: 'rgba(255,255,255,0.03)',
+        backgroundColor: AppColors.darkGrey,//'rgba(255,255,255,0.03)',
         overflow: 'hidden',
     },
     filterOptionText: { fontSize: 15, fontWeight: '500', color: AppColors.orange },

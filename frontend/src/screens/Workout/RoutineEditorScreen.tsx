@@ -592,20 +592,6 @@ const styles = StyleSheet.create({
         marginTop: 8,
     },
 
-    titleGlass: {
-        minHeight: 56,
-        borderRadius: 18,
-        paddingHorizontal: 16,
-        paddingVertical: 14,
-        backgroundColor: 'rgba(255,255,255,0.05)',
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.08)',
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        overflow: 'hidden',
-    },
-
     routineTitle: {
         fontSize: 16,
         fontWeight: '700',
@@ -767,7 +753,7 @@ const styles = StyleSheet.create({
         paddingVertical: 16,
         maxHeight: '70%',
         overflow: 'hidden',
-        backgroundColor: 'rgba(255,255,255,0.06)',
+        backgroundColor: AppColors.darkBg,//'rgba(255,255,255,0.09)',
     },
     sheetHandle: {
         width: 40,
@@ -785,10 +771,10 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         borderRadius: 16,
         marginBottom: 10,
-        backgroundColor: 'rgba(255,255,255,0.03)',
+        backgroundColor: AppColors.black,//'rgba(255,255,255,0.03)',
         overflow: 'hidden',
     },
-    filterOptionText: {fontSize: 15, fontWeight: '500', color: AppColors.orange},
+    filterOptionText: {fontSize: 15, fontWeight: '400', color: AppColors.orange},
 
     pickerTitle: {
         fontSize: 16,
@@ -800,7 +786,7 @@ const styles = StyleSheet.create({
 
     numberPadBackdrop: {
         flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.52)',
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -812,9 +798,9 @@ const styles = StyleSheet.create({
         paddingVertical: 20,
         width: '85%',
         maxWidth: 350,
-        backgroundColor: 'rgba(255,255,255,0.06)',
+        backgroundColor: AppColors.darkBg,//'rgba(255,255,255,0.06)',
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.08)',
+        borderColor: AppColors.inputBg,//rgba(255,255,255,0.08)',
         overflow: 'hidden',
     },
 
@@ -835,14 +821,14 @@ const styles = StyleSheet.create({
 
     numberPadDisplay: {
         width: '100%',
-        backgroundColor: 'rgba(255,255,255,0.05)',
+        backgroundColor: AppColors.inputBg,//'rgba(255,255,255,0.05)',
         borderRadius: 14,
         paddingVertical: 16,
         marginBottom: 16,
         paddingHorizontal: 20,
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.08)',
+        borderColor: AppColors.lightGrey,//'rgba(255,255,255,0.08)',
         display: 'none',
     },
 
@@ -859,33 +845,7 @@ const styles = StyleSheet.create({
         marginBottom: 16,
     },
 
-    numberPadButton: {
-        width: '25%',
-        aspectRatio: 1,
-        backgroundColor: 'rgba(255,255,255,0.05)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        margin: 4,
-        borderRadius: 14,
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.08)',
-    },
 
-    numberPadButtonText: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: AppColors.orange,
-    },
-
-    numberPadGhostButton: {
-        backgroundColor: 'transparent',
-        borderColor: 'transparent',
-    },
-
-    numberPadBackspaceButton: {
-        backgroundColor: 'rgba(255,120,37,0.18)',
-        borderColor: 'rgba(255,120,37,0.35)',
-    },
 
     numberPadButtonsRow: {
         flexDirection: 'row',
@@ -901,9 +861,9 @@ const styles = StyleSheet.create({
     },
 
     numberPadCancelButton: {
-        backgroundColor: 'rgba(255,255,255,0.05)',
+        backgroundColor: AppColors.black,//'rgba(255,255,255,0.05)',
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.08)',
+        borderColor: AppColors.black,//'rgba(255,255,255,0.08)',
     },
 
     numberPadConfirmButton: {

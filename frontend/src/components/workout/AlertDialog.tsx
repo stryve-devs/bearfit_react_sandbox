@@ -88,9 +88,9 @@ const styles = StyleSheet.create({
         paddingVertical: 20,
         width: '80%',
         maxWidth: 337,
-        backgroundColor: 'rgba(255,255,255,0.06)',
+        backgroundColor: AppColors.darkBg,//'rgba(255,255,255,0.06)',
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.08)',
+       // borderColor: AppColors.inputBg,//'rgba(255,255,255,0.08)',
         overflow: 'hidden',
     },
     title: {
@@ -114,12 +114,12 @@ const styles = StyleSheet.create({
     },
     button: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
+        backgroundColor: AppColors.black,//'rgba(0,0,0,0.5)',
         paddingVertical: 12,
         borderRadius: 12,
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.06)',
+        borderColor: AppColors.black,//'rgba(255,255,255,0.06)',
     },
     buttonActive: {
         backgroundColor: AppColors.orange,
@@ -134,12 +134,12 @@ const styles = StyleSheet.create({
     },
     destructiveButton: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
+        backgroundColor: AppColors.black,//'rgba(0,0,0,0.5)',
         paddingVertical: 12,
         borderRadius: 12,
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.06)',
+        borderColor: AppColors.black,//'rgba(255,255,255,0.06)',
     },
     destructiveButtonText: {
         fontSize: 16,
