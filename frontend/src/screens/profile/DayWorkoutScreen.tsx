@@ -1,122 +1,130 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect } from "react";
 import {
     View,
     Text,
     StyleSheet,
     TouchableOpacity,
-    Animated,
     Platform,
+    Dimensions
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { BlurView } from "expo-blur";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import AnimatedRe, {
+import Animated, {
     useSharedValue,
     useAnimatedStyle,
     withTiming,
     withSpring,
+    withRepeat,
+    withSequence
 } from "react-native-reanimated";
 
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const ORANGE = "#FF7825";
-
-// Helper to prevent BlurView from clipping border radius on Android
-const BlurContainer = ({ children, style, intensity = 60 }) => (
-    <View style={[style, { overflow: 'hidden' }]}>
-        <BlurView intensity={intensity} tint="dark" style={StyleSheet.absoluteFill} />
-        {children}
-    </View>
-);
 
 export default function DayWorkoutScreen() {
     const router = useRouter();
-    const params = useLocalSearchParams();
+    const { day, monthLabel } = useLocalSearchParams();
 
-    const day = params.day ?? "Today";
-    const monthLabel = params.monthLabel ?? "February 2026";
-
-    const fadeAnim = useRef(new Animated.Value(0)).current;
-    const cardScale = useSharedValue(0.92);
-    const contentOpacity = useSharedValue(0);
+    const scale = useSharedValue(0.9);
+    const opacity = useSharedValue(0);
+    const float = useSharedValue(0);
 
     useEffect(() => {
-        Animated.timing(fadeAnim, {
-            toValue: 1,
-            duration: 450,
-            useNativeDriver: true,
-        }).start();
-
-        cardScale.value = withSpring(1, { damping: 14, stiffness: 120 });
-        contentOpacity.value = withTiming(1, { duration: 500 });
+        scale.value = withSpring(1, { damping: 15 });
+        opacity.value = withTiming(1, { duration: 800 });
+        // Subtle floating animation for the icon
+        float.value = withRepeat(
+            withSequence(
+                withTiming(-10, { duration: 2000 }),
+                withTiming(0, { duration: 2000 })
+            ),
+            -1
+        );
     }, []);
 
     const animatedCardStyle = useAnimatedStyle(() => ({
-        transform: [{ scale: cardScale.value }],
-        opacity: contentOpacity.value,
+        transform: [{ scale: scale.value }],
+        opacity: opacity.value,
+    }));
+
+    const animatedIconStyle = useAnimatedStyle(() => ({
+        transform: [{ translateY: float.value }],
     }));
 
     return (
         <View style={styles.container}>
+            {/* CINEMATIC BACKGROUND */}
+            <View style={styles.spotlight} />
             <LinearGradient
-                colors={["rgba(255,120,37,0.12)", "transparent"]}
-                start={{ x: 0.9, y: 0 }}
-                end={{ x: 0.2, y: 0.6 }}
+                colors={["#080808", "#121212"]}
                 style={StyleSheet.absoluteFill}
             />
 
-            <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-                {/* FIXED HEADER: Ensuring title is perfectly centered */}
+            <SafeAreaView style={styles.safeArea}>
+                {/* MINIMALIST HEADER */}
                 <View style={styles.header}>
-                    <BlurContainer style={styles.iconBtn} intensity={60}>
-                        <TouchableOpacity
-                            onPress={() => router.back()}
-                            style={styles.iconPress}
-                            activeOpacity={0.7}
-                        >
-                            <Feather name="chevron-left" size={20} color="#fff" />
-                        </TouchableOpacity>
-                    </BlurContainer>
+                    <TouchableOpacity
+                        onPress={() => router.back()}
+                        style={styles.backCircle}
+                    >
+                        <Feather name="arrow-left" size={22} color="#fff" />
+                    </TouchableOpacity>
 
-                    <View style={styles.headerTitleContainer}>
-                        <Text style={styles.headerTitle} numberOfLines={1}>
-                            {day} • {monthLabel}
-                        </Text>
+                    <View style={styles.headerTextGroup}>
+                        <Text style={styles.dateLabel}>{monthLabel}</Text>
+                        <Text style={styles.dayLabel}>Day {day}</Text>
                     </View>
 
-                    {/* Spacer to balance the back button for true centering */}
-                    <View style={styles.headerSpacer} />
+                    <View style={styles.placeholder} />
                 </View>
 
-                <Animated.View style={[styles.centerWrap, { opacity: fadeAnim }]}>
-                    <AnimatedRe.View style={[styles.glassCard, animatedCardStyle]}>
-                        <BlurContainer style={styles.blurFill} intensity={75}>
-                            <View style={styles.iconCircle}>
-                                <Feather name="calendar" size={42} color="#d9d9d9" />
-                            </View>
+                <Animated.View style={[styles.content, animatedCardStyle]}>
+                    {/* THE GLASS BENTO CARD */}
+                    <View style={styles.bentoCard}>
+                        <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
 
-                            <Text style={styles.emptyText}>
-                                No workouts on this day
-                            </Text>
+                        <Animated.View style={[styles.iconContainer, animatedIconStyle]}>
+                            <LinearGradient
+                                colors={["rgba(255,120,37,0.2)", "rgba(255,120,37,0)"]}
+                                style={styles.iconGlow}
+                            />
+                            <Feather name="zap-off" size={48} color={ORANGE} />
+                        </Animated.View>
 
+                        <Text style={styles.mainTitle}>Rest & Recovery</Text>
+                        <Text style={styles.subTitle}>
+                            The engine is cooling down. No activity was logged for this 24-hour cycle.
+                        </Text>
+
+                        <View style={styles.actionSection}>
                             <TouchableOpacity
-                                activeOpacity={0.8}
-                                style={styles.buttonWrap}
+                                style={styles.primaryBtn}
                                 onPress={() => router.push("/Profile/workout-log")}
                             >
                                 <LinearGradient
-                                    colors={[ORANGE, "#ff8d47"]}
-                                    start={{ x: 0, y: 0 }}
-                                    end={{ x: 1, y: 1 }}
-                                    style={styles.logButton}
-                                >
-                                    <Text style={styles.logButtonText}>
-                                        Log a workout
-                                    </Text>
-                                </LinearGradient>
+                                    colors={[ORANGE, "#FF4D00"]}
+                                    style={StyleSheet.absoluteFill}
+                                    start={{x:0, y:0}}
+                                    end={{x:1, y:1}}
+                                />
+                                <Text style={styles.primaryBtnText}>Log Activity</Text>
+                                <Feather name="plus" size={18} color="#fff" style={{marginLeft: 8}} />
                             </TouchableOpacity>
-                        </BlurContainer>
-                    </AnimatedRe.View>
+
+                            <TouchableOpacity
+                                style={styles.secondaryBtn}
+                                onPress={() => router.back()}
+                            >
+                                <Text style={styles.secondaryBtnText}>View Calendar</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+
+                    {/* DECORATIVE FOOTER QUOTE */}
+                    <Text style={styles.quote}>"Discipline is doing what needs to be done, even if you don't feel like it."</Text>
                 </Animated.View>
             </SafeAreaView>
         </View>
@@ -126,102 +134,134 @@ export default function DayWorkoutScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: "#080808",
+        backgroundColor: "#000",
+    },
+    spotlight: {
+        position: 'absolute',
+        top: -100,
+        right: -50,
+        width: SCREEN_WIDTH * 1.2,
+        height: SCREEN_WIDTH * 1.2,
+        borderRadius: 1000,
+        backgroundColor: ORANGE,
+        opacity: 0.08,
+        filter: Platform.OS === 'ios' ? 'blur(100px)' : undefined,
     },
     safeArea: {
         flex: 1,
     },
     header: {
-        marginHorizontal: 16,
-        marginTop: 8,
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-    },
-    headerTitleContainer: {
-        flex: 1,
-        alignItems: "center",
-        paddingHorizontal: 8,
-    },
-    headerTitle: {
-        color: "#FF7825",
-        fontSize: 18,
-        fontWeight: "700",
-    },
-    headerSpacer: {
-        width: 44, // Matches iconBtn width
-    },
-    iconBtn: {
-        width: 44,
-        height: 44,
-        borderRadius: 14,
-        backgroundColor: "rgba(255,255,255,0.05)",
-        borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.08)",
-    },
-    iconPress: {
-        flex: 1,
-        alignItems: "center",
-        justifyContent: "center",
-    },
-    centerWrap: {
-        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
         paddingHorizontal: 20,
-        justifyContent: 'center', // Centers the card vertically
-        paddingBottom: 60, // Slight offset for visual balance
+        paddingTop: 10,
     },
-    glassCard: {
-        borderRadius: 32,
-        backgroundColor: "rgba(255,255,255,0.035)",
+    backCircle: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        backgroundColor: 'rgba(255,255,255,0.06)',
+        alignItems: 'center',
+        justifyContent: 'center',
         borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.12)",
-        // Shadow fixes for iOS
-        ...Platform.select({
-            ios: {
-                shadowColor: ORANGE,
-                shadowOpacity: 0.1,
-                shadowRadius: 20,
-                shadowOffset: { width: 0, height: 10 },
-            }
-        })
+        borderColor: 'rgba(255,255,255,0.1)',
     },
-    blurFill: {
-        paddingVertical: 40,
+    headerTextGroup: {
+        alignItems: 'center',
+    },
+    dateLabel: {
+        color: '#666',
+        fontSize: 12,
+        fontWeight: '700',
+        textTransform: 'uppercase',
+        letterSpacing: 1,
+    },
+    dayLabel: {
+        color: '#fff',
+        fontSize: 20,
+        fontWeight: '900',
+    },
+    placeholder: { width: 48 },
+    content: {
+        flex: 1,
+        justifyContent: 'center',
         paddingHorizontal: 24,
-        alignItems: "center",
-        borderRadius: 32,
     },
-    iconCircle: {
-        width: 100,
-        height: 100,
-        borderRadius: 50,
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: "rgba(255,255,255,0.04)",
+    bentoCard: {
+        borderRadius: 28,
+        padding: 22,
+        alignItems: 'center',
+        overflow: 'hidden',
         borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.08)",
+        borderColor: 'rgba(255,255,255,0.15)',
+        backgroundColor: 'rgba(255,255,255,0.02)',
+    },
+    iconContainer: {
+        width: 90,
+        height: 90,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 20,
+    },
+    iconGlow: {
+        position: 'absolute',
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        filter: 'blur(20px)',
+    },
+    mainTitle: {
+        color: '#fff',
+        fontSize: 22,
+        fontWeight: '900',
+        marginBottom: 12,
+        textAlign: 'center',
+    },
+    subTitle: {
+        color: '#888',
+        fontSize: 15,
+        lineHeight: 22,
+        textAlign: 'center',
         marginBottom: 24,
     },
-    emptyText: {
-        color: "#aaa",
+    actionSection: {
+        width: '100%',
+        gap: 12,
+    },
+    primaryBtn: {
+        height: 48,
+        borderRadius: 20,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        overflow: 'hidden',
+    },
+    primaryBtnText: {
+        color: '#fff',
         fontSize: 16,
-        fontWeight: "500",
-        textAlign: "center",
-        marginBottom: 32,
+        fontWeight: '800',
     },
-    buttonWrap: {
-        width: "100%",
+    secondaryBtn: {
+        height: 48,
+        borderRadius: 20,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)',
     },
-    logButton: {
-        width: "100%",
-        paddingVertical: 16,
-        borderRadius: 18,
-        alignItems: "center",
-        justifyContent: "center",
+    secondaryBtnText: {
+        color: '#666',
+        fontSize: 15,
+        fontWeight: '700',
     },
-    logButtonText: {
-        color: "#fff",
-        fontSize: 16,
-        fontWeight: "700",
-    },
+    quote: {
+        color: '#333',
+        fontSize: 13,
+        fontWeight: '600',
+        fontStyle: 'italic',
+        textAlign: 'center',
+        marginTop: 40,
+        paddingHorizontal: 20,
+    }
 });

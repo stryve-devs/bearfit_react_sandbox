@@ -6,30 +6,23 @@ import {
     TouchableOpacity,
     Dimensions,
     ScrollView,
-    Platform
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { useRouter } from "expo-router";
+import Animated, { FadeInDown } from "react-native-reanimated";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const PADDING = 16;
-const AVAILABLE_WIDTH = SCREEN_WIDTH - (PADDING * 2);
+const PADDING = 20;
+const ORANGE = "#FF7825";
 
-// Dynamic Grid Calculation
-// We calculate the box size so that a specific number of boxes fit perfectly
-// across any screen width (iOS or Android).
+// Precision Grid Math for 24 columns (makes it look like a sleek digital map)
+const BOXES_PER_ROW = 24;
 const BOX_MARGIN = 1.2;
-const BOXES_PER_ROW = 22;
-const BOX_SIZE = (AVAILABLE_WIDTH / BOXES_PER_ROW) - (BOX_MARGIN * 2);
+const BOX_SIZE = ((SCREEN_WIDTH - (PADDING * 4)) / BOXES_PER_ROW) - (BOX_MARGIN * 2);
 
 const YEARS = [2026, 2027, 2028];
-
-const months = [
-    "Jan","Feb","Mar","Apr","May","Jun",
-    "Jul","Aug","Sep","Oct","Nov","Dec"
-];
 
 export default function MultiYearViewScreen() {
     const router = useRouter();
@@ -38,46 +31,69 @@ export default function MultiYearViewScreen() {
         <View style={styles.container}>
             <SafeAreaView style={{ flex: 1 }} edges={['top']}>
 
-                {/* HEADER */}
+                {/* MODERN FLOATING HEADER */}
                 <View style={styles.header}>
-                    <BlurContainer style={styles.iconBtn}>
-                        <TouchableOpacity onPress={() => router.back()} style={styles.iconPress}>
-                            <Feather name="chevron-left" size={20} color="#fff" />
-                        </TouchableOpacity>
-                    </BlurContainer>
-
-                    <Text style={styles.title}>Multi-year</Text>
-
-                    <View style={styles.headerRight}>
-                        {/* Sliders removed, Upload moved here */}
-                        <BlurContainer style={styles.iconBtn}>
-                            <TouchableOpacity style={styles.iconPress}>
-                                <Feather name="upload" size={18} color="#fff" />
-                            </TouchableOpacity>
-                        </BlurContainer>
+                    <TouchableOpacity onPress={() => router.back()} style={styles.navBtn}>
+                        <Feather name="arrow-left" size={20} color="#fff" />
+                    </TouchableOpacity>
+                    <View style={styles.titleContainer}>
+                        <Text style={styles.title}>Longevity</Text>
+                        <View style={styles.activeDot} />
                     </View>
+                    <TouchableOpacity style={styles.navBtn}>
+                        <Feather name="download" size={18} color="#fff" />
+                    </TouchableOpacity>
                 </View>
 
-                <ScrollView
-                    showsVerticalScrollIndicator={false}
-                    contentContainerStyle={styles.scrollContent}
-                >
-                    {YEARS.map((year) => (
-                        <View key={year} style={styles.yearBlock}>
-                            <Text style={styles.yearText}>{year}</Text>
-
-                            <View style={styles.monthRow}>
-                                {months.map((m) => (
-                                    <Text key={m} style={styles.monthText}>{m}</Text>
-                                ))}
+                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+                    {YEARS.map((year, yIdx) => (
+                        <Animated.View
+                            key={year}
+                            entering={FadeInDown.delay(yIdx * 150).duration(600)}
+                            style={styles.yearCard}
+                        >
+                            {/* Top info bar within the year card */}
+                            <View style={styles.yearHeader}>
+                                <View>
+                                    <Text style={styles.yearLabel}>{year}</Text>
+                                    <Text style={styles.yearSub}>Yearly Progress</Text>
+                                </View>
+                                <View style={styles.statPill}>
+                                    <Feather name="zap" size={10} color={ORANGE} />
+                                    <Text style={styles.statPillText}>84%</Text>
+                                </View>
                             </View>
 
                             <View style={styles.grid}>
-                                {Array.from({ length: 365 }).map((_, i) => (
-                                    <View key={i} style={styles.box} />
-                                ))}
+                                {Array.from({ length: 365 }).map((_, i) => {
+                                    // Simulated high-end activity data
+                                    const level = Math.random();
+                                    const isActive = level > 0.6;
+                                    const isPeak = level > 0.9;
+
+                                    return (
+                                        <View
+                                            key={i}
+                                            style={[
+                                                styles.box,
+                                                isActive && { backgroundColor: `${ORANGE}30`, borderColor: `${ORANGE}50` },
+                                                isPeak && { backgroundColor: ORANGE, borderColor: ORANGE }
+                                            ]}
+                                        />
+                                    );
+                                })}
                             </View>
-                        </View>
+
+                            {/* Legend / Key at bottom of each card */}
+                            <View style={styles.cardFooter}>
+                                <Text style={styles.footerText}>Total: 312 Sessions</Text>
+                                <View style={styles.levelRow}>
+                                    {[0.2, 0.5, 1].map((op, i) => (
+                                        <View key={i} style={[styles.miniBox, { opacity: op }]} />
+                                    ))}
+                                </View>
+                            </View>
+                        </Animated.View>
                     ))}
                 </ScrollView>
             </SafeAreaView>
@@ -85,70 +101,91 @@ export default function MultiYearViewScreen() {
     );
 }
 
-// Fixed BlurContainer to ensure borders and curves show on Android
-const BlurContainer = ({ children, style }: any) => (
-    <View style={[style, { overflow: 'hidden' }]}>
-        <BlurView intensity={60} tint="dark" style={StyleSheet.absoluteFill} />
-        {children}
-    </View>
-);
-
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: "#080808",
+        backgroundColor: "#000", // Deep black for better contrast
     },
     header: {
         flexDirection: "row",
         justifyContent: "space-between",
         alignItems: "center",
         paddingHorizontal: PADDING,
-        paddingVertical: 10,
+        paddingVertical: 15,
     },
-    headerRight: {
-        width: 42, // Matches icon width to keep title centered
-        alignItems: 'flex-end',
-    },
-    title: {
-        color: "#FF7825",
-        fontSize: 17,
-        fontWeight: "700",
-    },
-    iconBtn: {
-        width: 42,
-        height: 42,
-        borderRadius: 14,
-        borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.12)",
-        backgroundColor: "rgba(255,255,255,0.03)",
-    },
-    iconPress: {
-        flex: 1,
+    navBtn: {
+        width: 40,
+        height: 40,
+        borderRadius: 12,
+        backgroundColor: "rgba(255,255,255,0.06)",
         alignItems: "center",
         justifyContent: "center",
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.1)",
+    },
+    titleContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
+    title: {
+        color: "#fff",
+        fontSize: 16,
+        fontWeight: "800",
+        letterSpacing: 0.5,
+    },
+    activeDot: {
+        width: 4,
+        height: 4,
+        borderRadius: 2,
+        backgroundColor: ORANGE,
     },
     scrollContent: {
         paddingHorizontal: PADDING,
-        paddingBottom: 40,
+        paddingBottom: 60,
     },
-    yearBlock: {
-        marginTop: 20,
+    yearCard: {
+        backgroundColor: "rgba(255,255,255,0.02)",
+        borderRadius: 24,
+        padding: 16,
+        marginBottom: 20,
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.05)",
+        overflow: 'hidden',
     },
-    yearText: {
+    yearHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        marginBottom: 20,
+    },
+    yearLabel: {
         color: "#fff",
-        fontSize: 28,
-        fontWeight: "800",
-        marginBottom: 12,
+        fontSize: 24,
+        fontWeight: "900",
     },
-    monthRow: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        marginBottom: 6,
-    },
-    monthText: {
-        color: "#666",
+    yearSub: {
+        color: "#555",
         fontSize: 11,
-        fontWeight: "600",
+        fontWeight: "700",
+        textTransform: 'uppercase',
+        marginTop: -2,
+    },
+    statPill: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        backgroundColor: "rgba(255,120,37,0.1)",
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: "rgba(255,120,37,0.2)",
+    },
+    statPillText: {
+        color: ORANGE,
+        fontSize: 12,
+        fontWeight: "800",
     },
     grid: {
         flexDirection: "row",
@@ -160,8 +197,33 @@ const styles = StyleSheet.create({
         height: BOX_SIZE,
         margin: BOX_MARGIN,
         borderRadius: 1.5,
-        backgroundColor: "#1A1A1A", // Visible gray
-        borderWidth: StyleSheet.hairlineWidth,
-        borderColor: "rgba(255,255,255,0.05)",
+        backgroundColor: "#111", // Darker base for a more professional look
+        borderWidth: 0.5,
+        borderColor: "rgba(255,255,255,0.03)",
     },
+    cardFooter: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginTop: 15,
+        paddingTop: 15,
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(255,255,255,0.03)',
+    },
+    footerText: {
+        color: "#444",
+        fontSize: 10,
+        fontWeight: "700",
+        textTransform: 'uppercase',
+    },
+    levelRow: {
+        flexDirection: 'row',
+        gap: 4,
+    },
+    miniBox: {
+        width: 8,
+        height: 8,
+        borderRadius: 2,
+        backgroundColor: ORANGE,
+    }
 });
