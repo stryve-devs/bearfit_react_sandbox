@@ -2,7 +2,7 @@ import { Stack, useRouter } from 'expo-router';
 import { AppColors } from "@/constants/colors";
 import { TouchableOpacity, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRef, useCallback } from 'react';
+import { useRef } from 'react';
 
 const headerActionsRef = useRef({
     openClock: () => {},
@@ -31,21 +31,22 @@ export default function WorkoutLayout() {
                 contentStyle: { backgroundColor: AppColors.black },
             }}
         >
+            {/* MAIN SCREEN: Header hidden so your custom Profile-style header shows cleanly */}
             <Stack.Screen
                 name="index"
                 options={{
-                    title: 'Workout',
-                    headerLeft: () => null,
+                    headerShown: false,
                 }}
             />
 
+            {/* SUB-SCREENS: Headers and custom buttons restored! */}
             <Stack.Screen
                 name="routine"
                 options={{
                     title: 'Create Routine',
                     headerLeft: () => (
                         <TouchableOpacity onPress={() => router.back()} style={{ marginRight: 12 }}>
-                            <Ionicons name="chevron-back" size={24} color={AppColors.orange} />
+                            <Ionicons name="arrow-back" size={24} color={AppColors.orange} />
                         </TouchableOpacity>
                     ),
                     headerRight: () => (
@@ -65,19 +66,19 @@ export default function WorkoutLayout() {
                     title: 'Log Workout',
                     headerLeft: () => (
                         <TouchableOpacity onPress={() => headerActionsRef.current.handleBack()} style={{ marginRight: 12 }}>
-                            <Ionicons name="chevron-back" size={24} color={AppColors.orange} />
+                            <Ionicons name="arrow-back" size={24} color={AppColors.orange} />
                         </TouchableOpacity>
                     ),
                     headerRight: () => (
-                        <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap:8}}>
-                            <TouchableOpacity style={{paddingHorizontal: 12,}}onPress={() => headerActionsRef.current.openClock()}>
+                        <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap:12}}>
+                            <TouchableOpacity style={{paddingHorizontal: 12}} onPress={() => headerActionsRef.current.openClock()}>
                                 <Ionicons name="timer-outline" size={24} color={AppColors.orange} />
                             </TouchableOpacity>
                             <TouchableOpacity
                                 style={{ backgroundColor: AppColors.orange, paddingVertical: 6, borderRadius: 8 }}
                                 onPress={() => headerActionsRef.current.finishWorkout()}
                             >
-                                <Text style={{ color: AppColors.black, fontWeight: '700', fontSize: 13,paddingHorizontal: 12 }}>Finish</Text>
+                                <Text style={{ color: AppColors.black, fontWeight: '700', fontSize: 13, paddingHorizontal: 12 }}>Finish</Text>
                             </TouchableOpacity>
                         </TouchableOpacity>
                     ),
@@ -90,7 +91,7 @@ export default function WorkoutLayout() {
                     title: 'Add Exercise',
                     headerLeft: () => (
                         <TouchableOpacity onPress={() => router.back()} style={{ marginRight: 12 }}>
-                            <Ionicons name="chevron-back" size={24} color={AppColors.orange} />
+                            <Ionicons name="arrow-back" size={24} color={AppColors.orange} />
                         </TouchableOpacity>
                     ),
                 }}
@@ -102,32 +103,9 @@ export default function WorkoutLayout() {
                     title: 'Routines',
                     headerLeft: () => (
                         <TouchableOpacity onPress={() => router.back()} style={{ marginRight: 12 }}>
-                            <Ionicons name="chevron-back" size={24} color={AppColors.orange} />
+                            <Ionicons name="arrow-back" size={24} color={AppColors.orange} />
                         </TouchableOpacity>
                     ),
-                }}
-            />
-
-            <Stack.Screen
-                name="save"
-                options={{
-                    title: 'Save Workout',
-                    headerLeft: () => (
-                        <TouchableOpacity onPress={() => router.back()}>
-                            <Ionicons name="chevron-back" size={24} color={AppColors.orange} />
-                        </TouchableOpacity>
-                    ),
-                    headerRight: () => null,
-                }}
-            />
-
-            <Stack.Screen
-                name="share"
-                options={{
-                    title: '',
-                    headerLeft: () => null,
-                    headerRight: () => null,
-                    headerShown: false,
                 }}
             />
         </Stack>
