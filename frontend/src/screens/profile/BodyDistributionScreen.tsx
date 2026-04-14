@@ -110,7 +110,7 @@ export default function BodyDistributionScreen() {
             <SafeAreaView style={{ flex: 1 }}>
 
                 <View style={styles.header}>
-                    <TouchableOpacity onPress={() => router.back()}>
+                    <TouchableOpacity onPress={() => router.back()} style={{ zIndex: 10 }}>
                         <Feather name="chevron-left" size={24} color="#fff" />
                     </TouchableOpacity>
 
@@ -344,6 +344,16 @@ const styles = StyleSheet.create({
 
     tableTitle: {
         color: "#aaa",
+    },
+    title: {
+        color: "#FF7825",
+        fontSize: 18,
+        fontWeight: "600",
+        position: "absolute",
+        left: 0,
+        right: 0,
+        textAlign: "center",
+        pointerEvents: "none",
     },
 
     row: {

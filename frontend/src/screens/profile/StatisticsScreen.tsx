@@ -298,7 +298,7 @@ const styles = StyleSheet.create({
     },
 
     section: {
-        paddingHorizontal: 16,
+        paddingHorizontal: 18,
         marginTop: 10,
     },
 

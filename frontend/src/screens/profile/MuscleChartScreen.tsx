@@ -179,7 +179,7 @@ export default function MuscleChartScreen() {
                             />
                         ))}
 
-                        {/* 🔥 DYNAMIC POLYGON */}
+                        {/* SINGLE POLYGON - SHOWS SELECTED DATA */}
                         <Polygon
                             points={getPoints(chartData[selectedWeb])}
                             fill={
@@ -204,19 +204,19 @@ export default function MuscleChartScreen() {
                 {/* LEGEND */}
                 <View style={styles.legend}>
                     <TouchableOpacity
-                        style={[styles.legendItem, selectedWeb === "current" && styles.legendItemActive]}
+                        style={styles.legendItem}
                         onPress={() => setSelectedWeb("current")}
                     >
                         <View style={[styles.dot, { backgroundColor: ORANGE }]} />
-                        <Text style={styles.legendText}>Current</Text>
+                        <Text style={[styles.legendText, selectedWeb === "current" && { color: ORANGE }]}>Current</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                        style={[styles.legendItem, selectedWeb === "previous" && styles.legendItemActive]}
+                        style={styles.legendItem}
                         onPress={() => setSelectedWeb("previous")}
                     >
                         <View style={[styles.dot, { backgroundColor: "#888" }]} />
-                        <Text style={styles.legendText}>Previous</Text>
+                        <Text style={[styles.legendText, selectedWeb === "previous" && { color: "#888" }]}>Previous</Text>
                     </TouchableOpacity>
                 </View>
 
@@ -277,6 +277,16 @@ export default function MuscleChartScreen() {
                         </View>
                     </TouchableOpacity>
                 </Modal>
+                <Text style={styles.section}>Summary</Text>
+
+                <View style={styles.summaryGrid}>
+                    {["Workouts","Duration","Volume","Sets"].map((item) => (
+                        <View key={item} style={styles.card}>
+                            <Text style={styles.cardTitle}>{item}</Text>
+                            <Text style={styles.cardValue}>0</Text>
+                        </View>
+                    ))}
+                </View>
 
                 {/* INFO MODAL */}
                 <Modal visible={showInfo} transparent animationType="fade">
@@ -350,7 +360,11 @@ const styles = StyleSheet.create({
         marginTop: 20,
         gap: 20,
     },
-    legendItem: { flexDirection: "row", gap: 6 },
+    legendItem: {
+        flexDirection: "row",
+        gap: 6,
+        paddingBottom: 4,
+    },
     legendItemActive: {
         borderBottomWidth: 2,
         borderBottomColor: ORANGE,
@@ -424,6 +438,35 @@ const styles = StyleSheet.create({
         padding: 10,
         borderRadius: 8,
         alignItems: "center",
+    },
+    card:{
+        width:"48%",
+        padding:16,
+        borderRadius:14,
+        borderWidth:1,
+        borderColor:"#222",
+        marginBottom:12
+    },
+
+    cardTitle:{
+        color:"#aaa"
+    },
+
+    cardValue:{
+        color:"#fff",
+        fontSize:18,
+        marginTop:5
+    },
+
+    summaryGrid:{
+        flexDirection:"row",
+        flexWrap:"wrap",
+        justifyContent:"space-between",
+        paddingHorizontal:16
+    },
+    section: {
+        color: "#aaa",
+        margin: 16,
     },
     popupBtnText: { color: "#fff" },
 });
