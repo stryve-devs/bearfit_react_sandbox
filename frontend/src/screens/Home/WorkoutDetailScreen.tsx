@@ -271,26 +271,6 @@ export default function WorkoutDetailScreen() {
                     </Animated.View>
 
                     {/* ── COMMENTS ─────────────────────────────── */}
-                    <Animated.View entering={FadeInDown.delay(300).duration(350)}>
-                        <Text style={styles.sectionLabel}>Comments</Text>
-                        {post.comments.map((c, i) => (
-                            <Animated.View
-                                key={i}
-                                entering={FadeInDown.delay(320 + i * 60).duration(300)}
-                                style={{ marginBottom: 10 }}
-                            >
-                                <GlassCard>
-                                    <View style={{ flex: 1 }}>
-                                        <View style={styles.commentHeader}>
-                                            <Text style={styles.commentUser}>{c.user}</Text>
-                                            <Text style={styles.commentTime}>{c.time}</Text>
-                                        </View>
-                                        <Text style={styles.commentText}>{c.text}</Text>
-                                    </View>
-                                </GlassCard>
-                            </Animated.View>
-                        ))}
-                    </Animated.View>
                 </View>
             </ScrollView>
 
