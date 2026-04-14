@@ -1,16 +1,85 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useRef, useCallback } from 'react';
 import {
-    View, Text, StyleSheet, ScrollView, TouchableOpacity,
-    TextInput, Animated, Modal
+    View,
+    Text,
+    StyleSheet,
+    TouchableOpacity,
+    TextInput,
+    Modal,
+    FlatList,
+    Platform,
+    Dimensions,
+    PanResponder,
+    Animated,
+    StatusBar,
+    ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 
 import { AppColors } from '../../constants/colors';
 import { Exercise } from '../../types/workout.types';
 import { useRoutine } from '../../context/RoutineContext';
+
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+const IS_IOS = Platform.OS === 'ios';
+const SHEET_HEIGHT = SCREEN_HEIGHT * 0.55;
+const ACCENT = AppColors.orange;
+
+// ---------------- DATA ----------------
+
+const MUSCLE_LIST = [
+    'All Muscles',
+    'Abs',
+    'Abductors',
+    'Adductors',
+    'Back',
+    'Biceps',
+    'Calves',
+    'Cardio',
+    'Chest',
+    'Forearms',
+    'Full Body',
+    'Glutes',
+    'Hamstrings',
+    'Lats',
+    'Lower Back',
+    'Neck',
+    'Quads',
+    'Shoulders',
+    'Traps',
+    'Triceps',
+    'Upper Back',
+];
+
+const EQUIPMENT_LIST = [
+    'All Equipment',
+    'No Equipment',
+    'Barbell',
+    'Dumbbell',
+    'Kettlebell',
+    'Machine',
+    'Plate',
+    'Resistance Band',
+    'Suspension Band',
+];
+
+// old-style icon feeling, but orange theme
+const EXERCISE_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
+    'Bench Press (Barbell)': 'barbell-outline',
+    'Incline Bench (Barbell)': 'barbell-outline',
+    'Dumbbell Press': 'fitness-outline',
+    'Lat Pulldown': 'arrow-down-circle-outline',
+    'Barbell Row': 'barbell-outline',
+    'Bicep Curl': 'body-outline',
+    'Tricep Dips': 'hand-left-outline',
+    'Squats': 'walk-outline',
+    'Leg Press': 'footsteps-outline',
+    'Deadlift': 'barbell-outline',
+};
 
 const SAMPLE_EXERCISES: Exercise[] = [
     { name: 'Bench Press (Barbell)', muscle: 'Chest', equipment: 'Barbell', imageAsset: 'icon' },
@@ -25,17 +94,7 @@ const SAMPLE_EXERCISES: Exercise[] = [
     { name: 'Deadlift', muscle: 'Back', equipment: 'Barbell', imageAsset: 'icon' },
 ];
 
-const MUSCLE_LIST = [
-    'All Muscles', 'Abs', 'Abductors', 'Adductors', 'Back', 'Biceps',
-    'Calves', 'Cardio', 'Chest', 'Forearms', 'Full Body', 'Glutes',
-    'Hamstrings', 'Lats', 'Lower Back', 'Neck', 'Quads', 'Shoulders',
-    'Traps', 'Triceps', 'Upper Back'
-];
-
-const EQUIPMENT_LIST = [
-    'All Equipment', 'No Equipment', 'Barbell', 'Dumbbell', 'Kettlebell',
-    'Machine', 'Plate', 'Resistance Band', 'Suspension Band'
-];
+// ---------------- MAIN SCREEN ----------------
 
 export default function AddExerciseScreen() {
     const router = useRouter();
@@ -48,13 +107,22 @@ export default function AddExerciseScreen() {
     const [equipmentSheetVisible, setEquipmentSheetVisible] = useState(false);
     const [muscleSheetVisible, setMuscleSheetVisible] = useState(false);
 
-
     const filteredExercises = useMemo(() => {
         const query = searchText.toLowerCase();
+
         return SAMPLE_EXERCISES.filter((ex) => {
-            const eqMatch = !selectedEquipment || selectedEquipment === 'All Equipment' || ex.equipment === selectedEquipment;
-            const mMatch = !selectedMuscle || selectedMuscle === 'All Muscles' || ex.muscle === selectedMuscle;
+            const eqMatch =
+                !selectedEquipment ||
+                selectedEquipment === 'All Equipment' ||
+                ex.equipment === selectedEquipment;
+
+            const mMatch =
+                !selectedMuscle ||
+                selectedMuscle === 'All Muscles' ||
+                ex.muscle === selectedMuscle;
+
             const sMatch = !query || ex.name.toLowerCase().includes(query);
+
             return eqMatch && mMatch && sMatch;
         });
     }, [searchText, selectedEquipment, selectedMuscle]);
@@ -77,262 +145,627 @@ export default function AddExerciseScreen() {
         }
     };
 
-    const handleResetFilters = () => {
+    const activeFilters =
+        (selectedEquipment && selectedEquipment !== 'All Equipment' ? 1 : 0) +
+        (selectedMuscle && selectedMuscle !== 'All Muscles' ? 1 : 0);
+
+    const clearFilters = () => {
         setSelectedEquipment(null);
         setSelectedMuscle(null);
     };
 
-    return (
-        <SafeAreaView style={styles.container} edges={['left', 'right']}>
-            <View style={{ flex: 1 }}>
+    const renderHeader = () => (
+        <View style={styles.headerContainer}>
+            <View style={styles.titleRow}>
+                {activeFilters > 0 && (
+                    <TouchableOpacity onPress={clearFilters} style={styles.clearBtn}>
+                        <Text style={styles.clearBtnText}>Clear</Text>
+                    </TouchableOpacity>
+                )}
+            </View>
+            <View style={styles.searchWrapper}>
+                <BlurView intensity={IS_IOS ? 30 : 20} tint="dark" style={styles.searchBlur}>
+                    <Ionicons
+                        name="search"
+                        size={18}
+                        color={ACCENT}
+                        style={{ marginRight: 10 }}
+                    />
+                    <TextInput
+                        style={styles.searchInput}
+                        placeholder="Search exercises..."
+                        placeholderTextColor="rgba(255,255,255,0.25)"
+                        value={searchText}
+                        onChangeText={setSearchText}
+                        returnKeyType="search"
+                        autoCorrect={false}
+                        clearButtonMode="while-editing"
+                    />
+                </BlurView>
+            </View>
 
-            <ScrollView contentContainerStyle={styles.scrollContent}>
-                    {/* SEARCH BAR */}
-                    <BlurView intensity={25} tint="dark" style={styles.searchContainer}>
-                        <Ionicons name="search" size={20} color={AppColors.orange} />
-                        <TextInput
-                            style={styles.searchInput}
-                            placeholder="Search Exercises"
-                            placeholderTextColor={AppColors.orange}
-                            value={searchText}
-                            onChangeText={setSearchText}
-                        />
-                    </BlurView>
-
-                    {/* FILTER BUTTONS */}
-                    <View style={styles.filterRow}>
-                        <TouchableOpacity
-                            onPress={() => setEquipmentSheetVisible(true)}
-                            style={[
-                                styles.filterButton,
-                                { flex: selectedEquipment || selectedMuscle ? 0.45 : 0.5 },
-                            ]}
-                        >
-                            <BlurView intensity={25} tint="dark" style={styles.filterButtonBlur}>
-                                <Text style={styles.filterButtonText}>
-                                    {selectedEquipment || 'All Equipment'}
-                                </Text>
-                            </BlurView>
-                        </TouchableOpacity >
-
-                        <TouchableOpacity
-                            onPress={() => setMuscleSheetVisible(true)}
-                            style={[
-                                styles.filterButton,
-                                { flex: selectedEquipment || selectedMuscle ? 0.45 : 0.5 },
-                            ]}
-                        >
-                            <BlurView intensity={25} tint="dark" style={styles.filterButtonBlur}>
-                                <Text style={styles.filterButtonText}>
-                                    {selectedMuscle || 'All Muscles'}
-                                </Text>
-                            </BlurView>
-                        </TouchableOpacity >
-
-                        {(selectedEquipment || selectedMuscle) && (
-                            <TouchableOpacity
-                                onPress={handleResetFilters}
-                                style={[styles.filterButton, { flex: 0.1 }]}
-                            >
-                                <Ionicons name="close-circle" size={24} color={AppColors.orange} />
-
-                            </TouchableOpacity >
-                        )}
-                    </View>
-
-                    {/* EXERCISE LIST */}
-                    {filteredExercises.map((exercise, index) => (
-                        <ExerciseItem
-                            key={exercise.name}
-                            exercise={exercise}
-                            delay={index * 50}
-                            onPress={() => handleExerciseSelect(exercise)}
-                        />
-                    ))}
-                </ScrollView>
-
-                {/* FILTER SHEETS */}
-                <FilterSheet
-                    visible={equipmentSheetVisible}
-                    title="Equipment"
-                    items={EQUIPMENT_LIST}
-                    selected={selectedEquipment || 'All Equipment'}
-                    onSelect={(item) => {
-                        setSelectedEquipment(item === 'All Equipment' ? null : item);
-                        setEquipmentSheetVisible(false);
-                    }}
-                    onClose={() => setEquipmentSheetVisible(false)}
+            <View style={styles.filterRow}>
+                <FilterChip
+                    label={
+                        selectedEquipment && selectedEquipment !== 'All Equipment'
+                            ? selectedEquipment
+                            : 'Equipment'
+                    }
+                    active={!!selectedEquipment && selectedEquipment !== 'All Equipment'}
+                    icon="barbell-outline"
+                    onPress={() => setEquipmentSheetVisible(true)}
                 />
 
-                <FilterSheet
-                    visible={muscleSheetVisible}
-                    title="Muscles"
-                    items={MUSCLE_LIST}
-                    selected={selectedMuscle || 'All Muscles'}
-                    onSelect={(item) => {
-                        setSelectedMuscle(item === 'All Muscles' ? null : item);
-                        setMuscleSheetVisible(false);
-                    }}
-                    onClose={() => setMuscleSheetVisible(false)}
+                <FilterChip
+                    label={
+                        selectedMuscle && selectedMuscle !== 'All Muscles'
+                            ? selectedMuscle
+                            : 'Muscle'
+                    }
+                    active={!!selectedMuscle && selectedMuscle !== 'All Muscles'}
+                    icon="body-outline"
+                    onPress={() => setMuscleSheetVisible(true)}
                 />
             </View>
-        </SafeAreaView>
+
+            <Text style={styles.countText}>
+                {filteredExercises.length} exercise{filteredExercises.length !== 1 ? 's' : ''}
+            </Text>
+        </View>
+    );
+
+    return (
+        <View style={styles.container}>
+            <StatusBar barStyle="light-content" />
+            <SafeAreaView style={{ flex: 1 }} edges={['top']}>
+                <FlatList
+                    data={filteredExercises}
+                    keyExtractor={(item) => item.name}
+                    ListHeaderComponent={renderHeader}
+                    contentContainerStyle={styles.listContent}
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                    renderItem={({ item }) => (
+                        <ExerciseItem exercise={item} onPress={() => handleExerciseSelect(item)} />
+                    )}
+                    ListEmptyComponent={
+                        <View style={styles.emptyContainer}>
+                            <Ionicons
+                                name="search-circle-outline"
+                                size={64}
+                                color="rgba(255,255,255,0.12)"
+                            />
+                            <Text style={styles.emptyText}>No exercises found</Text>
+                            <Text style={styles.emptySubText}>Try adjusting your filters</Text>
+                        </View>
+                    }
+                />
+            </SafeAreaView>
+
+            <FilterSheet
+                visible={equipmentSheetVisible}
+                title="Equipment"
+                items={EQUIPMENT_LIST}
+                selected={selectedEquipment || 'All Equipment'}
+                onSelect={(item: string) => {
+                    setSelectedEquipment(item === 'All Equipment' ? null : item);
+                    setEquipmentSheetVisible(false);
+                }}
+                onClose={() => setEquipmentSheetVisible(false)}
+            />
+
+            <FilterSheet
+                visible={muscleSheetVisible}
+                title="Muscle Group"
+                items={MUSCLE_LIST}
+                selected={selectedMuscle || 'All Muscles'}
+                onSelect={(item: string) => {
+                    setSelectedMuscle(item === 'All Muscles' ? null : item);
+                    setMuscleSheetVisible(false);
+                }}
+                onClose={() => setMuscleSheetVisible(false)}
+            />
+        </View>
     );
 }
 
-function ExerciseItem({ exercise, onPress, delay }: any) {
+// ---------------- FILTER CHIP ----------------
+
+function FilterChip({
+                        label,
+                        onPress,
+                        active,
+                        icon,
+                    }: {
+    label: string;
+    onPress: () => void;
+    active: boolean;
+    icon: keyof typeof Ionicons.glyphMap;
+}) {
     return (
-        <TouchableOpacity onPress={onPress} activeOpacity={0.8}>
-            <BlurView intensity={25} tint="dark" style={styles.card}>
-                <View style={styles.cardLeft}>
-                    <Ionicons name="barbell" size={22} color={AppColors.orange} />
-                    <View>
-                        <Text style={styles.title}>{exercise.name}</Text>
-                        <Text style={styles.subtitle}>{exercise.muscle}</Text>
-                    </View>
-                </View>
-                <Ionicons name="chevron-forward" size={20} color={AppColors.white} />
-            </BlurView>
+        <TouchableOpacity onPress={onPress} activeOpacity={0.8} style={styles.chipTouch}>
+            <View style={[styles.chipInner, active && styles.chipInnerActive]}>
+                <Ionicons
+                    name={icon}
+                    size={14}
+                    color={active ? '#000' : ACCENT}
+                    style={{ marginRight: 6 }}
+                />
+                <Text style={[styles.chipText, active && styles.chipTextActive]} numberOfLines={1}>
+                    {label}
+                </Text>
+                <Ionicons
+                    name="chevron-down"
+                    size={13}
+                    color={active ? '#000' : 'rgba(255,255,255,0.45)'}
+                    style={{ marginLeft: 4 }}
+                />
+            </View>
         </TouchableOpacity>
     );
 }
 
+// ---------------- EXERCISE ITEM ----------------
 
-function FilterSheet({ visible, title, items, selected, onSelect, onClose }: any) {
+function ExerciseItem({
+                          exercise,
+                          onPress,
+                      }: {
+    exercise: Exercise;
+    onPress: () => void;
+}) {
+    const iconName = EXERCISE_ICONS[exercise.name] ?? 'fitness-outline';
+
     return (
-        <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-            <TouchableOpacity style={styles.sheetBackdrop} activeOpacity={1} onPress={onClose}>
-                <BlurView intensity={25} tint="dark" style={styles.filterSheet}>
-                    <View style={styles.sheetHandle} />
-                    <ScrollView showsVerticalScrollIndicator={false}>
-                        {items.map((item: string) => (
-                            <TouchableOpacity  key={item} onPress={() => onSelect(item)}>
-                                <BlurView intensity={15} tint="dark" style={styles.filterOption}>
-                                    <Text style={styles.filterOptionText}>{item}</Text>
-                                    {item === selected && (
-                                        <Ionicons name="checkmark" size={20} color={AppColors.orange} />
+        <TouchableOpacity activeOpacity={0.8} onPress={onPress} style={styles.itemWrapper}>
+            <View style={styles.exerciseCard}>
+                <View style={styles.accentStripe} />
+
+                <View style={styles.iconBubble}>
+                    <Ionicons name={iconName} size={20} color={ACCENT} />
+                </View>
+
+                <View style={styles.exerciseTextGroup}>
+                    <Text style={styles.exerciseTitle} numberOfLines={1}>
+                        {exercise.name}
+                    </Text>
+
+                    <View style={styles.tagRow}>
+                        <MiniTag label={exercise.muscle} />
+                        <MiniTag label={exercise.equipment} />
+                    </View>
+                </View>
+
+                <View style={styles.arrowCircle}>
+                    <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.55)" />
+                </View>
+            </View>
+        </TouchableOpacity>
+    );
+}
+
+function MiniTag({ label }: { label: string }) {
+    return (
+        <View style={styles.miniTag}>
+            <Text style={styles.miniTagText}>{label}</Text>
+        </View>
+    );
+}
+
+// ---------------- FILTER SHEET ----------------
+
+function FilterSheet({
+                         visible,
+                         title,
+                         items,
+                         selected,
+                         onSelect,
+                         onClose,
+                     }: {
+    visible: boolean;
+    title: string;
+    items: string[];
+    selected: string;
+    onSelect: (item: string) => void;
+    onClose: () => void;
+}) {
+    const translateY = useRef(new Animated.Value(SHEET_HEIGHT)).current;
+
+    React.useEffect(() => {
+        if (visible) {
+            Animated.spring(translateY, {
+                toValue: 0,
+                damping: 22,
+                stiffness: 200,
+                useNativeDriver: true,
+            }).start();
+        } else {
+            translateY.setValue(SHEET_HEIGHT);
+        }
+    }, [visible, translateY]);
+
+    const dismiss = useCallback(() => {
+        Animated.timing(translateY, {
+            toValue: SHEET_HEIGHT,
+            duration: 220,
+            useNativeDriver: true,
+        }).start(() => onClose());
+    }, [onClose, translateY]);
+
+    const panResponder = useRef(
+        PanResponder.create({
+            onStartShouldSetPanResponder: () => true,
+            onMoveShouldSetPanResponder: (_, gs) => Math.abs(gs.dy) > 5,
+            onPanResponderMove: (_, gs) => {
+                if (gs.dy > 0) {
+                    translateY.setValue(gs.dy);
+                }
+            },
+            onPanResponderRelease: (_, gs) => {
+                if (gs.dy > SHEET_HEIGHT * 0.2 || gs.vy > 0.7) {
+                    dismiss();
+                } else {
+                    Animated.spring(translateY, {
+                        toValue: 0,
+                        damping: 20,
+                        stiffness: 180,
+                        useNativeDriver: true,
+                    }).start();
+                }
+            },
+        })
+    ).current;
+
+    if (!visible) return null;
+
+    return (
+        <Modal
+            visible={visible}
+            transparent
+            animationType="none"
+            statusBarTranslucent
+            onRequestClose={dismiss}
+        >
+            <TouchableOpacity style={styles.backdrop} onPress={dismiss} activeOpacity={1} />
+
+            <Animated.View
+                style={[styles.sheetContainer, { transform: [{ translateY }] }]}
+            >
+                <BlurView intensity={IS_IOS ? 35 : 25} tint="dark" style={styles.sheetBlur}>
+                    <View {...panResponder.panHandlers} style={styles.dragZone}>
+                        <View style={styles.sheetHandle} />
+                        <Text style={styles.sheetTitle}>{title}</Text>
+                    </View>
+
+                    <ScrollView
+                        showsVerticalScrollIndicator={false}
+                        contentContainerStyle={{ paddingBottom: 40 }}
+                        bounces={false}
+                    >
+                        {items.map((item) => {
+                            const isSelected = selected === item;
+
+                            return (
+                                <TouchableOpacity
+                                    key={item}
+                                    style={[styles.optionItem, isSelected && styles.optionItemSelected]}
+                                    onPress={() => onSelect(item)}
+                                    activeOpacity={0.75}
+                                >
+                                    <Text
+                                        style={[styles.optionText, isSelected && styles.optionTextSelected]}
+                                    >
+                                        {item}
+                                    </Text>
+
+                                    {isSelected && (
+                                        <View style={styles.checkCircle}>
+                                            <Ionicons name="checkmark" size={13} color="#000" />
+                                        </View>
                                     )}
-                                </BlurView>
-                            </TouchableOpacity >
-                        ))}
+                                </TouchableOpacity>
+                            );
+                        })}
                     </ScrollView>
                 </BlurView>
-            </TouchableOpacity>
+            </Animated.View>
         </Modal>
     );
 }
 
-const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#090909' },
-    scrollContent: { paddingTop: 20, paddingBottom: 20, paddingHorizontal: 16 },
+// ---------------- STYLES ----------------
 
-    searchContainer: {
+const styles = StyleSheet.create({
+    container: {
+        flex: 1,
+        backgroundColor: '#0a0a0f',
+    },
+
+    listContent: {
+        paddingBottom: 60,
+    },
+
+    headerContainer: {
+        paddingHorizontal: 16,
+        paddingTop: 0,
+        marginBottom: 6,
+    },
+    titleRow: {
+        flexDirection: 'row',
+        justifyContent: 'flex-end',  // 👈 pushes "Clear" to right
+        marginBottom: 8,
+    },
+    screenTitle: {
+        color: ACCENT,
+        fontSize: 20,
+        fontWeight: '800',
+        letterSpacing: 0.3,
+    },
+
+    clearBtn: {
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 10,
+        backgroundColor: 'rgba(255,120,37,0.14)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,120,37,0.25)',
+    },
+
+    clearBtnText: {
+        color: ACCENT,
+        fontSize: 13,
+        fontWeight: '600',
+    },
+
+    searchWrapper: {
+        borderRadius: 16,
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.06)',
+        marginBottom: 14,
+        backgroundColor: 'rgba(255,255,255,0.04)',
+    },
+
+    searchBlur: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 10,
-        padding: 16,
-        borderRadius: 22,
-        marginBottom: 14,
-        overflow: 'hidden',
-        backgroundColor: 'rgba(255,255,255,0.05)',
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.08)',
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        backgroundColor: Platform.OS === 'ios' ? 'rgba(18,18,18,0.65)' : 'rgba(18,18,18,0.9)',
     },
-    searchInput: { flex: 1, color: AppColors.orange, fontSize: 15, fontWeight: '700' },
+
+    searchInput: {
+        flex: 1,
+        color: '#fff',
+        fontSize: 14,
+        fontWeight: '500',
+    },
 
     filterRow: {
         flexDirection: 'row',
         gap: 10,
-        alignItems: 'center',
-        marginBottom: 20,
+        marginBottom: 14,
     },
 
-    filterButton: {
-        borderRadius: 20,
-        overflow: 'hidden',
-    },
-
-    filterButtonBlur: {
+    chipTouch: {
         flex: 1,
-        justifyContent: 'center',
+    },
+
+    chipInner: {
+        flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 12,
+        justifyContent: 'center',
+        paddingVertical: 11,
+        paddingHorizontal: 14,
+        borderRadius: 14,
         backgroundColor: 'rgba(255,255,255,0.05)',
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.08)',
-        overflow: "hidden",
-        borderRadius: 20,
     },
 
-    filterButtonText: {
+    chipInnerActive: {
+        backgroundColor: ACCENT,
+        borderColor: ACCENT,
+    },
+
+    chipText: {
+        color: 'rgba(255,255,255,0.78)',
+        fontWeight: '600',
+        fontSize: 13,
+        flexShrink: 1,
+    },
+
+    chipTextActive: {
+        color: '#000',
+    },
+
+    countText: {
+        color: 'rgba(255,255,255,0.28)',
+        fontSize: 12,
+        fontWeight: '500',
+        letterSpacing: 0.5,
+        textTransform: 'uppercase',
+        marginBottom: 4,
+    },
+
+    itemWrapper: {
+        paddingHorizontal: 16,
+        marginBottom: 10,
+    },
+
+    exerciseCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderRadius: 18,
+        backgroundColor: 'rgba(18,18,18,0.96)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.07)',
+        paddingVertical: 14,
+        paddingHorizontal: 14,
+        overflow: 'hidden',
+    },
+
+    accentStripe: {
+        position: 'absolute',
+        left: 0,
+        top: 10,
+        bottom: 10,
+        width: 3,
+        borderRadius: 2,
+        backgroundColor: ACCENT,
+    },
+
+    iconBubble: {
+        width: 44,
+        height: 44,
+        borderRadius: 12,
+        backgroundColor: 'rgba(255,120,37,0.12)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginLeft: 6,
+    },
+
+    exerciseTextGroup: {
+        flex: 1,
+        marginLeft: 14,
+    },
+
+    exerciseTitle: {
+        color: '#fff',
         fontSize: 15,
         fontWeight: '700',
-        color: AppColors.orange,
+        letterSpacing: 0.2,
+        marginBottom: 6,
     },
 
-    clearFiltersButton: { width: 40, height: 40,borderRadius: 20, },
+    tagRow: {
+        flexDirection: 'row',
+        gap: 6,
+        flexWrap: 'wrap',
+    },
 
-    clearButtonBlur: {
-        flex: 1,
+    miniTag: {
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 6,
+        backgroundColor: 'rgba(255,255,255,0.08)',
+    },
+
+    miniTagText: {
+        fontSize: 11,
+        color: 'rgba(255,255,255,0.62)',
+        fontWeight: '500',
+    },
+
+    arrowCircle: {
+        width: 34,
+        height: 34,
+        borderRadius: 10,
+        backgroundColor: 'rgba(255,255,255,0.07)',
         justifyContent: 'center',
         alignItems: 'center',
-        borderRadius: 20,
-        backgroundColor: 'rgba(255,255,255,0.05)',
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.08)',
-        overflow: 'hidden',
+        borderColor: 'rgba(255,255,255,0.06)',
     },
 
-    card: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
+    emptyContainer: {
         alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingVertical: 18,
-        borderRadius: 22,
-        marginBottom: 12,
-        overflow: 'hidden',
-        backgroundColor: 'rgba(255,255,255,0.05)',
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.08)',
+        marginTop: 80,
+        gap: 8,
     },
-    cardLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-    title: { fontSize: 15, fontWeight: '600', color: AppColors.white },
-    subtitle: { fontSize: 14, color: 'rgba(255,255,255,0.55)' },
 
-    sheetBackdrop: {
+    emptyText: {
+        color: 'rgba(255,255,255,0.3)',
+        fontSize: 18,
+        fontWeight: '700',
+    },
+
+    emptySubText: {
+        color: 'rgba(255,255,255,0.18)',
+        fontSize: 14,
+    },
+
+    backdrop: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(0,0,0,0.75)',
+    },
+
+    sheetContainer: {
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        bottom: 0,
+        height: SHEET_HEIGHT,
+        borderTopLeftRadius: 28,
+        borderTopRightRadius: 28,
+        overflow: 'hidden',
+    },
+
+    sheetBlur: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.8)',
-        justifyContent: 'flex-end',
-    },
-    filterSheet: {
-        borderTopLeftRadius: 22,
-        borderTopRightRadius: 22,
-        paddingHorizontal: 12,
-        paddingVertical: 16,
-        maxHeight: '70%',
+        backgroundColor: Platform.OS === 'ios' ? 'rgba(14,14,20,0.88)' : 'rgba(14,14,20,0.97)',
+        borderTopLeftRadius: 28,
+        borderTopRightRadius: 28,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
         overflow: 'hidden',
-        backgroundColor: AppColors.darkBg,//'rgba(255,255,255,0.06)',
     },
+
+    dragZone: {
+        paddingTop: 10,
+        paddingBottom: 8,
+        paddingHorizontal: 24,
+        borderBottomWidth: 1,
+        borderBottomColor: 'rgba(255,255,255,0.06)',
+    },
+
     sheetHandle: {
-        width: 40,
+        width: 44,
         height: 5,
-        backgroundColor: AppColors.orange,
         borderRadius: 3,
+        backgroundColor: 'rgba(255,120,37,0.9)',
         alignSelf: 'center',
-        marginBottom: 12,
+        marginBottom: 14,
     },
-    filterOption: {
+
+    sheetTitle: {
+        color: '#fff',
+        fontSize: 22,
+        fontWeight: '800',
+        letterSpacing: 0.3,
+    },
+
+    optionItem: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
         alignItems: 'center',
-        paddingVertical: 12,
-        paddingHorizontal: 16,
-        borderRadius: 16,
-        marginBottom: 10,
-        backgroundColor: AppColors.darkGrey,//'rgba(255,255,255,0.03)',
-        overflow: 'hidden',
+        paddingVertical: 16,
+        paddingHorizontal: 24,
+        borderBottomWidth: 0.5,
+        borderBottomColor: 'rgba(255,255,255,0.06)',
     },
-    filterOptionText: { fontSize: 15, fontWeight: '500', color: AppColors.orange },
-}
-);
+
+    optionItemSelected: {
+        backgroundColor: 'rgba(255,120,37,0.10)',
+    },
+
+    optionText: {
+        flex: 1,
+        color: 'rgba(255,255,255,0.78)',
+        fontSize: 17,
+        letterSpacing: 0.2,
+    },
+
+    optionTextSelected: {
+        color: ACCENT,
+        fontWeight: '700',
+    },
+
+    checkCircle: {
+        width: 26,
+        height: 26,
+        borderRadius: 13,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: ACCENT,
+    },
+});
