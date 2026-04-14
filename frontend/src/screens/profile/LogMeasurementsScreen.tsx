@@ -177,7 +177,7 @@ export default function LogMeasurementsScreen() {
                     <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => setShowInfo(false)} />
                     <Animated.View entering={ScaleInDown} style={styles.popupCard}>
                         <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
-                        <Feather name="camera" size={40} color={ORANGE} style={{ marginBottom: 15 }} />
+                        <Feather name="camera" size={40} color={ORANGE} style={{ marginBottom: 10 }} />
                         <Text style={styles.popupTitle}>Tracking Guide</Text>
                         <Text style={styles.popupText}>Consistent photos and data help identify trends that the scale won't show.</Text>
                         <TouchableOpacity style={styles.popupButton} onPress={() => setShowInfo(false)}>
@@ -259,7 +259,6 @@ export default function LogMeasurementsScreen() {
                                         ]}>
                                             {day.getDate()}
                                         </Text>
-                                        {isSelected && <View style={styles.activeDot} />}
                                     </TouchableOpacity>
                                 );
                             })}
@@ -320,16 +319,15 @@ const styles = StyleSheet.create({
     dayText: { color: "#999", fontSize: 15, fontWeight: "500" },
     selectedDay: { backgroundColor: 'rgba(255, 120, 37, 0.15)' },
     selectedDayText: { color: ORANGE, fontWeight: "800" },
-    activeDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: ORANGE, position: 'absolute', bottom: 8 },
     confirmBtn: { marginTop: 25, borderRadius: 18, overflow: 'hidden' },
     confirmGradient: { height: 48, alignItems: "center", justifyContent: "center" },
     confirmBtnText: { color: "#fff", fontWeight: "800", fontSize: 16 },
 
     popupCard: { width: "70%", borderRadius: 24, padding: 20, alignItems: 'center', overflow: 'hidden', borderWidth: 1, borderColor: '#222' },
-    popupTitle: { color: "#fff", fontSize: 20, fontWeight: "800", marginBottom: 10 },
+    popupTitle: { color: "#fff", fontSize: 18, fontWeight: "800", marginBottom: 10 },
     popupText: { color: "#999", textAlign: 'center', lineHeight: 22, marginBottom: 25 },
     popupButton: { backgroundColor: ORANGE, paddingHorizontal: 40, paddingVertical: 15, borderRadius: 16 },
-    popupButtonText: { color: "#fff", fontWeight: "800" },
+    popupButtonText: { color: "#fff", fontWeight: "800",fontSize: 18},
 
     bottomSheetOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.8)", justifyContent: "flex-end" },
     sheetContent: { backgroundColor: '#0A0A0A', borderTopLeftRadius: 35, borderTopRightRadius: 35, padding: 25, paddingBottom: 50, borderWidth: 1, borderColor: '#111' },

@@ -41,7 +41,7 @@ export default function MultiYearViewScreen() {
                         <View style={styles.activeDot} />
                     </View>
                     <TouchableOpacity style={styles.navBtn}>
-                        <Feather name="download" size={18} color="#fff" />
+                        <Feather name="share-2" size={18} color="#fff" />
                     </TouchableOpacity>
                 </View>
 

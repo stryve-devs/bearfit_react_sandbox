@@ -182,7 +182,7 @@ export default function CalendarScreen() {
             <Modal visible={showPicker} transparent animationType="slide">
                 <View style={styles.sheetOverlay}>
                     <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => setShowPicker(false)} />
-                    <BlurView intensity={90} tint="dark" style={styles.sheetContainer}>
+                    <BlurView intensity={12} tint="dark" style={styles.sheetContainer}>
                         <View style={styles.handle} />
                         <Text style={styles.sheetHeader}>Change View</Text>
 
@@ -222,12 +222,17 @@ function StatCard({ title, val, sub, icon, color, onPress }) {
     return (
         <TouchableOpacity style={styles.statBox} activeOpacity={0.8} onPress={onPress}>
             <BlurView intensity={10} tint="light" style={StyleSheet.absoluteFill} />
-            <View style={[styles.statIconBadge, { backgroundColor: `${color}15` }]}>
+
+            {/* ICON CENTER */}
+            <View style={[styles.statIconBadge, { backgroundColor: `${color}15`, alignSelf: "center" }]}>
                 <Feather name={icon as any} size={16} color={color} />
             </View>
-            <View>
+
+            {/* TEXT CENTER */}
+            <View style={{ alignItems: "center" }}>
                 <Text style={styles.statTitle}>{title}</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
+
+                <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'center' }}>
                     <Text style={[styles.statVal, { color }]}>{val}</Text>
                     <Text style={styles.statSub}> {sub}</Text>
                 </View>
@@ -302,7 +307,8 @@ const styles = StyleSheet.create({
         borderRadius: 24,
         overflow: 'hidden',
         padding: 15,
-        justifyContent: 'space-between',
+        justifyContent: 'center',   // 🔥 was space-between
+        alignItems: 'center',
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.08)',
     },
@@ -314,7 +320,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     statTitle: { color: '#888', fontSize: 12, fontWeight: '600' },
-    statVal: { fontSize: 24, fontWeight: '800' },
+    statVal: { fontSize: 32, fontWeight: '800' },
     statSub: { color: '#555', fontSize: 12, fontWeight: '600' },
 
     labelsRow: {
@@ -412,7 +418,7 @@ const styles = StyleSheet.create({
     sheetOverlay: {
         flex: 1,
         justifyContent: 'flex-end',
-        backgroundColor: 'rgba(0,0,0,0.5)'
+        backgroundColor: 'rgba(0,0,0,0.85)'
     },
     sheetContainer: {
         borderTopLeftRadius: 35,
@@ -421,7 +427,8 @@ const styles = StyleSheet.create({
         paddingBottom: 50,
         overflow: 'hidden',
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.1)'
+        borderColor: 'rgba(255,255,255,0.1)',
+        backgroundColor: "rgba(10,10,10,0.98)",   // 🔥 strong opacity
     },
     handle: {
         width: 40,

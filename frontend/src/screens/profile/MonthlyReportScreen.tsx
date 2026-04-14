@@ -73,6 +73,12 @@ const getPoints = (values) => {
 };
 
 export default function MonthlyReport() {
+
+    const generateGraphData = () => {
+        return Array.from({ length: 7 }, () => Math.floor(Math.random() * 150) + 40);
+    };
+
+    const [graphData, setGraphData] = React.useState(generateGraphData());
     const router = useRouter();
 
     const [activeTab, setActiveTab] = React.useState("Workouts");
@@ -147,7 +153,25 @@ export default function MonthlyReport() {
                     <Text style={styles.bigTitle}>March {year}</Text>
                     <Text style={styles.sub}>0 → 0</Text>
 
-                    <View style={styles.graph} />
+                    <View style={styles.graph}>
+                        {graphData.map((val, i) => (
+                            <View key={i} style={{ alignItems: "center" }}>
+
+                                <View
+                                    style={{
+                                        width: 20,
+                                        height: Math.min(val, 160),
+                                        backgroundColor: ORANGE,
+                                        borderRadius: 6,
+                                    }}
+                                />
+
+                                <Text style={{ color: "#666", fontSize: 10, marginTop: 4 }}>
+                                    {days[i][0]}
+                                </Text>
+                            </View>
+                        ))}
+                    </View>
 
                     {/* TABS */}
                     <View style={styles.tabs}>
@@ -158,7 +182,10 @@ export default function MonthlyReport() {
                                     styles.tab,
                                     activeTab === tab && styles.activeTab
                                 ]}
-                                onPress={() => setActiveTab(tab)}
+                                onPress={() => {
+                                    setActiveTab(tab);
+                                    setGraphData(generateGraphData()); // 🔥 changes graph
+                                }}
                             >
                                 <Text style={[
                                     styles.tabText,
@@ -349,10 +376,16 @@ const styles = StyleSheet.create({
     },
 
     graph:{
-        height:120,
+        height:200,
         margin:16,
-        borderRadius:10,
-        backgroundColor:"#111"
+        borderRadius:12,
+        backgroundColor:"#111",
+        flexDirection:"row",
+        justifyContent:"space-around",
+        alignItems:"flex-end",
+        paddingHorizontal:10,
+        paddingBottom:10,
+        overflow: "hidden",   // 🔥 IMPORTANT FIX
     },
 
     tabs:{

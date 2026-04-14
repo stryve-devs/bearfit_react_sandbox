@@ -150,7 +150,7 @@ const styles = StyleSheet.create({
         paddingVertical: 10,
     },
     title: { color: ORANGE, fontSize: 18, fontWeight: "700" },
-    iconBtn: { width: 44, height: 44, borderRadius: 14, borderWidth: 1, borderColor: "rgba(255,255,255,0.1)" },
+    iconBtn: { width: 38, height: 38, borderRadius: 12, borderWidth: 1, borderColor: "rgba(255,255,255,0.1)" },
     iconPress: { flex: 1, alignItems: "center", justifyContent: "center" },
     content: { flex: 1, paddingHorizontal: 24, justifyContent: 'center' },
 
@@ -163,9 +163,9 @@ const styles = StyleSheet.create({
         marginBottom: 35,
     },
     cardHeader: { marginBottom: 20 },
-    cardIcon: { width: 54, height: 54, borderRadius: 18, backgroundColor: 'rgba(255, 120, 37, 0.1)', alignItems: 'center', justifyContent: 'center' },
-    mainText: { color: "#fff", fontSize: 26, fontWeight: "800", marginBottom: 12 },
-    subText: { color: "#888", fontSize: 15, lineHeight: 24, fontWeight: "500" },
+    cardIcon: { width: 42, height: 42, borderRadius: 14, backgroundColor: 'rgba(255, 120, 37, 0.1)', alignItems: 'center', justifyContent: 'center' },
+    mainText: { color: "#fff", fontSize: 20, fontWeight: "800", marginBottom: 8 },
+    subText: { color: "#888", fontSize: 13, lineHeight: 20, fontWeight: "500" },
 
     actionSection: { gap: 14 },
     primaryBtn: {
@@ -193,11 +193,11 @@ const styles = StyleSheet.create({
 
     backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.8)" },
     sheet: { position: 'absolute', bottom: 0, width: "100%", paddingHorizontal: 12, paddingBottom: 30 },
-    sheetInner: { borderRadius: 35, padding: 25, borderWidth: 1, borderColor: "rgba(255,255,255,0.12)" },
-    handle: { width: 38, height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.2)", alignSelf: "center", marginBottom: 20 },
-    sheetTitle: { color: '#fff', fontSize: 17, fontWeight: '700', textAlign: 'center', marginBottom: 25 },
+    sheetInner: { borderRadius: 26, padding: 18, borderWidth: 1, borderColor: "rgba(255,255,255,0.12)" },
+    handle: { width: 30, height: 3, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.2)", alignSelf: "center", marginBottom: 20 },
+    sheetTitle: { color: '#fff', fontSize: 15, fontWeight: '700', textAlign: 'center', marginBottom: 18 },
     optionRow: { flexDirection: 'row', justifyContent: 'space-around', gap: 15 },
     optionItem: { alignItems: 'center', gap: 12, flex: 1 },
-    optionIconBox: { width: '100%', height: 75, backgroundColor: ORANGE, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-    optionLabel: { color: '#fff', fontSize: 14, fontWeight: '600', opacity: 0.9 }
+    optionIconBox: { width: '100%', height: 60, backgroundColor: ORANGE, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+    optionLabel: { color: '#fff', fontSize: 12, fontWeight: '600', opacity: 0.9 }
 });
