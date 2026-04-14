@@ -6,6 +6,7 @@ import {
     ScrollView,
     StatusBar,
     Image,
+    Modal
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import Animated, {
@@ -19,7 +20,7 @@ import { AppColors } from '../../constants/colors';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useState } from 'react';
-
+import { Share } from 'react-native';
 // ─── MOCK POST DATA ───────────────────────────────────────────────────────────
 const POSTS: Record<string, {
     title: string;
@@ -154,7 +155,7 @@ const LikeButton = ({ count }: { count: number }) => {
 // ─── MAIN SCREEN ──────────────────────────────────────────────────────────────
 export default function WorkoutDetailScreen() {
     const { postId, title } = useLocalSearchParams<{ postId?: string; title?: string }>();
-
+    const [commentsOpen, setCommentsOpen] = useState(false);
     const id = postId ?? '1';
     const post = POSTS[id] ?? POSTS['1'];
 
@@ -179,6 +180,7 @@ export default function WorkoutDetailScreen() {
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ paddingBottom: 100 }}
             >
+
                 {/* ── GYM IMAGE ───────────────────────────────── */}
                 <Animated.View entering={FadeIn.duration(600)}>
                     <Image source={{ uri: post.gymImage }} style={styles.gymImage} />
@@ -242,12 +244,26 @@ export default function WorkoutDetailScreen() {
                         <GlassCard style={{ marginBottom: 20 }}>
                             <LikeButton count={post.likes} />
                             <View style={styles.divider} />
-                            <TouchableOpacity style={styles.actionBtn}>
+                            <TouchableOpacity
+                                style={styles.actionBtn}
+                                onPress={() => setCommentsOpen(true)}
+                            >
                                 <Text style={styles.actionIcon}>💬</Text>
                                 <Text style={styles.actionCount}>{post.comments.length}</Text>
                             </TouchableOpacity>
                             <View style={styles.divider} />
-                            <TouchableOpacity style={styles.actionBtn}>
+                            <TouchableOpacity
+                                style={styles.actionBtn}
+                                onPress={async () => {
+                                    try {
+                                        await Share.share({
+                                            message: 'Check out this workout!',
+                                        });
+                                    } catch (error) {
+                                        console.log(error);
+                                    }
+                                }}
+                            >
                                 <Text style={styles.actionIcon}>⬆️</Text>
                                 <Text style={styles.actionCount}>Share</Text>
                             </TouchableOpacity>
@@ -277,6 +293,59 @@ export default function WorkoutDetailScreen() {
                     </Animated.View>
                 </View>
             </ScrollView>
+
+    {/* 🔥 COMMENTS MODAL START */}
+    <Modal visible={commentsOpen} transparent animationType="slide">
+        <View style={{
+            flex: 1,
+            backgroundColor: 'rgba(0,0,0,0.6)',
+            justifyContent: 'flex-end'
+        }}>
+
+            <View style={{
+                backgroundColor: '#0e0d0b',
+                borderTopLeftRadius: 20,
+                borderTopRightRadius: 20,
+                padding: 16,
+                maxHeight: '80%'
+            }}>
+
+                <Text style={{
+                    color: 'white',
+                    fontSize: 16,
+                    textAlign: 'center',
+                    marginBottom: 10
+                }}>
+                    Comments
+                </Text>
+
+                <ScrollView>
+                    {post.comments.map((c, i) => (
+                        <View key={i} style={{ marginBottom: 12 }}>
+                            <Text style={{ color: 'orange', fontWeight: '600' }}>
+                                {c.user}
+                            </Text>
+                            <Text style={{ color: 'white' }}>
+                                {c.text}
+                            </Text>
+                            <Text style={{ color: 'gray', fontSize: 11 }}>
+                                {c.time}
+                            </Text>
+                        </View>
+                    ))}
+                </ScrollView>
+
+                <TouchableOpacity
+                    onPress={() => setCommentsOpen(false)}
+                    style={{ marginTop: 10, alignItems: 'center' }}
+                >
+                    <Text style={{ color: 'orange' }}>Close</Text>
+                </TouchableOpacity>
+
+            </View>
+        </View>
+    </Modal>
+    {/* 🔥 COMMENTS MODAL END */}
         </View>
     );
 }

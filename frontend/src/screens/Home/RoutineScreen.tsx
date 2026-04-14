@@ -7,6 +7,7 @@ import {
     StatusBar,
     Image,
 } from 'react-native';
+import { useState } from 'react';
 import { useLocalSearchParams, router } from 'expo-router';
 import Animated, {
     FadeInDown,
@@ -18,7 +19,6 @@ import Animated, {
 import { AppColors } from '../../constants/colors';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-
 // ─── ROUTINE DATA ─────────────────────────────────────────────────────────────
 const ROUTINE_DATA: Record<string, {
     title: string;
@@ -94,9 +94,12 @@ const ExerciseRow = ({ item, index, isLast }: { item: { name: string; sets: numb
 };
 
 // ─── SAVE BUTTON ─────────────────────────────────────────────────────────────
-const SaveButton = ({ onPress }: { onPress: () => void }) => {
+const SaveButton = ({ isSaved, onPress }: { isSaved: boolean; onPress: () => void }) => {
     const scale = useSharedValue(1);
-    const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+
+    const animStyle = useAnimatedStyle(() => ({
+        transform: [{ scale: scale.value }],
+    }));
 
     return (
         <Animated.View style={[styles.saveWrapper, animStyle]}>
@@ -107,12 +110,18 @@ const SaveButton = ({ onPress }: { onPress: () => void }) => {
                 onPress={onPress}
             >
                 <LinearGradient
-                    colors={[AppColors.orange, '#FF9A6C']}
+                    colors={
+                        isSaved
+                            ? ['#444', '#222']   // saved = dark
+                            : [AppColors.orange, '#FF9A6C'] // not saved = orange
+                    }
                     style={styles.saveGradient}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 0 }}
                 >
-                    <Text style={styles.saveText}>Save Routine</Text>
+                    <Text style={styles.saveText}>
+                        {isSaved ? 'Saved ✓' : 'Save Routine'}
+                    </Text>
                 </LinearGradient>
             </TouchableOpacity>
         </Animated.View>
@@ -121,6 +130,7 @@ const SaveButton = ({ onPress }: { onPress: () => void }) => {
 
 // ─── MAIN SCREEN ──────────────────────────────────────────────────────────────
 export default function RoutineDetailScreen() {
+    const [isSaved, setIsSaved] = useState(false);
     const { routineId, title } = useLocalSearchParams<{ routineId?: string; title?: string }>();
 
     const id = routineId ?? 'cardio';
@@ -166,7 +176,10 @@ export default function RoutineDetailScreen() {
 
                 {/* ── SAVE BUTTON ────────────────────────────── */}
                 <Animated.View entering={FadeInDown.delay(80).duration(400)}>
-                    <SaveButton onPress={() => { /* handle save */ }} />
+                    <SaveButton
+                        isSaved={isSaved}
+                        onPress={() => setIsSaved(prev => !prev)}
+                    />
                 </Animated.View>
 
                 {/* ── WORKOUT LABEL ──────────────────────────── */}

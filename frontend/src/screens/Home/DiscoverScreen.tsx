@@ -555,7 +555,16 @@ export default function DiscoverScreen() {
                             onComment={() => openComments(item.id)}
                             onImagePress={() => router.push({ pathname: "/(tabs)/home/full-image", params: { imageUrl: imageForPost(item, index), caption: item.caption, username: item.athlete.username } })}
                             onPress={() => router.push({ pathname: "/(tabs)/home/post-detail", params: { id: item.id, caption: item.caption, username: item.athlete.username, name: item.athlete.name, avatarUrl: item.athlete.avatarUrl } })}
-                            onAvatarPress={() => router.push({ pathname: "/(tabs)/profile", params: { athleteName: item.athlete.name, athleteUsername: item.athlete.username, athleteAvatarUrl: item.athlete.avatarUrl } })}
+                            onAvatarPress={() =>
+                                router.push({
+                                    pathname: "/(tabs)/home/userid",
+                                    params: {
+                                        name: item.athlete.name,
+                                        user: item.athlete.username,
+                                        avatar: item.athlete.avatarUrl,
+                                    },
+                                })
+                            }
                         />
                     )}
                 />
