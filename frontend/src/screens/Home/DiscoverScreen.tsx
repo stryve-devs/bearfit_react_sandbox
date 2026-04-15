@@ -12,7 +12,6 @@ import {
     View,
     StatusBar,
     TouchableOpacity,
-    useWindowDimensions,
     KeyboardAvoidingView,
 } from "react-native";
 import Animated, {
@@ -26,7 +25,7 @@ import Animated, {
     FadeInDown,
     runOnJS,
 } from "react-native-reanimated";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
@@ -363,7 +362,7 @@ function MenuItem({ icon, label, active, onPress }: { icon: any; label: string; 
 
 // ─── DiscoverScreen ───────────────────────────────────────────────────────────
 export default function DiscoverScreen() {
-    const { width } = useWindowDimensions();
+    const insets = useSafeAreaInsets();
 
     const [likedIds,    setLikedIds]    = useState<Set<string>>(new Set());
     const [savedIds,    setSavedIds]    = useState<Set<string>>(new Set());
@@ -586,9 +585,14 @@ export default function DiscoverScreen() {
                     <LinearGradient
                         colors={["#0e0e11", "#080808", "#0b0b0e"]}
                         start={{ x: 0.16, y: 0 }} end={{ x: 0.84, y: 1 }}
-                        style={{ flex: 1 }}
+                        style={{
+                            flex: 1,
+                            // iOS modal content can render under the notch unless we apply top inset explicitly.
+                            paddingTop: Platform.OS === "ios" ? insets.top : 0,
+                            paddingBottom: Platform.OS === "ios" ? insets.bottom : 0,
+                        }}
                     >
-                        <SafeAreaView style={{ flex: 1 }} edges={["top", "left", "right"]}>
+                        <SafeAreaView style={{ flex: 1 }} edges={["left", "right"]}>
                             <Animated.View
                                 entering={FadeInDown.duration(280).easing(Easing.out(Easing.cubic))}
                                 style={st.searchHeader}
