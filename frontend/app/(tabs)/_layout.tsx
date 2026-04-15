@@ -1,4 +1,4 @@
-import { Tabs, useRouter, usePathname } from 'expo-router';
+import { Tabs, useRouter, usePathname, useSegments } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { AppColors } from '../../src/constants/colors';
 import { useEffect } from 'react';
@@ -6,6 +6,8 @@ import { useEffect } from 'react';
 export default function TabLayout() {
     const router = useRouter();
     const pathname = usePathname();
+    const segments = useSegments();
+    const hideTabBar = pathname.includes('exercisepreview') || segments.includes('exercisepreview');
 
     useEffect(() => {
         if (pathname === '/(tabs)') {
@@ -22,6 +24,7 @@ export default function TabLayout() {
                 tabBarStyle: {
                     backgroundColor: AppColors.black,
                     borderTopColor: AppColors.darkGrey,
+                    display: hideTabBar ? 'none' : 'flex',
                 },
                 tabBarActiveTintColor: AppColors.orange,
                 tabBarInactiveTintColor: AppColors.grey,

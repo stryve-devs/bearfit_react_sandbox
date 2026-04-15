@@ -70,23 +70,44 @@ export default function LogWorkoutScreen() {
 
     useFocusEffect(
         React.useCallback(() => {
+            const namesToAdd: string[] = [];
+
             if (routeParams?.addExerciseName && typeof routeParams.addExerciseName === 'string') {
-                const exerciseName = routeParams.addExerciseName;
-
-                const newExercise: ExerciseLog = {
-                    name: exerciseName,
-                    sets: [
-                        { weightKg: 0, reps: 0, done: false },
-                    ],
-                    restSeconds: 0,
-                    restRemaining: 0,
-                    restTimerRef: null,
-                };
-
-                setLocalExercises(prev => [...prev, newExercise]);
-                router.setParams({ addExerciseName: undefined } as any);
+                namesToAdd.push(routeParams.addExerciseName);
             }
-        }, [routeParams?.addExerciseName, router])
+
+            if (routeParams?.addExerciseNames && typeof routeParams.addExerciseNames === 'string') {
+                try {
+                    const parsedNames = JSON.parse(routeParams.addExerciseNames);
+                    if (Array.isArray(parsedNames)) {
+                        parsedNames.forEach((name) => {
+                            if (typeof name === 'string' && name.trim().length > 0) {
+                                namesToAdd.push(name);
+                            }
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error parsing addExerciseNames:', error);
+                }
+            }
+
+            if (namesToAdd.length === 0) {
+                return;
+            }
+
+            const newExercises: ExerciseLog[] = namesToAdd.map((exerciseName) => ({
+                name: exerciseName,
+                sets: [
+                    { weightKg: 0, reps: 0, done: false },
+                ],
+                restSeconds: 0,
+                restRemaining: 0,
+                restTimerRef: null,
+            }));
+
+            setLocalExercises(prev => [...prev, ...newExercises]);
+            router.setParams({ addExerciseName: undefined, addExerciseNames: undefined } as any);
+        }, [routeParams?.addExerciseName, routeParams?.addExerciseNames, router])
     );
 
     const loadRoutines = async () => {
