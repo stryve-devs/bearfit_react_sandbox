@@ -12,6 +12,7 @@ export default function SettingsLayout() {
             <Stack.Screen name="index"           options={{ headerShown: false }} />
             <Stack.Screen name="AccountSettings" options={{ headerShown: false }} />
             <Stack.Screen name="Notifications"   options={{ headerShown: false }} />
+            <Stack.Screen name="WorkoutSettings"   options={{ headerShown: false }} />
         </Stack>
     );
 }

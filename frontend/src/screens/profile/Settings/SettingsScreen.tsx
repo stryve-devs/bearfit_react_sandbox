@@ -156,7 +156,11 @@ export default function SettingsScreen() {
                     {/* ── Preferences ── */}
                     <Section title="Preferences" />
                     <RowGroup>
-                        <Row icon={<MaterialIcons name="fitness-center" size={17} color={ORANGE} />}   text="Workouts"             onPress={() => Alert.alert("Workouts")}       isFirst />
+                        <Row icon={<MaterialIcons name="fitness-center" size={17} color={ORANGE} />}
+                             text="Workouts"
+                             onPress={() => router.push("/Profile/Settings/WorkoutSettings")}
+                             isFirst />
+
                         <Row icon={<Feather name="shield" size={17} color={ORANGE} />}                 text="Privacy & Social"     onPress={() => Alert.alert("Privacy")} />
                         <Row icon={<Feather name="hash" size={17} color={ORANGE} />}                   text="Units"                onPress={() => Alert.alert("Units")} />
                         <Row icon={<Feather name="globe" size={17} color={ORANGE} />}                  text="Language"             onPress={() => Alert.alert("Language")} />
