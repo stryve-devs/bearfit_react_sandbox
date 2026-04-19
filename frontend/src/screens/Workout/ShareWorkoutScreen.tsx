@@ -8,9 +8,11 @@ import {
     Animated,
     FlatList,
     Dimensions,
+    BackHandler,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { AppColors } from '../../constants/colors';
@@ -28,14 +30,13 @@ const SHARE_OPTIONS = [
 
 export default function ShareWorkoutScreen() {
     const router = useRouter();
+    const navigation = useNavigation();
     const params = useLocalSearchParams();
     const fadeAnim = useRef(new Animated.Value(0)).current;
 
     const [workout, setWorkout] = useState<SavedWorkout | null>(null);
     const [isFirst, setIsFirst] = useState(false);
     const [currentCard, setCurrentCard] = useState(0);
-    const workoutData = params?.workoutData;
-    const isFirstParam = params?.isFirst;
     const hasAnimated = useRef(false);
 
     useEffect(() => {
@@ -54,6 +55,20 @@ export default function ShareWorkoutScreen() {
             useNativeDriver: true,
         }).start();
     }, []);
+
+    // Disable back navigation
+    useEffect(() => {
+        navigation.setOptions({
+            headerShown: false,
+        });
+
+        const backHandler = BackHandler.addEventListener(
+            'hardwareBackPress',
+            () => true // Consume the back press, don't navigate
+        );
+
+        return () => backHandler.remove();
+    }, [navigation]);
 
     const formatTime = (seconds: number) => {
         const hours = Math.floor(seconds / 3600);

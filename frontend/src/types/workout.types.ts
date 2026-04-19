@@ -26,23 +26,11 @@ export interface SetEntry {
 
 export interface ExerciseLog {
     name: string;
+    externalId?: string | null;
     sets: SetEntry[];
     restSeconds: number;
     restRemaining: number;
     restTimerRef: NodeJS.Timeout | null;
-}
-
-export interface SavedWorkout {
-    id: string;
-    title: string;
-    duration: number; // in seconds
-    volume: number; // total kg
-    sets: number;
-    exercises: ExerciseLog[];
-    description: string;
-    timestamp: string;
-    visibility: 'private' | 'public' | 'friends';
-    photo?: string;
 }
 
 export interface WorkoutContextType {
@@ -60,4 +48,63 @@ export interface WorkoutContextType {
         value: any
     ) => void;
     clearWorkout: () => void;
+}
+
+export interface SelectedWorkoutMediaAsset {
+    id: string;
+    uri: string;
+    type: 'photo' | 'video';
+    durationMs?: number;
+}
+
+export interface WorkoutSetPayload {
+    setNumber: number;
+    weightKg?: number;
+    reps?: number;
+    isCompleted: boolean;
+}
+
+export interface WorkoutExercisePayload {
+    name: string;
+    externalId?: string | null;
+    sets: WorkoutSetPayload[];
+}
+
+export interface WorkoutPostMediaPayload {
+    url: string;
+    type: 'IMAGE' | 'VIDEO';
+    order: number;
+}
+
+export interface SaveWorkoutPostPayload {
+    title: string;
+    description?: string;
+    visibility: 'private' | 'public' | 'friends';
+    durationSeconds: number;
+    totalVolume: number;
+    totalSets: number;
+    createdAt?: string;
+    exercises: WorkoutExercisePayload[];
+    media: WorkoutPostMediaPayload[];
+}
+
+export interface SaveWorkoutPostResponse {
+    message: string;
+    workoutId: number;
+    postId: number;
+    isFirstWorkout: boolean;
+    createdAt: string;
+}
+
+export interface SavedWorkout {
+    id: string;
+    title: string;
+    duration: number;
+    volume: number;
+    sets: number;
+    exercises: ExerciseLog[];
+    description: string;
+    timestamp: string;
+    visibility: 'private' | 'public' | 'friends';
+    media?: SelectedWorkoutMediaAsset[];
 }

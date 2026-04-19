@@ -1,9 +1,11 @@
+import 'react-native-get-random-values';
 import { Stack } from 'expo-router';
 import { AuthProvider } from '../src/context/AuthContext';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -21,15 +23,17 @@ export default function RootLayout() {
     if (!fontsLoaded) return null;
 
     return (
-        <SafeAreaProvider>
-            <AuthProvider>
-                <Stack
-                    screenOptions={{
-                        headerShown: false,
-                        contentStyle: { backgroundColor: '#000000' },
-                    }}
-                />
-            </AuthProvider>
-        </SafeAreaProvider>
+        <GestureHandlerRootView style={{ flex: 1 }}>
+            <SafeAreaProvider>
+                <AuthProvider>
+                    <Stack
+                        screenOptions={{
+                            headerShown: false,
+                            contentStyle: { backgroundColor: '#000000' },
+                        }}
+                    />
+                </AuthProvider>
+            </SafeAreaProvider>
+        </GestureHandlerRootView>
     );
 }

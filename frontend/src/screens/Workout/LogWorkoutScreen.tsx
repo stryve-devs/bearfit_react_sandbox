@@ -22,6 +22,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { setHeaderActions } from '../../../app/(tabs)/Workout/_layout';
 
+type WorkoutExerciseSelection = {
+    name: string;
+    externalId?: string | null;
+};
+
 export default function LogWorkoutScreen() {
     const router = useRouter();
     const routeParams = useLocalSearchParams();
@@ -70,10 +75,43 @@ export default function LogWorkoutScreen() {
 
     useFocusEffect(
         React.useCallback(() => {
-            const namesToAdd: string[] = [];
+            const exercisesToAdd: WorkoutExerciseSelection[] = [];
 
+            if (routeParams?.addExercisePayload && typeof routeParams.addExercisePayload === 'string') {
+                try {
+                    const payload = JSON.parse(routeParams.addExercisePayload);
+                    if (payload?.name && typeof payload.name === 'string') {
+                        exercisesToAdd.push({
+                            name: payload.name,
+                            externalId: typeof payload.externalId === 'string' ? payload.externalId : null,
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error parsing addExercisePayload:', error);
+                }
+            }
+
+            if (routeParams?.addExercisePayloads && typeof routeParams.addExercisePayloads === 'string') {
+                try {
+                    const payloads = JSON.parse(routeParams.addExercisePayloads);
+                    if (Array.isArray(payloads)) {
+                        payloads.forEach((item) => {
+                            if (item?.name && typeof item.name === 'string') {
+                                exercisesToAdd.push({
+                                    name: item.name,
+                                    externalId: typeof item.externalId === 'string' ? item.externalId : null,
+                                });
+                            }
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error parsing addExercisePayloads:', error);
+                }
+            }
+
+            // Backward compatibility with existing name-only params.
             if (routeParams?.addExerciseName && typeof routeParams.addExerciseName === 'string') {
-                namesToAdd.push(routeParams.addExerciseName);
+                exercisesToAdd.push({ name: routeParams.addExerciseName, externalId: null });
             }
 
             if (routeParams?.addExerciseNames && typeof routeParams.addExerciseNames === 'string') {
@@ -82,7 +120,7 @@ export default function LogWorkoutScreen() {
                     if (Array.isArray(parsedNames)) {
                         parsedNames.forEach((name) => {
                             if (typeof name === 'string' && name.trim().length > 0) {
-                                namesToAdd.push(name);
+                                exercisesToAdd.push({ name, externalId: null });
                             }
                         });
                     }
@@ -91,12 +129,13 @@ export default function LogWorkoutScreen() {
                 }
             }
 
-            if (namesToAdd.length === 0) {
+            if (exercisesToAdd.length === 0) {
                 return;
             }
 
-            const newExercises: ExerciseLog[] = namesToAdd.map((exerciseName) => ({
-                name: exerciseName,
+            const newExercises: ExerciseLog[] = exercisesToAdd.map((exerciseItem) => ({
+                name: exerciseItem.name,
+                externalId: exerciseItem.externalId || null,
                 sets: [
                     { weightKg: 0, reps: 0, done: false },
                 ],
@@ -106,8 +145,19 @@ export default function LogWorkoutScreen() {
             }));
 
             setLocalExercises(prev => [...prev, ...newExercises]);
-            router.setParams({ addExerciseName: undefined, addExerciseNames: undefined } as any);
-        }, [routeParams?.addExerciseName, routeParams?.addExerciseNames, router])
+            router.setParams({
+                addExerciseName: undefined,
+                addExerciseNames: undefined,
+                addExercisePayload: undefined,
+                addExercisePayloads: undefined,
+            } as any);
+        }, [
+            routeParams?.addExerciseName,
+            routeParams?.addExerciseNames,
+            routeParams?.addExercisePayload,
+            routeParams?.addExercisePayloads,
+            router,
+        ])
     );
 
     const loadRoutines = async () => {

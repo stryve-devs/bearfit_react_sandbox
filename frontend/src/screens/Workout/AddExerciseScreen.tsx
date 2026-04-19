@@ -43,6 +43,11 @@ type ScreenExercise = Exercise & {
     imagePath?: string;
 };
 
+type WorkoutExerciseSelection = {
+    name: string;
+    externalId?: string | null;
+};
+
 const localExerciseRecords = require('../../constants/exercise-data.json') as LocalExerciseRecord[];
 
 const EXERCISE_ASSET_BASE = 'https://pub-d0fbe48b068b460e96f026d1d9fe3c68.r2.dev/exercises';
@@ -176,9 +181,15 @@ export default function AddExerciseScreen() {
 
     const handleExerciseSelect = (exercise: Exercise) => {
         if (routeParams?.fromWorkout === 'true') {
+            const selected = exercise as ScreenExercise;
+            const payload: WorkoutExerciseSelection = {
+                name: selected.name,
+                externalId: selected.exerciseId || null,
+            };
+
             router.back();
             setTimeout(() => {
-                router.setParams({ addExerciseName: exercise.name } as any);
+                router.setParams({ addExercisePayload: JSON.stringify(payload) } as any);
             }, 100);
         } else {
             addTarget({
@@ -245,21 +256,24 @@ export default function AddExerciseScreen() {
             return;
         }
 
-        const selectedNames = selectedExercises.map((item) => item.name);
+        const selectedPayloads: WorkoutExerciseSelection[] = selectedExercises.map((item) => ({
+            name: item.name,
+            externalId: item.exerciseId || null,
+        }));
 
         if (routeParams?.fromWorkout === 'true') {
             setIsSelectionMode(false);
             setSelectedExerciseKeys([]);
             router.back();
             setTimeout(() => {
-                router.setParams({ addExerciseNames: JSON.stringify(selectedNames) } as any);
+                router.setParams({ addExercisePayloads: JSON.stringify(selectedPayloads) } as any);
             }, 100);
             return;
         }
 
-        selectedNames.forEach((name) => {
+        selectedPayloads.forEach((item) => {
             addTarget({
-                name,
+                name: item.name,
                 sets: 0,
                 targetWeightKg: 0,
                 targetReps: 0,

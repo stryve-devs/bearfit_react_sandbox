@@ -10,7 +10,9 @@
     "dev": "./dev.sh",
     "install-all": "npm install",
     "be:prisma": "npm run prisma:generate -w backend",
-    "fe:start": "npm start -w frontend"
+    "fe:start": "npm start -w frontend",
+    "upload:videos:r2": "bash uploadvideostoR2.sh",
+    "upload:videos:r2:dry": "bash uploadvideostoR2.sh --dry-run"
   },
   "dependencies": {
     "expo-linear-gradient": "~14.0.2"

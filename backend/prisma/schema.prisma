@@ -7,21 +7,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model progress {
-  progress_id         Int      @id @default(autoincrement())
-  user_id             Int?
-  date                DateTime @db.Date
-  weight              Decimal? @db.Decimal(5, 2)
-  body_fat_percentage Decimal? @db.Decimal(5, 2)
-  chest               Decimal? @db.Decimal(5, 2)
-  waist               Decimal? @db.Decimal(5, 2)
-  hips                Decimal? @db.Decimal(5, 2)
-  arms                Decimal? @db.Decimal(5, 2)
-  legs                Decimal? @db.Decimal(5, 2)
-  progress_photo_url  String?
-  users               users?   @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
-}
-
 model users {
   user_id        Int              @id @default(autoincrement())
   name           String           @db.VarChar(150)
@@ -42,18 +27,79 @@ model users {
   theme          ThemePreference  @default(SYSTEM)
   role           Role             @default(USER)
   googleId       String?          @unique @db.VarChar(191)
-  Comment        Comment[]
+  comments       Comment[]
   Food           Food[]
-  Like           Like[]
+  likes          Like[]
   Meal           Meal[]
   PersonalRecord PersonalRecord[]
-  Post           Post[]
+  posts          Post[]
   Routine        Routine[]
   progress       progress[]
   refresh_tokens refresh_tokens[]
   workouts       workouts[]
 
   @@index([email])
+}
+
+model Post {
+  post_id        Int            @id @default(autoincrement())
+  user_id        Int
+  caption        String?
+  created_at     DateTime       @default(now())
+  likes_count    Int            @default(0)
+  comments_count Int            @default(0)
+  workout_id     Int?
+  title          String?
+  visibility     PostVisibility @default(PUBLIC)
+  comments       Comment[]
+  likes          Like[]
+  user           users          @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  workout        workouts?      @relation(fields: [workout_id], references: [workout_id])
+  PostMedia      PostMedia[]
+
+  @@index([user_id])
+}
+
+model Like {
+  like_id    Int      @id @default(autoincrement())
+  post_id    Int
+  user_id    Int
+  created_at DateTime @default(now())
+  post       Post     @relation(fields: [post_id], references: [post_id], onDelete: Cascade)
+  user       users    @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+  @@unique([post_id, user_id])
+  @@index([post_id])
+}
+
+model Comment {
+  comment_id Int       @id @default(autoincrement())
+  post_id    Int
+  user_id    Int
+  text       String
+  created_at DateTime  @default(now())
+  parent_id  Int?
+  parent     Comment?  @relation("CommentReplies", fields: [parent_id], references: [comment_id])
+  replies    Comment[] @relation("CommentReplies")
+  post       Post      @relation(fields: [post_id], references: [post_id], onDelete: Cascade)
+  user       users     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+  @@index([post_id])
+}
+
+model progress {
+  progress_id         Int      @id @default(autoincrement())
+  user_id             Int?
+  date                DateTime @db.Date
+  weight              Decimal? @db.Decimal(5, 2)
+  body_fat_percentage Decimal? @db.Decimal(5, 2)
+  chest               Decimal? @db.Decimal(5, 2)
+  waist               Decimal? @db.Decimal(5, 2)
+  hips                Decimal? @db.Decimal(5, 2)
+  arms                Decimal? @db.Decimal(5, 2)
+  legs                Decimal? @db.Decimal(5, 2)
+  progress_photo_url  String?
+  users               users?   @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 }
 
 model refresh_tokens {
@@ -64,16 +110,6 @@ model refresh_tokens {
   revoked    Boolean  @default(false)
   created_at DateTime @default(now()) @db.Timestamp(0)
   users      users    @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
-}
-
-model workout_exercises {
-  workout_exercise_id Int          @id @default(autoincrement())
-  workout_id          Int?
-  exercise_id         Int?
-  notes               String?
-  WorkoutSet          WorkoutSet[]
-  exercises           Exercise?    @relation(fields: [exercise_id], references: [exercise_id], onDelete: Cascade)
-  workouts            workouts?    @relation(fields: [workout_id], references: [workout_id], onDelete: Cascade)
 }
 
 model workouts {
@@ -87,6 +123,16 @@ model workouts {
   Post              Post[]
   workout_exercises workout_exercises[]
   users             users?              @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+}
+
+model workout_exercises {
+  workout_exercise_id Int          @id @default(autoincrement())
+  workout_id          Int?
+  exercise_id         Int?
+  notes               String?
+  sets                WorkoutSet[]
+  exercises           Exercise?    @relation(fields: [exercise_id], references: [exercise_id], onDelete: Cascade)
+  workouts            workouts?    @relation(fields: [workout_id], references: [workout_id], onDelete: Cascade)
 }
 
 model Exercise {
@@ -201,21 +247,6 @@ model RoutineExercise {
   Routine     Routine  @relation(fields: [routine_id], references: [routine_id], onDelete: Cascade)
 }
 
-model Comment {
-  comment_id    Int       @id @default(autoincrement())
-  post_id       Int
-  user_id       Int
-  text          String
-  created_at    DateTime  @default(now())
-  parent_id     Int?
-  Comment       Comment?  @relation("CommentToComment", fields: [parent_id], references: [comment_id])
-  other_Comment Comment[] @relation("CommentToComment")
-  Post          Post      @relation(fields: [post_id], references: [post_id], onDelete: Cascade)
-  users         users     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
-
-  @@index([post_id])
-}
-
 model ExerciseToMuscleGroup {
   A           Int
   B           Int
@@ -223,37 +254,6 @@ model ExerciseToMuscleGroup {
   MuscleGroup MuscleGroup @relation(fields: [B], references: [id], onDelete: Cascade)
 
   @@id([A, B])
-}
-
-model Like {
-  like_id    Int      @id @default(autoincrement())
-  post_id    Int
-  user_id    Int
-  created_at DateTime @default(now())
-  Post       Post     @relation(fields: [post_id], references: [post_id], onDelete: Cascade)
-  users      users    @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
-
-  @@unique([post_id, user_id])
-  @@index([post_id])
-}
-
-model Post {
-  post_id        Int            @id @default(autoincrement())
-  user_id        Int
-  caption        String?
-  created_at     DateTime       @default(now())
-  likes_count    Int            @default(0)
-  comments_count Int            @default(0)
-  workout_id     Int?
-  title          String?
-  visibility     PostVisibility @default(PUBLIC)
-  Comment        Comment[]
-  Like           Like[]
-  users          users          @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
-  workouts       workouts?      @relation(fields: [workout_id], references: [workout_id])
-  PostMedia      PostMedia[]
-
-  @@index([user_id])
 }
 
 model PostMedia {
@@ -280,7 +280,7 @@ model WorkoutSet {
   bpm                 Int?
   is_completed        Boolean           @default(true)
   created_at          DateTime          @default(now())
-  workout_exercises   workout_exercises @relation(fields: [workout_exercise_id], references: [workout_exercise_id], onDelete: Cascade)
+  workout_exercise    workout_exercises @relation(fields: [workout_exercise_id], references: [workout_exercise_id], onDelete: Cascade)
 
   @@index([workout_exercise_id])
 }

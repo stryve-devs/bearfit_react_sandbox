@@ -95,7 +95,7 @@ const QUICK_EMOJIS = ['💪', '🔥', '👏', '🏋️', '👊', '🥵', '🏆']
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
 const EXERCISE_ASSET_BASE = 'https://pub-d0fbe48b068b460e96f026d1d9fe3c68.r2.dev/exercises';
-const localExerciseRecords = require('../../constants/exercise-data.json') as LocalExerciseRecord[];
+const localExerciseRecords = require('../../../constants/exercise-data.json') as LocalExerciseRecord[];
 const exerciseImageByName = new Map<string, string>();
 for (const record of localExerciseRecords) {
   if (!record?.name || !record?.image) continue;

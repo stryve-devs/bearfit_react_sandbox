@@ -3,7 +3,12 @@ declare module '@react-native-async-storage/async-storage' {
     export default AsyncStorage;
 }
 
-// Fallback typing when IDE/TS resolution cannot locate the installed package.
-declare module '@react-navigation/material-top-tabs' {
-    export function createMaterialTopTabNavigator<T extends Record<string, object | undefined>>(): any;
+declare module '@react-native-community/slider' {
+    const Slider: any;
+    export default Slider;
+}
+
+declare module 'expo-video' {
+    export const VideoView: any;
+    export const useVideoPlayer: any;
 }

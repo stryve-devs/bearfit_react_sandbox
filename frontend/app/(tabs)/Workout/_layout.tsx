@@ -149,6 +149,12 @@ export default function WorkoutLayout() {
                 />
 
                 <Stack.Screen name="save" />
+                <Stack.Screen
+                    name="mediapreview"
+                    options={{
+                        headerShown: false,
+                    }}
+                />
                 <Stack.Screen name="share" />
                 <Stack.Screen
                     name="shareexercise"

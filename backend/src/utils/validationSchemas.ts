@@ -41,5 +41,56 @@ export const googleAuthSchema = z.union([
   googleAuthBase.extend({ email: z.string().email().min(1) }),
 ]);
 
+const postVisibilitySchema = z.enum(['public', 'private', 'friends']);
+
+const workoutSetSchema = z.object({
+  setNumber: z.number().int().positive(),
+  weightKg: z.number().nonnegative().optional(),
+  reps: z.number().int().nonnegative().optional(),
+  isCompleted: z.boolean(),
+});
+
+const workoutExerciseSchema = z.object({
+  name: z.string().min(1).max(150),
+  externalId: z.string().max(64).optional().nullable(),
+  sets: z.array(workoutSetSchema).min(1),
+});
+
+const workoutPostMediaSchema = z.object({
+  url: z.string().url().max(500),
+  type: z.enum(['IMAGE', 'VIDEO']),
+  order: z.number().int().nonnegative(),
+});
+
+export const saveWorkoutPostSchema = z.object({
+  title: z.string().min(1).max(255),
+  description: z.string().max(4000).optional(),
+  visibility: postVisibilitySchema,
+  durationSeconds: z.number().int().nonnegative(),
+  totalVolume: z.number().nonnegative(),
+  totalSets: z.number().int().nonnegative(),
+  createdAt: z.string().datetime().optional(),
+  exercises: z.array(workoutExerciseSchema).min(1),
+  media: z.array(workoutPostMediaSchema).default([]),
+});
+
+export const discoverFeedQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(20).optional(),
+  cursor: z.coerce.number().int().positive().optional(),
+});
+
+export const postIdParamsSchema = z.object({
+  postId: z.coerce.number().int().positive(),
+});
+
+export const createPostCommentSchema = z.object({
+  text: z.string().trim().min(1).max(2000),
+  parentId: z.number().int().positive().optional(),
+});
+
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
+export type SaveWorkoutPostInput = z.infer<typeof saveWorkoutPostSchema>;
+export type DiscoverFeedQueryInput = z.infer<typeof discoverFeedQuerySchema>;
+export type PostIdParamsInput = z.infer<typeof postIdParamsSchema>;
+export type CreatePostCommentInput = z.infer<typeof createPostCommentSchema>;
