@@ -21,5 +21,5 @@ COPY . .
 
 EXPOSE 8081 19000 19001 19002
 
-# Added --clear to ensure Metro doesn't cache the old IP from your previous network
-CMD npx expo start --host lan --clear --port 8081
+# Refresh deps at container start so the mounted volume always contains the latest app packages.
+CMD ["sh", "-c", "npm install && npx expo start --host lan --clear --port 8081"]

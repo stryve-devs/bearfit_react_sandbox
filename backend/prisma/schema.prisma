@@ -67,16 +67,13 @@ model refresh_tokens {
 }
 
 model workout_exercises {
-  workout_exercise_id Int       @id @default(autoincrement())
+  workout_exercise_id Int          @id @default(autoincrement())
   workout_id          Int?
   exercise_id         Int?
-  sets                Int?
-  reps                Int?
-  weight              Decimal?  @db.Decimal(6, 2)
-  distance            Decimal?  @db.Decimal(6, 2)
-  time                Decimal?  @db.Decimal(6, 2)
-  exercises           Exercise? @relation(fields: [exercise_id], references: [exercise_id], onDelete: Cascade)
-  workouts            workouts? @relation(fields: [workout_id], references: [workout_id], onDelete: Cascade)
+  notes               String?
+  WorkoutSet          WorkoutSet[]
+  exercises           Exercise?    @relation(fields: [exercise_id], references: [exercise_id], onDelete: Cascade)
+  workouts            workouts?    @relation(fields: [workout_id], references: [workout_id], onDelete: Cascade)
 }
 
 model workouts {
@@ -99,20 +96,17 @@ model Exercise {
   equipment_id          Int?
   body_part             String?                 @db.VarChar(100)
   created_at            DateTime?               @db.Timestamp(6)
-  equipment             String?                 @db.VarChar(100)
-  external_id           String?                 @unique @db.VarChar(10)
+  external_id           String                  @unique @db.VarChar(64)
   gif_url               String?                 @db.VarChar(500)
   image                 String?                 @db.VarChar(500)
   instructions_en       String?
-  instructions_tr       String?
-  muscle_group          String?                 @db.VarChar(100)
-  secondary_muscles     String?
-  target                String?                 @db.VarChar(100)
+  instruction_steps_en  Json?
   Equipment             Equipment?              @relation(fields: [equipment_id], references: [equipment_id])
   ExerciseToMuscleGroup ExerciseToMuscleGroup[]
-  PersonalRecord        PersonalRecord[]
   RoutineExercise       RoutineExercise[]
   workout_exercises     workout_exercises[]
+
+  @@index([equipment_id])
 }
 
 model MuscleGroup {
@@ -178,7 +172,6 @@ model PersonalRecord {
   time        Decimal? @db.Decimal(10, 2)
   distance    Decimal? @db.Decimal(10, 2)
   one_rep_max Decimal? @db.Decimal(6, 2)
-  Exercise    Exercise @relation(fields: [exercise_id], references: [exercise_id])
   users       users    @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 
   @@index([user_id, exercise_id])
@@ -245,17 +238,19 @@ model Like {
 }
 
 model Post {
-  post_id        Int         @id @default(autoincrement())
+  post_id        Int            @id @default(autoincrement())
   user_id        Int
   caption        String?
-  created_at     DateTime    @default(now())
-  likes_count    Int         @default(0)
-  comments_count Int         @default(0)
+  created_at     DateTime       @default(now())
+  likes_count    Int            @default(0)
+  comments_count Int            @default(0)
   workout_id     Int?
+  title          String?
+  visibility     PostVisibility @default(PUBLIC)
   Comment        Comment[]
   Like           Like[]
-  users          users       @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
-  workouts       workouts?   @relation(fields: [workout_id], references: [workout_id])
+  users          users          @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  workouts       workouts?      @relation(fields: [workout_id], references: [workout_id])
   PostMedia      PostMedia[]
 
   @@index([user_id])
@@ -273,6 +268,23 @@ model PostMedia {
   @@index([post_id])
 }
 
+model WorkoutSet {
+  set_id              Int               @id @default(autoincrement())
+  workout_exercise_id Int
+  set_number          Int
+  weight              Decimal?          @db.Decimal(6, 2)
+  reps                Int?
+  rpe                 Int?
+  distance            Decimal?          @db.Decimal(6, 2)
+  time                Decimal?          @db.Decimal(10, 2)
+  bpm                 Int?
+  is_completed        Boolean           @default(true)
+  created_at          DateTime          @default(now())
+  workout_exercises   workout_exercises @relation(fields: [workout_exercise_id], references: [workout_exercise_id], onDelete: Cascade)
+
+  @@index([workout_exercise_id])
+}
+
 enum Role {
   USER
   ADMIN
@@ -287,4 +299,10 @@ enum ThemePreference {
 enum MediaType {
   IMAGE
   VIDEO
+}
+
+enum PostVisibility {
+  PUBLIC
+  PRIVATE
+  FRIENDS
 }
