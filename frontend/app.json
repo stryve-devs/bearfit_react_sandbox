@@ -1,8 +1,12 @@
 {
-  "android": {
-    "package": "com.anonymous.frontend"
-  },
-  "ios": {
-    "bundleIdentifier": "com.anonymous.frontend"
+  "expo": {
+    "name": "YourAppName",
+    "slug": "your-app-slug",
+    "version": "1.0.0",
+    "scheme": "fitnessapp",  // <--- ADD THIS LINE
+    "ios": {
+      "supportsTablet": true
+    },
+    // ... rest of your config
   }
 }

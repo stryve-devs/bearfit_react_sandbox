@@ -98,9 +98,28 @@ export default function WorkoutLayout() {
             <Stack.Screen
                 name="explore"
                 options={{
-                    title: 'Routines',
+                    title: 'Explore',
                     headerLeft: () => (
-                        <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 12 }}>
+                        <TouchableOpacity
+                            onPress={() => router.back()}
+                            style={{ marginLeft: 12 }}
+                        >
+                            <Ionicons name="arrow-back" size={24} color={AppColors.orange} />
+                        </TouchableOpacity>
+                    ),
+                }}
+            />
+
+            {/* ✅ Added Home Routine screen exactly following your pattern */}
+            <Stack.Screen
+                name="homeroutine"
+                options={{
+                    title: 'At Home Routines',
+                    headerLeft: () => (
+                        <TouchableOpacity
+                            onPress={() => router.back()}
+                            style={{ marginLeft: 12 }}
+                        >
                             <Ionicons name="arrow-back" size={24} color={AppColors.orange} />
                         </TouchableOpacity>
                     ),

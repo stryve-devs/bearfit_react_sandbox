@@ -11,5 +11,8 @@
     "install-all": "npm install",
     "be:prisma": "npm run prisma:generate -w backend",
     "fe:start": "npm start -w frontend"
+  },
+  "dependencies": {
+    "expo-blur": "~55.0.14"
   }
 }
