@@ -13,55 +13,77 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
-
+import { isWeightBasedExercise } from '../../constants/exerciseHelpers';
 import { AppColors } from '../../constants/colors';
-import { getExerciseLoggingMode } from '../../constants/exerciseHelpers';
 import { Routine, SetEntry, ExerciseLog } from '../../types/workout.types';
 import Toast from '../../components/workout/Toast';
 import AlertDialog from '../../components/workout/AlertDialog';
-import MuscleHeatmapSheet from '../../components/workout/MuscleHeatmapSheet';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { setHeaderActions } from '../../../app/(tabs)/Workout/_layout';
 import exerciseData from '../../constants/exercise-data.json';
 
-type WorkoutExerciseSelection = {
-    name: string;
-    externalId?: string | null;
+
+
+const NO_WEIGHT_EQUIPMENT = new Set([
+    'body weight',
+    'assisted',
+    'resistance band',
+]);
+const getEquipmentByExerciseName = (name: string) => {
+    const exercise = exerciseData.find((ex) => ex.name === name);
+    return exercise?.equipment || '';
 };
 
+const isNoWeightExercise = (name: string) => {
+    const equipment = getEquipmentByExerciseName(name);
+    return NO_WEIGHT_EQUIPMENT.has(equipment);
+};
 const getMuscleGroups = (exerciseName: string): string[] => {
+    // Convert to lowercase for case-insensitive matching
     const normalizedName = exerciseName.toLowerCase();
     const exercise = exerciseData.find((ex) => ex.name.toLowerCase() === normalizedName);
-    if (!exercise) return [];
 
-    const muscles = (exercise as any).muscle_filters ?? (exercise as any).muscle_group ?? [];
-    if (typeof muscles === 'string') return [muscles];
+    if (!exercise) {
+        return [];
+    }
+
+    const muscles = exercise.muscle_filters || exercise.muscle_group || [];
+
+    if (typeof muscles === 'string') {
+        return [muscles];
+    }
+
     return Array.isArray(muscles) ? muscles : [];
 };
 
-const calculateMuscleDistribution = (
-    exercises: ExerciseLog[]
-): Record<string, { completed: number; total: number }> => {
-    const distribution: Record<string, { completed: number; total: number }> = {};
+const calculateMuscleDistribution = (exercises: ExerciseLog[]): { [key: string]: { completed: number; total: number } } => {
+    const distribution: { [key: string]: { completed: number; total: number } } = {};
 
     exercises.forEach((exercise) => {
         const muscles = getMuscleGroups(exercise.name);
-        if (!muscles.length) return;
 
-        const completedSets = exercise.sets.filter((set) => set.done).length;
-        const totalSets = exercise.sets.length;
+        if (muscles && muscles.length > 0) {
+            const completedSets = exercise.sets.filter((set) => set.done).length;
+            const totalSets = exercise.sets.length;
 
-        muscles.forEach((muscle) => {
-            if (!distribution[muscle]) {
-                distribution[muscle] = { completed: 0, total: 0 };
-            }
-            distribution[muscle].completed += completedSets;
-            distribution[muscle].total += totalSets;
-        });
+            muscles.forEach((muscle) => {
+                if (!distribution[muscle]) {
+                    distribution[muscle] = { completed: 0, total: 0 };
+                }
+                distribution[muscle].completed += completedSets;
+                distribution[muscle].total += totalSets;
+            });
+        }
     });
 
     return distribution;
+};
+
+const getTotalCompletedSets = (exercises: ExerciseLog[]): number => {
+    return exercises.reduce((sum, ex) => {
+        return sum + ex.sets.filter((set) => set.done).length;
+    }, 0);
 };
 
 export default function LogWorkoutScreen() {
@@ -82,30 +104,22 @@ export default function LogWorkoutScreen() {
     const [chooseRoutineVisible, setChooseRoutineVisible] = useState(false);
     const [savedRoutines, setSavedRoutines] = useState<Routine[]>([]);
     const [saveRoutineVisible, setSaveRoutineVisible] = useState(false);
-    const [muscleDistributionVisible, setMuscleDistributionVisible] = useState(false);
-    const [runningTimedSet, setRunningTimedSet] = useState<{
-        exerciseIndex: number;
-        setIndex: number;
-    } | null>(null);
 
     const elapsedTimerRef = useRef<NodeJS.Timeout | null>(null);
     const restTimersRef = useRef<{ [key: number]: NodeJS.Timeout }>({});
-    const timedSetIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-    const stopRunningTimedSet = useCallback(() => {
-        if (timedSetIntervalRef.current) {
-            clearInterval(timedSetIntervalRef.current);
-            timedSetIntervalRef.current = null;
-        }
-        setRunningTimedSet(null);
-    }, []);
 
+    const [muscleDistributionVisible, setMuscleDistributionVisible] = useState(false);
+
+    // DEBUG: Log all available exercises to find exact names
     useEffect(() => {
-        return () => {
-            if (timedSetIntervalRef.current) {
-                clearInterval(timedSetIntervalRef.current);
-            }
-        };
+        const sampleExercises = exerciseData.slice(0, 5).map(ex => ({
+            name: ex.name,
+            muscle_filters: ex.muscle_filters,
+            muscle_group: ex.muscle_group,
+        }));
+        console.log('📋 Sample exercises from JSON:', sampleExercises);
+        console.log('Total exercises loaded:', exerciseData.length);
     }, []);
 
     useEffect(() => {
@@ -134,43 +148,10 @@ export default function LogWorkoutScreen() {
 
     useFocusEffect(
         React.useCallback(() => {
-            const exercisesToAdd: WorkoutExerciseSelection[] = [];
+            const namesToAdd: string[] = [];
 
-            if (routeParams?.addExercisePayload && typeof routeParams.addExercisePayload === 'string') {
-                try {
-                    const payload = JSON.parse(routeParams.addExercisePayload);
-                    if (payload?.name && typeof payload.name === 'string') {
-                        exercisesToAdd.push({
-                            name: payload.name,
-                            externalId: typeof payload.externalId === 'string' ? payload.externalId : null,
-                        });
-                    }
-                } catch (error) {
-                    console.error('Error parsing addExercisePayload:', error);
-                }
-            }
-
-            if (routeParams?.addExercisePayloads && typeof routeParams.addExercisePayloads === 'string') {
-                try {
-                    const payloads = JSON.parse(routeParams.addExercisePayloads);
-                    if (Array.isArray(payloads)) {
-                        payloads.forEach((item) => {
-                            if (item?.name && typeof item.name === 'string') {
-                                exercisesToAdd.push({
-                                    name: item.name,
-                                    externalId: typeof item.externalId === 'string' ? item.externalId : null,
-                                });
-                            }
-                        });
-                    }
-                } catch (error) {
-                    console.error('Error parsing addExercisePayloads:', error);
-                }
-            }
-
-            // Backward compatibility with existing name-only params.
             if (routeParams?.addExerciseName && typeof routeParams.addExerciseName === 'string') {
-                exercisesToAdd.push({ name: routeParams.addExerciseName, externalId: null });
+                namesToAdd.push(routeParams.addExerciseName);
             }
 
             if (routeParams?.addExerciseNames && typeof routeParams.addExerciseNames === 'string') {
@@ -179,7 +160,7 @@ export default function LogWorkoutScreen() {
                     if (Array.isArray(parsedNames)) {
                         parsedNames.forEach((name) => {
                             if (typeof name === 'string' && name.trim().length > 0) {
-                                exercisesToAdd.push({ name, externalId: null });
+                                namesToAdd.push(name);
                             }
                         });
                     }
@@ -188,13 +169,12 @@ export default function LogWorkoutScreen() {
                 }
             }
 
-            if (exercisesToAdd.length === 0) {
+            if (namesToAdd.length === 0) {
                 return;
             }
 
-            const newExercises: ExerciseLog[] = exercisesToAdd.map((exerciseItem) => ({
-                name: exerciseItem.name,
-                externalId: exerciseItem.externalId || null,
+            const newExercises: ExerciseLog[] = namesToAdd.map((exerciseName) => ({
+                name: exerciseName,
                 sets: [
                     { weightKg: 0, reps: 0, done: false },
                 ],
@@ -204,19 +184,8 @@ export default function LogWorkoutScreen() {
             }));
 
             setLocalExercises(prev => [...prev, ...newExercises]);
-            router.setParams({
-                addExerciseName: undefined,
-                addExerciseNames: undefined,
-                addExercisePayload: undefined,
-                addExercisePayloads: undefined,
-            } as any);
-        }, [
-            routeParams?.addExerciseName,
-            routeParams?.addExerciseNames,
-            routeParams?.addExercisePayload,
-            routeParams?.addExercisePayloads,
-            router,
-        ])
+            router.setParams({ addExerciseName: undefined, addExerciseNames: undefined } as any);
+        }, [routeParams?.addExerciseName, routeParams?.addExerciseNames, router])
     );
 
     const loadRoutines = async () => {
@@ -231,11 +200,9 @@ export default function LogWorkoutScreen() {
 
     const applyRoutine = (routine: Routine) => {
         const newExercises = routine.targets.map((target) => {
-            const mode = getExerciseLoggingMode(target.name);
             const initialSets: SetEntry[] = Array.from({ length: target.sets }, () => ({
                 weightKg: target.targetWeightKg,
                 reps: target.targetReps,
-                durationSeconds: mode === 'timed' ? 0 : undefined,
                 done: false,
             }));
             return {
@@ -259,7 +226,7 @@ export default function LogWorkoutScreen() {
 
     const getTotalVolume = (): number => {
         return exercises.reduce((sum, ex) => {
-            return sum + ex.sets.reduce((exSum, set) => exSum + (set.weightKg || 0) * (set.reps || 0), 0);
+            return sum + ex.sets.reduce((exSum, set) => exSum + set.weightKg * set.reps, 0);
         }, 0);
     };
 
@@ -381,17 +348,8 @@ export default function LogWorkoutScreen() {
 
     const handleSetDone = (exerciseIndex: number, setIndex: number) => {
         const updatedExercises = [...exercises];
-        const nextDone = !updatedExercises[exerciseIndex].sets[setIndex].done;
-        updatedExercises[exerciseIndex].sets[setIndex].done = nextDone;
-
-        if (
-            nextDone &&
-            runningTimedSet &&
-            runningTimedSet.exerciseIndex === exerciseIndex &&
-            runningTimedSet.setIndex === setIndex
-        ) {
-            stopRunningTimedSet();
-        }
+        updatedExercises[exerciseIndex].sets[setIndex].done =
+            !updatedExercises[exerciseIndex].sets[setIndex].done;
 
         if (updatedExercises[exerciseIndex].sets[setIndex].done) {
             if (restTimersRef.current[exerciseIndex]) {
@@ -450,49 +408,13 @@ export default function LogWorkoutScreen() {
 
     const handleAddSet = (exerciseIndex: number) => {
         const updatedExercises = [...exercises];
-        const mode = getExerciseLoggingMode(updatedExercises[exerciseIndex].name);
         updatedExercises[exerciseIndex].sets.push({
             weightKg: 0,
             reps: 0,
-            durationSeconds: mode === 'timed' ? 0 : undefined,
             done: false,
         });
         setLocalExercises(updatedExercises);
     };
-
-    const handleIncrementSetDuration = (exerciseIndex: number, setIndex: number) => {
-        setLocalExercises((prev) => {
-            const updatedExercises = [...prev];
-            const set = updatedExercises[exerciseIndex]?.sets?.[setIndex];
-            if (!set) return prev;
-            set.durationSeconds = (set.durationSeconds || 0) + 1;
-            return updatedExercises;
-        });
-    };
-
-    const handleToggleTimedSet = useCallback((exerciseIndex: number, setIndex: number) => {
-        setLocalExercises((prev) => {
-            const set = prev[exerciseIndex]?.sets?.[setIndex];
-            if (!set || set.done) return prev;
-            return prev;
-        });
-
-        // Same set: stop. Different set: stop previous, start new.
-        if (
-            runningTimedSet &&
-            runningTimedSet.exerciseIndex === exerciseIndex &&
-            runningTimedSet.setIndex === setIndex
-        ) {
-            stopRunningTimedSet();
-            return;
-        }
-
-        stopRunningTimedSet();
-        setRunningTimedSet({ exerciseIndex, setIndex });
-        timedSetIntervalRef.current = setInterval(() => {
-            handleIncrementSetDuration(exerciseIndex, setIndex);
-        }, 1000);
-    }, [handleIncrementSetDuration, runningTimedSet, stopRunningTimedSet]);
 
     const handleDeleteSet = (exerciseIndex: number, setIndex: number) => {
         const updatedExercises = [...exercises];
@@ -590,9 +512,6 @@ export default function LogWorkoutScreen() {
                                 onSetDone={handleSetDone}
                                 onWeightChange={handleSetWeightChange}
                                 onRepsChange={handleSetRepsChange}
-                                onIncrementDuration={handleIncrementSetDuration}
-                                onToggleTimedSet={handleToggleTimedSet}
-                                runningTimedSet={runningTimedSet}
                                 onAddSet={handleAddSet}
                                 onDeleteSet={handleDeleteSet}
                                 onRestTimeChange={handleRestTimeChange}
@@ -744,12 +663,13 @@ export default function LogWorkoutScreen() {
                     },
                 ]}
             />
-
-            <MuscleHeatmapSheet
+            <MuscleDistributionSheet
                 visible={muscleDistributionVisible}
                 exercises={exercises}
+                totalSets={getTotalSets()}
                 onClose={() => setMuscleDistributionVisible(false)}
             />
+
         </SafeAreaView>
     );
 }
@@ -796,9 +716,6 @@ function ExerciseCard({
                           onSetDone,
                           onWeightChange,
                           onRepsChange,
-                          onIncrementDuration,
-                          onToggleTimedSet,
-                          runningTimedSet,
                           onAddSet,
                           onDeleteSet,
                           onRestTimeChange,
@@ -821,6 +738,7 @@ function ExerciseCard({
             onWeightChange(exerciseIndex, setIndex, numericValue);
         }
     };
+
     const handleRepsChange = (setIndex: number, text: string) => {
         if (text === '') {
             onRepsChange(exerciseIndex, setIndex, 0);
@@ -833,16 +751,12 @@ function ExerciseCard({
         }
     };
 
-    const mode = getExerciseLoggingMode(exercise.name);
-
-    const formatMMSS = (seconds: number): string => {
-        const mins = Math.floor(seconds / 60);
-        const secs = seconds % 60;
-        return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-    };
+    const isWeightBased = isWeightBasedExercise(exercise.name);
 
     return (
         <BlurView intensity={28} tint="dark" style={styles.exerciseCard}>
+
+            {/* HEADER */}
             <View style={styles.exerciseHeader}>
                 <Text style={styles.exerciseName}>{exercise.name}</Text>
 
@@ -859,6 +773,7 @@ function ExerciseCard({
                 </TouchableOpacity>
             </View>
 
+            {/* REST COUNTDOWN */}
             {exercise.restRemaining > 0 && (
                 <View style={styles.restCountdown}>
                     <Text style={styles.restCountdownText}>
@@ -870,17 +785,14 @@ function ExerciseCard({
 
             <View style={styles.exerciseSpacing} />
 
-            {mode === 'weight_reps' ? (
+            {/* =========================
+               HEADER ROW
+            ========================= */}
+            {isWeightBased ? (
                 <View style={styles.tableHeaderRow}>
                     <Text style={[styles.tableHeaderCell, { flex: 0.5 }]}>Set</Text>
                     <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Weight</Text>
                     <Text style={[styles.tableHeaderCell, { flex: 1 }]}>Reps</Text>
-                    <Text style={[styles.tableHeaderCell, { flex: 0.8 }]}>Done</Text>
-                </View>
-            ) : mode === 'timed' ? (
-                <View style={styles.tableHeaderRow}>
-                    <Text style={[styles.tableHeaderCell, { flex: 0.5 }]}>Set</Text>
-                    <Text style={[styles.tableHeaderCell, { flex: 2.4, textAlign: 'center' }]}>Timer</Text>
                     <Text style={[styles.tableHeaderCell, { flex: 0.8 }]}>Done</Text>
                 </View>
             ) : (
@@ -893,10 +805,18 @@ function ExerciseCard({
 
             <View style={styles.exerciseSpacing} />
 
+            {/* =========================
+               DATA ROWS
+            ========================= */}
             {exercise.sets.map((set: SetEntry, setIndex: number) => (
-                mode === 'weight_reps' ? (
+
+                isWeightBased ? (
+
+                    // ✅ ORIGINAL (UNCHANGED)
                     <View key={setIndex} style={styles.tableDataRow}>
-                        <Text style={[styles.tableCell, { flex: 0.5 }]}>{setIndex + 1}</Text>
+                        <Text style={[styles.tableCell, { flex: 0.5 }]}>
+                            {setIndex + 1}
+                        </Text>
 
                         <View style={[styles.tableCellContainer, { flex: 1.5 }]}>
                             <TextInput
@@ -930,53 +850,14 @@ function ExerciseCard({
                             </TouchableOpacity>
                         </View>
                     </View>
-                ) : mode === 'timed' ? (
-                    <View key={setIndex} style={styles.tableDataRow}>
-                        <Text style={[styles.tableCell, { flex: 0.5 }]}>{setIndex + 1}</Text>
 
-                        <View style={[styles.tableCellContainer, { flex: 2.4 }]}>
-                            <View style={styles.timerRowPill}>
-                                <TouchableOpacity
-                                    style={styles.timerControlButton}
-                                    onPress={() => onToggleTimedSet(exerciseIndex, setIndex)}
-                                    disabled={set.done}
-                                >
-                                    <Ionicons
-                                        name={
-                                            runningTimedSet &&
-                                            runningTimedSet.exerciseIndex === exerciseIndex &&
-                                            runningTimedSet.setIndex === setIndex
-                                                ? 'pause'
-                                                : 'play'
-                                        }
-                                        size={16}
-                                        color={set.done ? 'rgba(255,255,255,0.35)' : AppColors.orange}
-                                    />
-                                </TouchableOpacity>
-
-                                <Text style={styles.timerPillText}>
-                                    {formatMMSS(set.durationSeconds || 0)}
-                                </Text>
-                            </View>
-                        </View>
-
-                        <View style={[styles.doneCheckboxContainer, { flex: 0.8 }]}>
-                            <TouchableOpacity
-                                style={[
-                                    styles.doneCheckbox,
-                                    set.done && styles.doneCheckboxChecked,
-                                ]}
-                                onPress={() => handlePressDone(setIndex)}
-                            >
-                                {set.done && (
-                                    <Ionicons name="checkmark" size={18} color={AppColors.white} />
-                                )}
-                            </TouchableOpacity>
-                        </View>
-                    </View>
                 ) : (
+
+                    // ✅ FIXED BODYWEIGHT VERSION
                     <View key={setIndex} style={styles.tableDataRow}>
-                        <Text style={[styles.tableCell, { flex: 0.5 }]}>{setIndex + 1}</Text>
+                        <Text style={[styles.tableCell, { flex: 0.5 }]}>
+                            {setIndex + 1}
+                        </Text>
 
                         <View style={[styles.tableCellContainer, { flex: 1.5 }]}>
                             <TextInput
@@ -1001,11 +882,13 @@ function ExerciseCard({
                             </TouchableOpacity>
                         </View>
                     </View>
+
                 )
             ))}
 
             <View style={styles.exerciseSpacing} />
 
+            {/* BUTTONS */}
             <View style={styles.setButtonsRow}>
                 <TouchableOpacity
                     style={styles.addSetButton}
@@ -1036,7 +919,6 @@ function ExerciseCard({
         </BlurView>
     );
 }
-
 function RestPickerSheet({ visible, initial, onSelect, onClose }: any) {
     const generateRestOptions = (): number[] => {
         const options: number[] = [0];
@@ -1426,7 +1308,9 @@ function RestCompleteOverlay({ visible, exerciseName, onClose }: any) {
 }
 
 function MuscleDistributionSheet({ visible, exercises, totalSets, onClose }: any) {
+    // Force recalculation when exercises change
     const muscleDistribution = calculateMuscleDistribution(exercises);
+
     const sortedMuscles = Object.entries(muscleDistribution).length > 0
         ? Object.entries(muscleDistribution)
             .sort((a, b) => b[1].completed - a[1].completed)
@@ -1439,6 +1323,7 @@ function MuscleDistributionSheet({ visible, exercises, totalSets, onClose }: any
     };
 
     const totalCompletedSets = Object.values(muscleDistribution).reduce((sum, data) => sum + data.completed, 0);
+
 
     return (
         <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -1479,7 +1364,9 @@ function MuscleDistributionSheet({ visible, exercises, totalSets, onClose }: any
                                             <View
                                                 style={[
                                                     styles.progressBarFill,
-                                                    { width: `${percentage}%` },
+                                                    {
+                                                        width: `${percentage}%`,
+                                                    },
                                                 ]}
                                             />
                                         </View>
@@ -1789,45 +1676,6 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         fontSize: 15,
         padding: 0,
-    },
-    timerPill: {
-        minWidth: 92,
-        paddingHorizontal: 12,
-        paddingVertical: 10,
-        borderRadius: 14,
-        backgroundColor: 'rgba(255,255,255,0.05)',
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.08)',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    timerRowPill: {
-        minWidth: 120,
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        borderRadius: 14,
-        backgroundColor: 'rgba(255,255,255,0.05)',
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.08)',
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 10,
-    },
-    timerPillText: {
-        color: AppColors.white,
-        fontWeight: '700',
-        fontSize: 15,
-    },
-    timerControlButton: {
-        width: 34,
-        height: 34,
-        borderRadius: 10,
-        backgroundColor: 'rgba(255,120,37,0.12)',
-        borderWidth: 1,
-        borderColor: 'rgba(255,120,37,0.28)',
-        alignItems: 'center',
-        justifyContent: 'center',
     },
     iconButtonText: {
         fontSize: 16,
@@ -2374,11 +2222,6 @@ const styles = StyleSheet.create({
         height: 40,
         backgroundColor: 'rgba(255,255,255,0.08)',
     },
-    metricIconButton: {
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingHorizontal: 12,
-    },
     fullWidthButtons: {
 
         gap: 12,
@@ -2409,6 +2252,27 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(255,255,255,0.05)',
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.08)',
+    },
+    tableRowNoWeight: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+
+    tableColumnSmall: {
+        width: 60,            // keeps Set + Done aligned left/right
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+
+    tableColumnFlex: {
+        flex: 1,              // Reps gets center space
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    metricIconButton: {
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: 12,
     },
 
     muscleDistributionTitle: {
@@ -2494,6 +2358,32 @@ const styles = StyleSheet.create({
         color: 'rgba(255,255,255,0.7)',
     },
 
+    muscleHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 6,
+    },
+
+    muscleName: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: AppColors.white,
+    },
+
+    muscleSetCount: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: AppColors.orange,
+    },
+    muscleDistributionTitleContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        marginBottom: 16,
+    },
+
     emptyMuscleContainer: {
         alignItems: 'center',
         justifyContent: 'center',
@@ -2504,4 +2394,12 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: 'rgba(255,255,255,0.6)',
     },
+
+    muscleIconLabel: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+
+
 });

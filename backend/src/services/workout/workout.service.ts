@@ -112,17 +112,17 @@ const resolveExerciseId = async (
 
 const mapCommentTree = (comment: any): DiscoverCommentDto => ({
   id: String(comment.comment_id),
-  user: comment.user?.username || comment.user?.name || `user-${comment.user_id}`,
+  user: comment.users?.username || comment.users?.name || `user-${comment.user_id}`,
   avatarUrl: avatarFromUserId(comment.user_id),
   text: comment.text,
   time: formatRelativeTime(comment.created_at),
   likes: 0,
   liked: false,
-  replies: (comment.replies || []).map((reply: any) => mapCommentTree(reply)),
+  replies: (comment.other_Comment || []).map((reply: any) => mapCommentTree(reply)),
 });
 
 const buildPostStats = (workout: any) => {
-  const sets = (workout?.workout_exercises || []).flatMap((entry: any) => entry.sets || []);
+  const sets = (workout?.workout_exercises || []).flatMap((entry: any) => entry.WorkoutSet || []);
   const totalReps = sets.reduce((sum: number, set: any) => sum + (set.reps || 0), 0);
   const bpmValues = sets.map((set: any) => set.bpm).filter((bpm: number | null) => typeof bpm === 'number');
   const avgBpm = bpmValues.length > 0
@@ -161,7 +161,7 @@ const buildPostStats = (workout: any) => {
 const buildExerciseSummary = (workout: any): Array<{ name: string; setsCount: number; imagePath?: string }> => {
   const items = (workout?.workout_exercises || []).map((entry: any) => ({
     name: entry?.exercises?.name || entry?.notes || 'Exercise',
-    setsCount: Array.isArray(entry?.sets) ? entry.sets.length : 0,
+    setsCount: Array.isArray(entry?.WorkoutSet) ? entry.WorkoutSet.length : 0,
     imagePath: entry?.exercises?.image || undefined,
   }));
 
@@ -254,7 +254,7 @@ export const saveWorkoutPost = async (
 };
 
 const mapPrismaPostToDiscoverPost = (post: any, userId: number): DiscoverPostDto => {
-  const likes = Array.isArray(post.likes) ? post.likes : [];
+  const likes = Array.isArray(post.Like) ? post.Like : [];
   const firstLike = likes[0];
 
   return {
@@ -262,26 +262,26 @@ const mapPrismaPostToDiscoverPost = (post: any, userId: number): DiscoverPostDto
     title: post.title || '',
     caption: post.caption || post.title || '',
     time: formatRelativeTime(post.created_at),
-    stats: buildPostStats(post.workout),
+    stats: buildPostStats(post.workouts),
     athlete: {
-      name: post.user.name || post.user.username || `user-${post.user.user_id}`,
-      username: post.user.username || `user-${post.user.user_id}`,
-      avatarUrl: avatarFromUserId(post.user.user_id),
+      name: post.users.name || post.users.username || `user-${post.users.user_id}`,
+      username: post.users.username || `user-${post.users.user_id}`,
+      avatarUrl: avatarFromUserId(post.users.user_id),
     },
     media: (post.PostMedia || []).map((media: any) => ({
       url: media.url,
       type: media.type,
     })),
-    exercises: buildExerciseSummary(post.workout),
+    exercises: buildExerciseSummary(post.workouts),
     likesCount: likes.length,
     likedByMe: likes.some((like: any) => like.user_id === userId),
     likedByUsername:
-      firstLike?.user?.username ||
-      firstLike?.user?.name ||
+      firstLike?.users?.username ||
+      firstLike?.users?.name ||
       (firstLike ? `user-${firstLike.user_id}` : undefined),
     likedByAvatarUrls: likes.slice(0, 2).map((like: any) => avatarFromUserId(like.user_id)),
-    commentsCount: post.comments?.length || 0,
-    comments: (post.comments || []).map((comment: any) => mapCommentTree(comment)),
+    commentsCount: post.Comment?.length || 0,
+    comments: (post.Comment || []).map((comment: any) => mapCommentTree(comment)),
   };
 };
 
@@ -305,12 +305,12 @@ export const getDiscoverPosts = async (
       { post_id: 'desc' },
     ],
     include: {
-      user: { select: { user_id: true, username: true, name: true } },
-      workout: {
+      users: { select: { user_id: true, username: true, name: true } },
+      workouts: {
         include: {
           workout_exercises: {
             include: {
-              sets: true,
+              WorkoutSet: true,
               exercises: {
                 select: {
                   name: true,
@@ -325,20 +325,20 @@ export const getDiscoverPosts = async (
         orderBy: { order: 'asc' },
         select: { url: true, type: true },
       },
-      likes: {
+      Like: {
         orderBy: { created_at: 'asc' },
         select: {
           user_id: true,
-          user: { select: { username: true, name: true } },
+          users: { select: { username: true, name: true } },
         },
       },
-      comments: {
+      Comment: {
         where: { parent_id: null },
         include: {
-          user: { select: { username: true, name: true } },
-          replies: {
+          users: { select: { username: true, name: true } },
+          other_Comment: {
             include: {
-              user: { select: { username: true, name: true } },
+              users: { select: { username: true, name: true } },
             },
             orderBy: { created_at: 'asc' },
           },
@@ -366,12 +366,12 @@ export const getDiscoverPostById = async (userId: number, postId: number): Promi
       visibility: 'PUBLIC',
     },
     include: {
-      user: { select: { user_id: true, username: true, name: true } },
-      workout: {
+      users: { select: { user_id: true, username: true, name: true } },
+      workouts: {
         include: {
           workout_exercises: {
             include: {
-              sets: true,
+              WorkoutSet: true,
               exercises: {
                 select: { name: true, image: true },
               },
@@ -383,20 +383,20 @@ export const getDiscoverPostById = async (userId: number, postId: number): Promi
         orderBy: { order: 'asc' },
         select: { url: true, type: true },
       },
-      likes: {
+      Like: {
         orderBy: { created_at: 'asc' },
         select: {
           user_id: true,
-          user: { select: { username: true, name: true } },
+          users: { select: { username: true, name: true } },
         },
       },
-      comments: {
+      Comment: {
         where: { parent_id: null },
         include: {
-          user: { select: { username: true, name: true } },
-          replies: {
+          users: { select: { username: true, name: true } },
+          other_Comment: {
             include: {
-              user: { select: { username: true, name: true } },
+              users: { select: { username: true, name: true } },
             },
             orderBy: { created_at: 'asc' },
           },
@@ -439,7 +439,7 @@ export const togglePostLike = async (
       take: 2,
       select: {
         user_id: true,
-        user: { select: { username: true, name: true } },
+        users: { select: { username: true, name: true } },
       },
     });
 
@@ -455,8 +455,8 @@ export const togglePostLike = async (
       liked,
       likesCount,
       likedByUsername:
-        firstLike?.user?.username ||
-        firstLike?.user?.name ||
+        firstLike?.users?.username ||
+        firstLike?.users?.name ||
         (firstLike ? `user-${firstLike.user_id}` : undefined),
       likedByAvatarUrls: likes.map((like) => avatarFromUserId(like.user_id)),
     };
@@ -492,7 +492,7 @@ export const createPostComment = async (
         parent_id: input.parentId || null,
       },
       include: {
-        user: { select: { username: true, name: true } },
+        users: { select: { username: true, name: true } },
       },
     });
 
@@ -504,7 +504,7 @@ export const createPostComment = async (
 
     return {
       id: String(comment.comment_id),
-      user: comment.user?.username || comment.user?.name || `user-${comment.user_id}`,
+      user: comment.users?.username || comment.users?.name || `user-${comment.user_id}`,
       avatarUrl: avatarFromUserId(comment.user_id),
       text: comment.text,
       time: formatRelativeTime(comment.created_at),

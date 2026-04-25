@@ -21,6 +21,7 @@ export interface Routine {
 export interface SetEntry {
     weightKg: number;
     reps: number;
+    durationSeconds?: number;
     done: boolean;
 }
 
