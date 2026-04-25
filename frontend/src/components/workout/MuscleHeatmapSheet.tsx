@@ -52,6 +52,13 @@ const toSlug = (raw: string): Slug | null => {
     forearms: 'forearm',
     forearm: 'forearm',
     neck: 'neck',
+    lats: 'upper-back',
+    latissimus: 'upper-back',
+    'middle back': 'upper-back',
+    back: 'upper-back',
+    gluteus: 'gluteal',
+    butt: 'gluteal',
+    buttocks: 'gluteal',
   };
   return map[k] ?? null;
 };
@@ -182,8 +189,8 @@ export default function MuscleHeatmapSheet({ visible, exercises, onClose }: Prop
               colors={ORANGE_SHADES}
               data={bodyData}
               border="rgba(255,255,255,0.12)"
-              defaultFill="rgba(255,255,255,0.06)"
-              defaultStroke="rgba(255,255,255,0.08)"
+              defaultFill="#5A5A5A"
+              defaultStroke="rgba(255,255,255,0.26)"
               defaultStrokeWidth={1}
             />
           </View>

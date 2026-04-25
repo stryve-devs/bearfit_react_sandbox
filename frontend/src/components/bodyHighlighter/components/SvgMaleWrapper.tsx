@@ -20,7 +20,7 @@ export const SvgMaleWrapper: React.FC<SvgWrapperProps> = ({ children, scale, sid
       accessibilityLabel={`male-body-${side}`}
     >
       {border !== 'none' && (
-        <G strokeWidth={2} fill="none" strokeLinecap="butt">
+        <G strokeWidth={2} fill="#2F2F2F" strokeLinecap="butt">
           {side === 'front' && (
             <Path
               stroke={border}

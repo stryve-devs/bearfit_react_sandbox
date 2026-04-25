@@ -4,6 +4,8 @@ import { Path } from 'react-native-svg';
 import type { BodyPart, BodyPartStyles, BodyProps, ExtendedBodyPart } from './types';
 import { bodyFront } from './assets/bodyFront';
 import { bodyBack } from './assets/bodyBack';
+import { bodyFemaleFront } from './assets/bodyFemaleFront';
+import { bodyFemaleBack } from './assets/bodyFemaleBack';
 import { SvgMaleWrapper } from './components/SvgMaleWrapper';
 import { SvgFemaleWrapper } from './components/SvgFemaleWrapper';
 
@@ -54,7 +56,7 @@ const Body = ({
   );
 
   const renderBodySvg = (bodyToRender: ReadonlyArray<BodyPart>) => {
-    const SvgWrapper = gender === 'male' ? SvgMaleWrapper : SvgFemaleWrapper;
+    const SvgWrapper = gender === 'female' ? SvgFemaleWrapper : SvgMaleWrapper;
     const visibleParts = bodyToRender.filter((part) => part.slug && !hiddenParts.includes(part.slug));
 
     return (
@@ -129,8 +131,16 @@ const Body = ({
     );
   };
 
-  // Note: For now, female uses the same part map as male (the wrapper silhouette differs).
-  return renderBodySvg(side === 'front' ? bodyFront : bodyBack);
+  const bodyAssets =
+    gender === 'female'
+      ? side === 'front'
+        ? bodyFemaleFront
+        : bodyFemaleBack
+      : side === 'front'
+        ? bodyFront
+        : bodyBack;
+
+  return renderBodySvg(bodyAssets);
 };
 
 export default Body;
