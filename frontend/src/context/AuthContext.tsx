@@ -38,7 +38,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         } else if (user && inAuthGroup) {
             // User authenticated but on auth screen, redirect to app
             console.log('✅ Authenticated, redirecting to app');
-            router.replace('/(tabs)');
+            router.replace('/(onboarding)/select-units');
         }
     }, [user, loading, segments]);
 

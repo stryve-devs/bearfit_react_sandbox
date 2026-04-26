@@ -4,5 +4,8 @@
   },
   "ios": {
     "bundleIdentifier": "com.anonymous.frontend"
-  }
+  },
+  "plugins": [
+    "@react-native-community/datetimepicker"
+  ]
 }

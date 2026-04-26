@@ -1,5 +1,6 @@
 import 'react-native-get-random-values';
 import { Stack } from 'expo-router';
+import React from "react";
 import { AuthProvider } from '../src/context/AuthContext';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts } from 'expo-font';
