@@ -12,6 +12,7 @@ import {
     sendOtp,
     verifyOtp,
     me,
+    updateProfile,
 } from '../../controllers/auth/auth.controller';
 import { validate } from '../../middlewares/validationMiddleware';
 import {
@@ -38,6 +39,7 @@ router.post('/register-google', validate(googleAuthSchema), registerGoogle);
 router.get('/exists', checkEmailExists);
 router.get('/username-exists', checkUsernameExists);
 router.get('/me', authMiddleware, me);
+router.put('/profile', authMiddleware, updateProfile);
 
 // OTP
 router.post('/send-otp', sendOtp);

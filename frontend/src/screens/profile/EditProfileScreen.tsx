@@ -12,12 +12,15 @@ import {
     Animated,
     Alert,
     Platform,
+    ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons, Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import Toast from "@/components/profile/Toast";
+import * as ImagePicker from "expo-image-picker";
+import { profileService } from "@/api/services/profile.service";
 
 const ORANGE = "#ff7a00";
 
@@ -100,6 +103,14 @@ export default function EditProfileScreen() {
     const [bio, setBio] = useState("");
     const [link, setLink] = useState("");
     const [sex, setSex] = useState("");
+    const [profilePicUri, setProfilePicUri] = useState("https://i.pravatar.cc/150?img=12");
+    const [profilePicUrl, setProfilePicUrl] = useState("https://i.pravatar.cc/150?img=12");
+    const [profilePicR2Key, setProfilePicR2Key] = useState<string | null>(null);
+    const [showProfilePicModal, setShowProfilePicModal] = useState(false);
+    const [uploadingProfilePic, setUploadingProfilePic] = useState(false);
+    const [uploadProgressPercent, setUploadProgressPercent] = useState(0);
+    const [toastVisible, setToastVisible] = useState(false);
+    const [toastMessage, setToastMessage] = useState("");
 
     // Calendar & Birthday state
     const [hasBirthday, setHasBirthday] = useState(false);
@@ -125,19 +136,82 @@ export default function EditProfileScreen() {
         setShowBirthday(true);
     };
 
+    const handlePickProfilePicture = async (source: 'camera' | 'gallery') => {
+        try {
+            if (source === 'camera') {
+                const permission = await ImagePicker.requestCameraPermissionsAsync();
+                if (permission.status !== 'granted') {
+                    Alert.alert('Permission Denied', 'Camera permission is required');
+                    return;
+                }
+
+                const result = await ImagePicker.launchCameraAsync({
+                    mediaTypes: ['images'],
+                    allowsEditing: true,
+                    aspect: [1, 1],
+                    quality: 0.8,
+                });
+
+                if (!result.canceled && result.assets?.length > 0) {
+                    setProfilePicUri(result.assets[0].uri);
+                }
+            } else {
+                const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                if (permission.status !== 'granted') {
+                    Alert.alert('Permission Denied', 'Gallery permission is required');
+                    return;
+                }
+
+                const result = await ImagePicker.launchImageLibraryAsync({
+                    mediaTypes: ['images'],
+                    allowsEditing: true,
+                    aspect: [1, 1],
+                    quality: 0.8,
+                });
+
+                if (!result.canceled && result.assets?.length > 0) {
+                    setProfilePicUri(result.assets[0].uri);
+                }
+            }
+            setShowProfilePicModal(false);
+        } catch (error) {
+            Alert.alert('Error', 'Failed to pick image');
+            console.error(error);
+        }
+    };
+
     const confirmBirthday = () => {
         setHasBirthday(true);
         setShowBirthday(false);
     };
 
-    const [toastVisible, setToastVisible] = useState(false);
-    const [toastMessage, setToastMessage] = useState("");
-    const handleDone = () => {
-        setToastMessage("Profile updated successfully.");
-        setToastVisible(true);
-        setTimeout(() => {
-            router.back();
-        }, 500);
+    const handleDone = async () => {
+        try {
+            // Only save profile picture URL if it was uploaded
+            const updatePayload: any = {
+                name,
+                bio,
+                link_url: link,
+            };
+
+            // Only include profile_pic_url if it has been uploaded to R2
+            if (profilePicUrl && profilePicUrl !== "https://i.pravatar.cc/150?img=12") {
+                updatePayload.profile_pic_url = profilePicUrl;
+            }
+
+            // Send update to backend
+            await profileService.updateProfile(updatePayload);
+
+            setToastMessage("Profile updated successfully.");
+            setToastVisible(true);
+            setTimeout(() => {
+                router.back();
+            }, 500);
+        } catch (error) {
+            console.error('Error updating profile:', error);
+            setToastMessage("Failed to update profile. Please try again.");
+            setToastVisible(true);
+        }
     };
 
     // ─── Calendar Logic ───
@@ -261,13 +335,13 @@ export default function EditProfileScreen() {
                         <View style={st.avatarWrap}>
                             <AvatarRing />
                             <Image source={{ uri: "https://i.pravatar.cc/150?img=12" }} style={st.avatarImg} />
-                            <TouchableOpacity style={st.cameraBtn} activeOpacity={0.8}>
+                            <TouchableOpacity style={st.cameraBtn} activeOpacity={0.8} onPress={() => setShowProfilePicModal(true)}>
                                 <Feather name="camera" size={12} color="#fff" />
                             </TouchableOpacity>
                         </View>
                         <Text style={st.username}>{name || "Your Name"}</Text>
                         <Text style={st.handle}>@{(name || "yourname").toLowerCase().replace(/\s+/g, "")}</Text>
-                        <TouchableOpacity>
+                        <TouchableOpacity onPress={() => setShowProfilePicModal(true)}>
                             <Text style={st.changePic}>Change Picture</Text>
                         </TouchableOpacity>
                     </View>
@@ -451,6 +525,43 @@ export default function EditProfileScreen() {
                         </LinearGradient>
                     </View>
                 </Modal>
+
+                {/* Profile Picture Selection Modal */}
+                <Modal visible={showProfilePicModal} transparent animationType="slide">
+                    <View style={sh.overlay}>
+                        <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowProfilePicModal(false)}>
+                            <View style={sh.backdrop} />
+                        </Pressable>
+                        <LinearGradient colors={["rgba(22,22,26,0.98)", "rgba(14,14,16,0.99)"]} style={sh.sheet}>
+                            <View style={sh.shine} pointerEvents="none" />
+                            <View style={sh.handle} />
+                            <Text style={sh.title}>Select Photo</Text>
+
+                            <TouchableOpacity
+                                style={sh.photoRow}
+                                onPress={() => handlePickProfilePicture('camera')}
+                                activeOpacity={0.7}
+                            >
+                                <Ionicons name="camera-outline" size={20} color={ORANGE} />
+                                <Text style={sh.photoText}>Take Photo</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={sh.photoRow}
+                                onPress={() => handlePickProfilePicture('gallery')}
+                                activeOpacity={0.7}
+                            >
+                                <Ionicons name="image-outline" size={20} color={ORANGE} />
+                                <Text style={sh.photoText}>Choose from Gallery</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity style={sh.cancelBtn} onPress={() => setShowProfilePicModal(false)} activeOpacity={0.7}>
+                                <Text style={sh.cancelTxt}>Cancel</Text>
+                            </TouchableOpacity>
+                        </LinearGradient>
+                    </View>
+                </Modal>
+
                 <Toast
                     visible={toastVisible}
                     message={toastMessage}
@@ -667,6 +778,12 @@ const sh = StyleSheet.create({
         }),
     },
     confirmTxt: { fontSize: 15, fontWeight: "700", color: "#fff", letterSpacing: -0.2 },
+    photoRow: {
+        flexDirection: "row", alignItems: "center", gap: 16,
+        paddingVertical: 16, paddingHorizontal: 4,
+        borderBottomWidth: 0.5, borderBottomColor: "rgba(255,255,255,0.05)",
+    },
+    photoText: { fontSize: 16, color: "#f0ede8", fontWeight: "500" },
 });
 
 // Info modal
