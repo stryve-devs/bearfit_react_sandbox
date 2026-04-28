@@ -8,35 +8,38 @@ datasource db {
 }
 
 model users {
-  user_id        Int              @id @default(autoincrement())
-  name           String           @db.VarChar(150)
-  username       String?          @unique @db.VarChar(150)
-  email          String           @unique @db.VarChar(320)
-  password_hash  String?
-  is_active      Boolean          @default(true)
-  email_verified Boolean          @default(false)
-  gender         String?          @db.VarChar(10)
-  date_of_birth  DateTime?        @db.Date
-  height         Decimal?         @db.Decimal(5, 2)
-  weight         Decimal?         @db.Decimal(5, 2)
-  activity_level String?          @db.VarChar(30)
-  goal           String?          @db.VarChar(50)
-  created_at     DateTime         @default(now())
-  updated_at     DateTime         @updatedAt
-  deleted_at     DateTime?
-  theme          ThemePreference  @default(SYSTEM)
-  role           Role             @default(USER)
-  googleId       String?          @unique @db.VarChar(191)
-  Comment        Comment[]
-  Food           Food[]
-  Like           Like[]
-  Meal           Meal[]
-  PersonalRecord PersonalRecord[]
-  Post           Post[]
-  Routine        Routine[]
-  progress       progress[]
-  refresh_tokens refresh_tokens[]
-  workouts       workouts[]
+  user_id         Int              @id @default(autoincrement())
+  name            String           @db.VarChar(150)
+  username        String?          @unique @db.VarChar(150)
+  email           String           @unique @db.VarChar(320)
+  password_hash   String?
+  is_active       Boolean          @default(true)
+  email_verified  Boolean          @default(false)
+  gender          String?          @db.VarChar(10)
+  date_of_birth   DateTime?        @db.Date
+  height          Decimal?         @db.Decimal(5, 2)
+  weight          Decimal?         @db.Decimal(5, 2)
+  activity_level  String?          @db.VarChar(30)
+  goal            String?          @db.VarChar(50)
+  created_at      DateTime         @default(now())
+  updated_at      DateTime         @updatedAt
+  deleted_at      DateTime?
+  theme           ThemePreference  @default(SYSTEM)
+  role            Role             @default(USER)
+  googleId        String?          @unique @db.VarChar(191)
+  bio             String?
+  Comment         Comment[]
+  Food            Food[]
+  Like            Like[]
+  Meal            Meal[]
+  PersonalRecord  PersonalRecord[]
+  Post            Post[]
+  Routine         Routine[]
+  progress        progress[]
+  refresh_tokens  refresh_tokens[]
+  following_links user_follows[]   @relation("user_follower")
+  follower_links  user_follows[]   @relation("user_following")
+  workouts        workouts[]
 
   @@index([email])
 }
@@ -283,6 +286,17 @@ model WorkoutSet {
   workout_exercises   workout_exercises @relation(fields: [workout_exercise_id], references: [workout_exercise_id], onDelete: Cascade)
 
   @@index([workout_exercise_id])
+}
+
+model user_follows {
+  follower_id  Int
+  following_id Int
+  created_at   DateTime @default(now())
+  follower     users    @relation("user_follower", fields: [follower_id], references: [user_id], onDelete: Cascade)
+  following    users    @relation("user_following", fields: [following_id], references: [user_id], onDelete: Cascade)
+
+  @@id([follower_id, following_id])
+  @@index([following_id])
 }
 
 enum Role {
