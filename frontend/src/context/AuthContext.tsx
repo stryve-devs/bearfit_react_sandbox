@@ -17,6 +17,8 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [user, setUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
+    const [postAuthFlow, setPostAuthFlow] = useState<'login' | 'register' | null>(null);
+    const [postLogoutRedirect, setPostLogoutRedirect] = useState(false);
     const router = useRouter();
     const segments = useSegments();
 
@@ -32,15 +34,21 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const inAuthGroup = segments[0] === '(auth)';
 
         if (!user && !inAuthGroup) {
-            // User not authenticated, redirect to login
-            console.log('🔒 Not authenticated, redirecting to login');
-            router.replace('/(auth)/login');
+            // Always redirect unauthenticated users to login
+            const targetRoute = '/(auth)/login';
+            console.log('🔒 Not authenticated, redirecting to:', targetRoute);
+            router.replace(targetRoute);
         } else if (user && inAuthGroup) {
-            // User authenticated but on auth screen, redirect to app
-            console.log('✅ Authenticated, redirecting to app');
-            router.replace('/(onboarding)/select-units');
+            // Only new registrations should go through onboarding.
+            const targetRoute = postAuthFlow === 'register' ? '/(onboarding)/select-units' : '/(tabs)';
+            console.log('✅ Authenticated, redirecting to:', targetRoute);
+            router.replace(targetRoute);
+            setPostAuthFlow(null);
+        } else if (!user && inAuthGroup && postLogoutRedirect) {
+            // Clear intent once we've landed in the auth group after logout.
+            setPostLogoutRedirect(false);
         }
-    }, [user, loading, segments]);
+    }, [user, loading, segments, postAuthFlow, postLogoutRedirect]);
 
     const loadUser = async () => {
         console.log('🔍 Loading user from storage...');
@@ -67,6 +75,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         try {
             const response = await authService.login(credentials);
             console.log('✅ Login successful:', response.user.username || response.user.email);
+            setPostAuthFlow('login');
             setUser(response.user);
             // Navigation handled by useEffect
         } catch (error: any) {
@@ -80,6 +89,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         try {
             const response = await authService.register(data);
             console.log('✅ Registration successful:', response.user.username || response.user.email);
+            setPostAuthFlow('register');
             setUser(response.user);
             // Navigation handled by useEffect
         } catch (error: any) {
@@ -91,14 +101,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const logout = async () => {
         console.log('👋 Logging out...');
         setLoading(true);
+        setPostLogoutRedirect(true);
         try {
             await authService.logout();
             console.log('✅ Logout successful');
+            setPostAuthFlow(null);
             setUser(null);
             router.replace('/(auth)/login');
         } catch (error: any) {
             console.error('❌ Logout error:', error);
             // Clear user anyway even if API call fails
+            setPostAuthFlow(null);
             setUser(null);
             router.replace('/(auth)/login');
         } finally {

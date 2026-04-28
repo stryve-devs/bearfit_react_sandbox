@@ -167,6 +167,18 @@ export const refreshAccessToken = async (refreshToken: string) => {
   };
 };
 
+export const revokeRefreshToken = async (refreshToken: string): Promise<void> => {
+  await prisma.refresh_tokens.updateMany({
+    where: {
+      token: refreshToken,
+      revoked: false,
+    },
+    data: {
+      revoked: true,
+    },
+  });
+};
+
 /* =======================
    GOOGLE SIGN-IN
 ======================= */

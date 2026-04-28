@@ -26,7 +26,17 @@ export const authService = {
     },
 
     async logout(): Promise<void> {
-        await AsyncStorage.multiRemove(['accessToken', 'refreshToken', 'user']);
+        const refreshToken = await AsyncStorage.getItem('refreshToken');
+
+        try {
+            if (refreshToken) {
+                await api.post('/auth/logout', { refreshToken });
+            }
+        } catch (error) {
+            console.warn('Logout API failed, clearing local session anyway:', error);
+        } finally {
+            await AsyncStorage.multiRemove(['accessToken', 'refreshToken', 'user']);
+        }
     },
 
     async getUser(): Promise<User | null> {

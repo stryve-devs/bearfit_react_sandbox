@@ -58,7 +58,6 @@ export default function RegisterScreen() {
             console.log('✅ Calling register function...');
             await register({ username, email, password });
             console.log('✅ Registration successful!');
-            router.replace('/(tabs)');
         } catch (error: any) {
             console.error('❌ Registration error:', error);
             const errorMessage = error.response?.data?.message || error.message || 'Something went wrong';

@@ -11,6 +11,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather, MaterialIcons, Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
+import { useAuth } from "@/context/AuthContext";
 
 const ORANGE = "#ff7a00";
 const DANGER = "#ff3b30";
@@ -94,6 +95,24 @@ const SocialIcon = ({ icon, onPress }: SocialIconProps) => (
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function SettingsScreen() {
     const router = useRouter();
+    const { logout } = useAuth();
+
+    const handleLogout = () => {
+        Alert.alert(
+            "Logout",
+            "Are you sure you want to log out?",
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Logout",
+                    style: "destructive",
+                    onPress: async () => {
+                        await logout();
+                    },
+                },
+            ]
+        );
+    };
 
     return (
         <LinearGradient
@@ -196,7 +215,7 @@ export default function SettingsScreen() {
 
                     {/* ── Logout ── */}
                     <TouchableOpacity
-                        onPress={() => Alert.alert("Logged Out")}
+                        onPress={handleLogout}
                         activeOpacity={0.8}
                         style={styles.logoutWrap}
                     >

@@ -18,10 +18,10 @@ export default function LoginScreen() {
             Alert.alert('Error', 'Please fill in all fields');
             return;
         }
+
         setLoading(true);
         try {
             await login({ email, password });
-            router.replace('/(tabs)');
         } catch (error: any) {
             Alert.alert('Login Failed', error.response?.data?.message || 'Invalid credentials');
         } finally {

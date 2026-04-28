@@ -1,0 +1,14 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const workout_controller_1 = require("../../controllers/workout/workout.controller");
+const authMiddleware_1 = require("../../middlewares/auth/authMiddleware");
+const validationMiddleware_1 = require("../../middlewares/validationMiddleware");
+const validationSchemas_1 = require("../../utils/validationSchemas");
+const router = (0, express_1.Router)();
+router.post('/', authMiddleware_1.authMiddleware, (0, validationMiddleware_1.validate)(validationSchemas_1.saveWorkoutPostSchema), workout_controller_1.createWorkoutPost);
+router.get('/discover', authMiddleware_1.authMiddleware, workout_controller_1.discoverWorkoutPosts);
+router.get('/posts/:postId', authMiddleware_1.authMiddleware, workout_controller_1.discoverWorkoutPostById);
+router.post('/posts/:postId/like', authMiddleware_1.authMiddleware, workout_controller_1.toggleWorkoutPostLike);
+router.post('/posts/:postId/comments', authMiddleware_1.authMiddleware, (0, validationMiddleware_1.validate)(validationSchemas_1.createPostCommentSchema), workout_controller_1.createWorkoutPostComment);
+exports.default = router;
