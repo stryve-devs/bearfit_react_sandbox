@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../client';
-import type { LoginRequest, RegisterRequest, AuthResponse, User } from '@/types/auth.types';
+import type { LoginRequest, RegisterRequest, AuthResponse, User, MeProfileResponse } from '@/types/auth.types';
 
 export const authService = {
     async register(data: RegisterRequest): Promise<AuthResponse> {
@@ -41,5 +41,10 @@ export const authService = {
         } catch {
             return false;
         }
+    },
+
+    async getMeProfile(): Promise<MeProfileResponse> {
+        const response = await api.get('/auth/me');
+        return response.data;
     },
 };

@@ -37,11 +37,13 @@ import * as Haptics from 'expo-haptics';
 import { AppColors } from '@/constants/colors';
 import { fetchPostService } from '@/api/services/fetchpost.service';
 import { DiscoverComment, DiscoverPost } from '@/types/fetchpost.types';
+import { useAuth } from '@/context/AuthContext';
 import { VideoView, useVideoPlayer } from 'expo-video';
 
 type Athlete = { name: string; username: string; avatarUrl: string };
 type Post = {
   id: string;
+  userId?: number;
   title?: string;
   caption: string;
   time: string;
@@ -140,6 +142,7 @@ const toLocalComment = (comment: DiscoverComment): Comment => ({
 
 const toLocalPost = (post: DiscoverPost): Post => ({
   id: post.id,
+  userId: post.userId,
   title: post.title,
   caption: post.caption,
   time: post.time,
@@ -398,6 +401,8 @@ function MediaSlide({
 
 export default function FetchPostDetailScreen() {
   const params = useLocalSearchParams<{ postId?: string }>();
+  const { user: currentUser } = useAuth();
+  const currentUserId = currentUser?.user_id ?? null;
   const [post, setPost] = useState<Post | null>(null);
   const [loading, setLoading] = useState(true);
   const [isLiked, setIsLiked] = useState(false);
@@ -649,14 +654,11 @@ export default function FetchPostDetailScreen() {
 
           <View style={styles.cardHeader}>
             <TouchableOpacity
+              // Use the app's `userid` route so profile resolves correctly (same as Home screen)
               onPress={() =>
                 router.push({
-                  pathname: '/(tabs)/profile',
-                  params: {
-                    athleteName: post.athlete.name,
-                    athleteUsername: post.athlete.username,
-                    athleteAvatarUrl: post.athlete.avatarUrl,
-                  },
+                  pathname: '/(tabs)/home/userid',
+                  params: { userId: post.athlete.username, name: post.athlete.name, image: post.athlete.avatarUrl },
                 })
               }
               activeOpacity={0.8}
@@ -665,7 +667,16 @@ export default function FetchPostDetailScreen() {
                 <Image source={{ uri: post.athlete.avatarUrl }} style={styles.avatar} />
               </View>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => router.push('/(tabs)/profile')} style={{ flex: 1 }} activeOpacity={0.8}>
+            <TouchableOpacity
+              onPress={() =>
+                router.push({
+                  pathname: '/(tabs)/home/userid',
+                  params: { userId: post.athlete.username, name: post.athlete.name, image: post.athlete.avatarUrl },
+                })
+              }
+              style={{ flex: 1 }}
+              activeOpacity={0.8}
+            >
               <Text allowFontScaling={false} style={styles.username}>
                 @{post.athlete.username}
               </Text>
@@ -680,16 +691,19 @@ export default function FetchPostDetailScreen() {
               }}
               activeOpacity={1}
             >
-              <Animated.View style={followStyle}>
-                {isFollowed ? (
-                  <Ionicons name="checkmark" size={11} color={ORANGE} style={{ marginRight: 4 }} />
-                ) : (
-                  <Ionicons name="add" size={11} color={ORANGE} style={{ marginRight: 4 }} />
-                )}
-                <Text allowFontScaling={false} style={styles.followText}>
-                  {isFollowed ? 'Following' : 'Follow'}
-                </Text>
-              </Animated.View>
+              {/* Only render follow UI when the post is not owned by the current user */}
+              {!(currentUserId != null && post?.userId === currentUserId) && (
+                <Animated.View style={followStyle}>
+                  {isFollowed ? (
+                    <Ionicons name="checkmark" size={11} color={ORANGE} style={{ marginRight: 4 }} />
+                  ) : (
+                    <Ionicons name="add" size={11} color={ORANGE} style={{ marginRight: 4 }} />
+                  )}
+                  <Text allowFontScaling={false} style={styles.followText}>
+                    {isFollowed ? 'Following' : 'Follow'}
+                  </Text>
+                </Animated.View>
+              )}
             </TouchableOpacity>
           </View>
 

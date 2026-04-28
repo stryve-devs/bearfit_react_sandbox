@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
     View,
     Text,
@@ -10,11 +10,15 @@ import {
     Easing,
     Platform,
     Dimensions,
+    ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons, MaterialCommunityIcons, Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { authService } from "@/api/services/auth.service";
+import { useAuth } from "@/context/AuthContext";
+import type { MeProfileResponse } from "@/types/auth.types";
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 const ORANGE  = "#FF7825";
@@ -36,15 +40,21 @@ const BAR_DATA: Record<string, number[]> = {
     Reps:     [40, 65, 30, 55, 80, 45, 60],
 };
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const ACTIVE_DAY = 3;
+
+type DashItem = {
+    label: string;
+    icon: string;
+    startOffset: number;
+    sub: string;
+    route?: string;
+};
 
 // HTML animation-delay offsets for a 9s cycle
-const DASH_ITEMS = [
-    {label: "Statistics", icon: "chart-line", startOffset: 0, route: "/Profile/statistics",},
-    { label: "Exercises",     icon: "dumbbell",          startOffset: 0.33 },
-    { label: "Measures",      icon: "human-male-height", startOffset: 0.17,     route: "/Profile/measurements"},
-    {label: "Calendar", icon: "calendar", startOffset: 0.56, sub: "", route: "/Profile/calendar"},
-
+const DASH_ITEMS: DashItem[] = [
+    { label: "Statistics", icon: "chart-line", startOffset: 0, sub: "", route: "/Profile/statistics" },
+    { label: "Exercises", icon: "dumbbell", startOffset: 0.33, sub: "" },
+    { label: "Measures", icon: "human-male-height", startOffset: 0.17, sub: "", route: "/Profile/measurements" },
+    { label: "Calendar", icon: "calendar", startOffset: 0.56, sub: "", route: "/Profile/calendar" },
 ] as const;
 
 // ─── AvatarRing ───────────────────────────────────────────────────────────────
@@ -195,7 +205,7 @@ function SparkBars({ tab, selectedDay, setSelectedDay }: { tab: string; selected
                 ))}
             </View>
             <View style={chartSt.labelsRow}>
-                {DAY_LABELS.map((d, i) => (
+                {DAY_LABELS.map((d) => (
                     <Text key={d} style={[chartSt.lbl, { flex: 1, textAlign: "center" }]}>{d}</Text>
                 ))}
             </View>
@@ -205,8 +215,46 @@ function SparkBars({ tab, selectedDay, setSelectedDay }: { tab: string; selected
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function ProfileScreen() {
     const router = useRouter();
+    const { user: authUser } = useAuth();
     const [tab, setTab] = useState<"Duration" | "Volume" | "Reps">("Duration");
     const [selectedDay, setSelectedDay] = useState<number | null>(null);
+    const [profile, setProfile] = useState<MeProfileResponse | null>(null);
+    const [profileLoading, setProfileLoading] = useState(true);
+    const [profileError, setProfileError] = useState<string | null>(null);
+
+    const fetchProfile = useCallback(async () => {
+        setProfileLoading(true);
+        setProfileError(null);
+
+        try {
+            const response = await authService.getMeProfile();
+            setProfile(response);
+        } catch (error: any) {
+            setProfileError(error?.response?.data?.message || "Unable to load profile");
+        } finally {
+            setProfileLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (!authUser) {
+            setProfile(null);
+            setProfileLoading(false);
+            setProfileError("Sign in to view your profile");
+            return;
+        }
+
+        fetchProfile();
+    }, [authUser?.user_id, fetchProfile]);
+
+    const username = profile?.username || authUser?.username || "";
+    const name = profile?.name || authUser?.name || username;
+    const workoutsCount = profile?._count.workouts ?? 0;
+    const followersCount = profile?._count.followers ?? 0;
+    const followingCount = profile?._count.following ?? 0;
+    const avatarSeed = authUser?.user_id || username || "profile";
+    const avatarUri = `https://i.pravatar.cc/150?u=${encodeURIComponent(String(avatarSeed))}`;
+
     return (
         <LinearGradient
             colors={[
@@ -241,7 +289,7 @@ export default function ProfileScreen() {
 
                 {/* Header */}
                 <View style={st.topHeader}>
-                    <Text style={st.topName}>Arthika</Text>
+                    <Text style={st.topName}>{username || "-"}</Text>
                     <View style={st.iconRow}>
                         <TouchableOpacity style={st.iconBtn} activeOpacity={0.7}
                                           onPress={() => router.push("/Profile/edit-profile")}>
@@ -262,26 +310,35 @@ export default function ProfileScreen() {
                     <View style={st.avatarWrap}>
                         <AvatarRing />
                         <Image
-                            source={{ uri: "https://i.pravatar.cc/150?img=32" }}
+                            source={{ uri: avatarUri }}
                             style={st.avatarImg}
                         />
                         <View style={st.onlineDot} />
                     </View>
                     <View style={st.userInfo}>
-                        <Text style={st.username}>Arthika</Text>
+                        <Text style={st.username}>{name || "-"}</Text>
+                        {profileLoading && (
+                            <View style={st.profileStatusRow}>
+                                <ActivityIndicator size="small" color={ORANGE} />
+                                <Text style={st.profileStatusText}>Loading profile...</Text>
+                            </View>
+                        )}
+                        {!profileLoading && profileError && (
+                            <Text style={st.profileErrorText}>{profileError}</Text>
+                        )}
                         <View style={st.statsRow}>
                             <View style={st.statBlock}>
-                                <Text style={st.statNum}>12</Text>
+                                <Text style={st.statNum}>{workoutsCount}</Text>
                                 <Text style={st.statLbl}>Workouts</Text>
                             </View>
                             <View style={st.statDivider} />
                             <View style={st.statBlock}>
-                                <Text style={st.statNum}>240</Text>
+                                <Text style={st.statNum}>{followersCount}</Text>
                                 <Text style={st.statLbl}>Followers</Text>
                             </View>
                             <View style={st.statDivider} />
                             <View style={st.statBlock}>
-                                <Text style={st.statNum}>180</Text>
+                                <Text style={st.statNum}>{followingCount}</Text>
                                 <Text style={st.statLbl}>Following</Text>
                             </View>
                         </View>
@@ -419,6 +476,14 @@ const st = StyleSheet.create({
         fontSize: 18, fontWeight: "700", color: TEXT,
         letterSpacing: -0.3, marginBottom: 12,
     },
+    profileStatusRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+        marginBottom: 10,
+    },
+    profileStatusText: { fontSize: 11, color: MUTED },
+    profileErrorText: { fontSize: 11, color: ORANGE, marginBottom: 10 },
     statsRow: { flexDirection: "row", alignItems: "center" },
     statBlock: { flex: 1, alignItems: "center" },
     statNum: { fontSize: 17, fontWeight: "700", color: ORANGE, letterSpacing: -0.3 },
@@ -531,7 +596,7 @@ const glowSt = StyleSheet.create({
     },
     beam: {
         width: "100%",
-        height: "50%", // Only covering half height ensures a single bright spot sweeps by
+        height: "50%" // Only covering half height ensures a single bright spot sweeps by
     },
     inner: {
         borderRadius: BORDER_R - 1.5,

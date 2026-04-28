@@ -76,6 +76,7 @@ export type DiscoverPostExercise = {
 
 export type DiscoverPost = {
   id: string;
+  userId: number;
   title?: string;
   caption: string;
   time: string;

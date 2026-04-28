@@ -178,7 +178,7 @@ function AthleteCard({ item, index }: { item: typeof ATHLETES[0]; index: number 
             <TouchableOpacity
                 onPressIn={() => { Haptics.selectionAsync(); onIn(); }}
                 onPressOut={onOut}
-                onPress={() => router.push({ pathname: "/(tabs)/profile", params: { athleteName: item.name, athleteUsername: item.username, athleteAvatarUrl: item.avatarUrl } })}
+                onPress={() => router.push({ pathname: "/(tabs)/home/userid", params: { userId: item.username, name: item.name, image: item.avatarUrl } })}
                 activeOpacity={1}
             >
                 <Animated.View style={[styles.athleteCard, style]}>
@@ -360,7 +360,7 @@ export default function ExploreScreen() {
                                     {filteredAthletes.map((item, index) => (
                                         <SearchResultRow
                                             key={item.id} item={item} index={index}
-                                            onPress={() => router.push({ pathname: "/(tabs)/profile", params: { athleteName: item.name, athleteUsername: item.username, athleteAvatarUrl: item.avatarUrl } })}
+                                            onPress={() => router.push({ pathname: "/(tabs)/home/userid", params: { userId: item.username, name: item.name, image: item.avatarUrl } })}
                                         />
                                     ))}
                                 </>

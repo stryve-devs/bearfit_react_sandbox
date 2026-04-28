@@ -23,3 +23,22 @@ export interface AuthResponse {
     refreshToken: string;
     user: User;
 }
+
+export interface PublicProfileUser {
+    user_id: number;
+    username: string | null;
+    name: string;
+}
+
+export interface MeProfileResponse {
+    username: string | null;
+    name: string;
+    bio: string | null;
+    followers: PublicProfileUser[];
+    following: PublicProfileUser[];
+    _count: {
+        followers: number;
+        following: number;
+        workouts: number;
+    };
+}

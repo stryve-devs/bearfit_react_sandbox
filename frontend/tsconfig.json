@@ -8,6 +8,16 @@
         "src/*"
       ]
     },
+    "lib": [
+      "ES2019",
+      "DOM"
+    ],
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "types": [
+      "node"
+    ],
     "jsx": "react"
   },
   "include": [
