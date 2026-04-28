@@ -22,6 +22,7 @@ type DiscoverCommentDto = {
 
 type DiscoverPostDto = {
   id: string;
+  userId: number;
   title?: string;
   caption: string;
   time: string;
@@ -259,6 +260,7 @@ const mapPrismaPostToDiscoverPost = (post: any, userId: number): DiscoverPostDto
 
   return {
     id: String(post.post_id),
+    userId: post.users.user_id,
     title: post.title || '',
     caption: post.caption || post.title || '',
     time: formatRelativeTime(post.created_at),

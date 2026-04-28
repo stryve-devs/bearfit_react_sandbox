@@ -4,6 +4,9 @@ import {
   loginUser,
   refreshAccessToken,
   googleSignIn,
+  getCurrentUserProfile,
+  followUser,
+  unfollowUser,
 } from "../../services/auth/auth.service";
 import {
   generateAccessToken,
@@ -12,6 +15,7 @@ import {
 } from "../../utils/jwtUtils";
 import prisma from '../../config/prismaClient';
 import otpService from '../../services/auth/otp.service';
+import { targetUserIdParamsSchema } from '../../utils/validationSchemas';
 
 /* =======================
    CHECK USERNAME EXISTS
@@ -259,5 +263,72 @@ export const verifyOtp = async (req: Request, res: Response) => {
     return res.status(200).json({ message: 'OTP verified' });
   } catch (error: any) {
     return res.status(500).json({ message: 'Failed to verify OTP' });
+  }
+};
+
+export const me = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const profile = await getCurrentUserProfile(userId);
+    return res.status(200).json(profile);
+  } catch (error: any) {
+    if (error?.message === "User not found") {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    return res.status(500).json({ message: "Failed to fetch profile" });
+  }
+};
+
+export const follow = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const params = targetUserIdParamsSchema.parse(req.params);
+    const result = await followUser(userId, params.targetUserId);
+
+    return res.status(200).json(result);
+  } catch (error: any) {
+    if (error?.message === 'User not found') {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    if (error?.message === 'Cannot follow yourself') {
+      return res.status(400).json({ message: error.message });
+    }
+
+    return res.status(500).json({ message: 'Failed to follow user' });
+  }
+};
+
+export const unfollow = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const params = targetUserIdParamsSchema.parse(req.params);
+    const result = await unfollowUser(userId, params.targetUserId);
+
+    return res.status(200).json(result);
+  } catch (error: any) {
+    if (error?.message === 'User not found') {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    if (error?.message === 'Cannot unfollow yourself') {
+      return res.status(400).json({ message: error.message });
+    }
+
+    return res.status(500).json({ message: 'Failed to unfollow user' });
   }
 };

@@ -239,3 +239,136 @@ export const googleSignIn = async (idToken: string, opts?: { username?: string; 
     },
   };
 };
+
+interface PublicUserProfile {
+  user_id: number;
+  username: string | null;
+  name: string;
+}
+
+export interface MeProfileResponse {
+  username: string | null;
+  name: string;
+  bio: string | null;
+  followers: PublicUserProfile[];
+  following: PublicUserProfile[];
+  _count: {
+    followers: number;
+    following: number;
+    workouts: number;
+  };
+}
+
+export const getCurrentUserProfile = async (userId: number): Promise<MeProfileResponse> => {
+  const user = await prisma.users.findUnique({
+    where: { user_id: userId },
+    select: {
+      username: true,
+      name: true,
+      bio: true,
+      follower_links: {
+        select: {
+          follower: {
+            select: {
+              user_id: true,
+              username: true,
+              name: true,
+            },
+          },
+        },
+      },
+      following_links: {
+        select: {
+          following: {
+            select: {
+              user_id: true,
+              username: true,
+              name: true,
+            },
+          },
+        },
+      },
+      _count: {
+        select: {
+          follower_links: true,
+          following_links: true,
+          workouts: true,
+        },
+      },
+    },
+  });
+
+  if (!user) {
+    throw new Error("User not found");
+  }
+
+  return {
+    username: user.username,
+    name: user.name,
+    bio: user.bio,
+    followers: user.follower_links.map((entry) => entry.follower),
+    following: user.following_links.map((entry) => entry.following),
+    _count: {
+      followers: user._count.follower_links,
+      following: user._count.following_links,
+      workouts: user._count.workouts,
+    },
+  };
+};
+
+const ensureTargetUserExists = async (targetUserId: number): Promise<void> => {
+  const target = await prisma.users.findUnique({
+    where: { user_id: targetUserId },
+    select: { user_id: true },
+  });
+
+  if (!target) {
+    throw new Error('User not found');
+  }
+};
+
+export const followUser = async (
+  followerId: number,
+  followingId: number,
+): Promise<{ isFollowing: boolean }> => {
+  if (followerId === followingId) {
+    throw new Error('Cannot follow yourself');
+  }
+
+  await ensureTargetUserExists(followingId);
+
+  try {
+    await prisma.user_follows.create({
+      data: {
+        follower_id: followerId,
+        following_id: followingId,
+      },
+    });
+  } catch (error: any) {
+    if (error?.code !== 'P2002') {
+      throw error;
+    }
+  }
+
+  return { isFollowing: true };
+};
+
+export const unfollowUser = async (
+  followerId: number,
+  followingId: number,
+): Promise<{ isFollowing: boolean }> => {
+  if (followerId === followingId) {
+    throw new Error('Cannot unfollow yourself');
+  }
+
+  await ensureTargetUserExists(followingId);
+
+  await prisma.user_follows.deleteMany({
+    where: {
+      follower_id: followerId,
+      following_id: followingId,
+    },
+  });
+
+  return { isFollowing: false };
+};

@@ -83,6 +83,10 @@ export const postIdParamsSchema = z.object({
   postId: z.coerce.number().int().positive(),
 });
 
+export const targetUserIdParamsSchema = z.object({
+  targetUserId: z.coerce.number().int().positive(),
+});
+
 export const createPostCommentSchema = z.object({
   text: z.string().trim().min(1).max(2000),
   parentId: z.number().int().positive().optional(),
@@ -93,4 +97,5 @@ export type LoginInput = z.infer<typeof loginSchema>;
 export type SaveWorkoutPostInput = z.infer<typeof saveWorkoutPostSchema>;
 export type DiscoverFeedQueryInput = z.infer<typeof discoverFeedQuerySchema>;
 export type PostIdParamsInput = z.infer<typeof postIdParamsSchema>;
+export type TargetUserIdParamsInput = z.infer<typeof targetUserIdParamsSchema>;
 export type CreatePostCommentInput = z.infer<typeof createPostCommentSchema>;

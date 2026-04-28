@@ -10,6 +10,7 @@ import {
     checkUsernameExists,
     sendOtp,
     verifyOtp,
+    me,
 } from '../../controllers/auth/auth.controller';
 import { validate } from '../../middlewares/validationMiddleware';
 import {
@@ -18,6 +19,7 @@ import {
     refreshTokenSchema,
     googleAuthSchema,
 } from '../../utils/validationSchemas';
+import { authMiddleware } from '../../middlewares/auth/authMiddleware';
 
 const router = Router();
 
@@ -33,6 +35,7 @@ router.post('/register-google', validate(googleAuthSchema), registerGoogle);
 // Utility Checks
 router.get('/exists', checkEmailExists);
 router.get('/username-exists', checkUsernameExists);
+router.get('/me', authMiddleware, me);
 
 // OTP
 router.post('/send-otp', sendOtp);
