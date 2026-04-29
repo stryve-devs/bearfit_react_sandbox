@@ -23,7 +23,7 @@ services:
       - ./backend/.env
     volumes:
       - ./backend:/app
-      - ./backend/node_modules:/app/node_modules
+      - backend-node-modules:/app/node_modules
     depends_on:
       redis:
         condition: service_healthy
@@ -61,3 +61,4 @@ services:
 
 volumes:
   redis-data:
+  backend-node-modules:

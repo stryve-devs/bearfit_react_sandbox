@@ -2,6 +2,23 @@
 
 set -e
 
+wait_for_service_running() {
+    local service="$1"
+    local timeout_seconds="${2:-60}"
+    local elapsed=0
+
+    while [ "$elapsed" -lt "$timeout_seconds" ]; do
+        status=$(docker compose ps --status running --services 2>/dev/null | grep -x "$service" || true)
+        if [ -n "$status" ]; then
+            return 0
+        fi
+        sleep 2
+        elapsed=$((elapsed + 2))
+    done
+
+    return 1
+}
+
 # --- Function to detect Windows Wi-Fi LAN IP from WSL ---
 get_wsl_wifi_ip() {
     # Using robust awk method to detect Wi-Fi IPv4
@@ -55,20 +72,26 @@ echo -e "${YELLOW}🚀 Injecting API URL: $EXPO_PUBLIC_API_URL${NC}"
 
 # --- Start Docker services ---
 echo "Starting Database and Redis..."
-docker-compose up -d redis backend
+docker compose up -d redis backend
 
-echo "Waiting for Database to breathe..."
-sleep 5
+echo "Waiting for backend service to be running..."
+if ! wait_for_service_running backend 90; then
+    echo -e "${YELLOW}❌ backend service did not reach running state in time.${NC}"
+    docker compose ps
+    echo "--- backend logs ---"
+    docker compose logs --tail=80 backend
+    exit 1
+fi
 
 # --- Sync Prisma schema and generate client ---
 echo "Syncing Prisma schema..."
-docker-compose exec -T backend npx prisma db pull
+docker compose exec -T backend npx prisma db pull
 
 echo "Generating Prisma client..."
-docker-compose exec -T backend npx prisma generate
+docker compose exec -T backend npx prisma generate
 
 echo "Restarting backend to apply changes..."
-docker-compose restart backend
+docker compose restart backend
 
 # --- Start frontend ---
 echo -e "${GREEN}✅ Backend ready! Starting Frontend...${NC}"
@@ -77,7 +100,7 @@ echo "Backend:  http://localhost:3001"
 echo "Frontend: http://$IP_ADDR:8081"
 echo "----------------------------------------------------------"
 
-docker-compose up --build -d frontend
+docker compose up --build -d frontend
 
 echo "Attaching to Frontend (Press 'r' to reload, 'a' for Android)"
 echo "To exit without stopping, press Ctrl+P then Ctrl+Q"
