@@ -34,6 +34,8 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { AppColors } from "../../constants/colors";
 import AvatarImage from '@/components/common/AvatarImage';
+import userService from '@/api/services/user.service';
+import { useAuth } from '@/context/AuthContext';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Athlete = {
@@ -192,10 +194,6 @@ function AthleteCard({
                             {item.name}
                         </Text>
 
-                        <Text allowFontScaling={false} style={cardSt.sport}>
-                            {item.sport ?? "Athlete"}
-                        </Text>
-
                         <View style={cardSt.divider} />
 
                         {/* Follow button */}
@@ -267,10 +265,6 @@ const cardSt = StyleSheet.create({
     name: {
         color: TEXT, fontSize: IS_ANDROID ? 11 : 12,
         fontWeight: "700", textAlign: "center", letterSpacing: -0.2,
-    },
-    sport: {
-        color: ORANGE, fontSize: 10,
-        fontWeight: "600", letterSpacing: 0.3, marginTop: 2,
     },
     divider: {
         width: "100%", height: 0.5,
@@ -387,6 +381,8 @@ export default function HomeScreen() {
     const insets = useSafeAreaInsets();
     const { width }    = useWindowDimensions();
     const [followed,   setFollowed]   = useState<Set<string>>(new Set());
+    const [suggested, setSuggested] = useState<Athlete[]>(ALL_ATHLETES);
+    const { user: authUser } = useAuth();
     const [menuOpen,   setMenuOpen]   = useState(false);
     const [searchOpen, setSearchOpen] = useState(false);
     const [query,      setQuery]      = useState("");
@@ -410,13 +406,36 @@ export default function HomeScreen() {
     }));
 
     const toggleFollow = (username: string) => {
-        setFollowed((prev) => {
+        setFollowed((prev: Set<string>) => {
             const next = new Set(prev);
             if (next.has(username)) next.delete(username);
             else next.add(username);
             return next;
         });
     };
+
+    // Fetch suggested users from backend (users the current user doesn't follow)
+    useEffect(() => {
+        if (!authUser) return; // avoid unauthenticated calls
+        let mounted = true;
+        (async () => {
+            try {
+                const users = await userService.getSuggestions(12);
+                if (!mounted) return;
+                if (Array.isArray(users) && users.length > 0) {
+                    const mapped = users.map((u: any) => ({
+                        name: u.name || u.username || `user-${u.user_id}`,
+                        username: u.username || `user-${u.user_id}`,
+                        avatarUrl: u.profile_pic_url || `https://i.pravatar.cc/150?u=${encodeURIComponent(String(u.user_id))}`,
+                    } as Athlete));
+                    setSuggested(mapped);
+                }
+            } catch (err) {
+                console.warn('Failed to fetch suggested users, falling back to static list', err);
+            }
+        })();
+        return () => { mounted = false; };
+    }, [authUser]);
 
     const filtered = useMemo(() => {
         const q = query.trim().toLowerCase();
@@ -507,28 +526,19 @@ export default function HomeScreen() {
                     <View style={{ height: IS_ANDROID ? 188 : 202, marginTop: 12 }}>
                         <FlatList
                             horizontal
-                            data={ALL_ATHLETES}
-                            keyExtractor={(item) => item.username}
+                            data={suggested}
+                            keyExtractor={(item: Athlete) => item.username}
                             showsHorizontalScrollIndicator={false}
                             ItemSeparatorComponent={() => <View style={{ width: 10 }} />}
                             contentContainerStyle={st.listPad}
-                            renderItem={({ item, index }) => (
+                            renderItem={({ item, index }: { item: Athlete; index: number }) => (
                                 <AthleteCard
                                     item={item}
                                     index={index}
                                     cardWidth={cardWidth}
                                     isFollowed={followed.has(item.username)}
                                     onToggle={() => toggleFollow(item.username)}
-                                    onPress={() =>
-                                        router.push({
-                                            pathname: "/(tabs)/home/userid",
-                                            params: {
-                                                userId: item.username,
-                                                name: item.name,
-                                                image: item.avatarUrl,
-                                            },
-                                        })
-                                    }
+                                    onPress={() => router.push(`/Profile/${item.username}`)}
                                 />
                             )}
                         />

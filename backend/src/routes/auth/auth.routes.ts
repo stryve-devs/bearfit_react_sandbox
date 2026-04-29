@@ -13,6 +13,7 @@ import {
     verifyOtp,
     me,
     updateProfile,
+    suggestedUsers,
 } from '../../controllers/auth/auth.controller';
 import { validate } from '../../middlewares/validationMiddleware';
 import {
@@ -40,6 +41,8 @@ router.get('/exists', checkEmailExists);
 router.get('/username-exists', checkUsernameExists);
 router.get('/me', authMiddleware, me);
 router.put('/profile', authMiddleware, updateProfile);
+router.get('/suggestions', authMiddleware, suggestedUsers);
+console.log('[auth.routes] registered: GET /auth/suggestions');
 
 // OTP
 router.post('/send-otp', sendOtp);

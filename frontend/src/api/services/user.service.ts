@@ -40,6 +40,17 @@ export const userService = {
     }
     return u;
   },
+
+  async getSuggestions(limit = 8): Promise<any[]> {
+    const response = await api.get(`/auth/suggestions?limit=${Number(limit)}`);
+    const users = response.data?.users || [];
+    return users.map((u: any) => ({
+      user_id: u.user_id,
+      username: u.username,
+      name: u.name,
+      profile_pic_url: u.profile_pic_url ? normalizeProfilePicUrl(u.profile_pic_url) : null,
+    }));
+  },
 };
 
 export default userService;

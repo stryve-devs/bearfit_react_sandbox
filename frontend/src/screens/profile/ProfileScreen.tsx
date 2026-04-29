@@ -18,7 +18,7 @@ import { Ionicons, MaterialCommunityIcons, Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { authService } from "@/api/services/auth.service";
 import { useAuth } from "@/context/AuthContext";
-import type { MeProfileResponse } from "@/types/auth.types";
+import AvatarImage from '@/components/common/AvatarImage';
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 const ORANGE  = "#FF7825";

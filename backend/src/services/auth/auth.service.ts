@@ -361,3 +361,28 @@ export const unfollowUser = async (
 
   return { isFollowing: false };
 };
+
+// Return a list of suggested users (those the requester does not follow and excluding themself)
+export const getSuggestedUsers = async (userId: number, limit = 8) => {
+  const followingRows = await prisma.user_follows.findMany({
+    where: { follower_id: userId },
+    select: { following_id: true },
+  });
+
+  const excludeIds = followingRows.map((r) => r.following_id);
+  excludeIds.push(userId);
+
+  const users = await prisma.users.findMany({
+    where: { user_id: { notIn: excludeIds } },
+    orderBy: { created_at: 'desc' },
+    take: limit,
+    select: {
+      user_id: true,
+      username: true,
+      name: true,
+      profile_pic_url: true,
+    },
+  });
+
+  return users;
+};

@@ -8,6 +8,7 @@ import {
   followUser,
   unfollowUser,
   revokeRefreshToken,
+  getSuggestedUsers,
 } from "../../services/auth/auth.service";
 import {
   generateAccessToken,
@@ -415,3 +416,15 @@ export const updateProfile = async (req: Request, res: Response) => {
   }
 };
 
+export const suggestedUsers = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+    const limit = Number(req.query.limit || 8);
+    const users = await getSuggestedUsers(userId, limit);
+    return res.status(200).json({ users });
+  } catch (error: any) {
+    console.error('[authController] suggestedUsers error', error);
+    return res.status(500).json({ message: error?.message || 'Failed to fetch suggestions' });
+  }
+};
