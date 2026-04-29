@@ -1,11 +1,38 @@
 import React from 'react';
-import { Modal, SafeAreaView, View, TouchableOpacity, TextInput, Text, FlatList, Image } from 'react-native';
+import { Modal, SafeAreaView, View, TouchableOpacity, TextInput, Text, FlatList } from 'react-native';
 import Animated, { FadeInDown, FadeIn } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import st, { IS_ANDROID, ORANGE, MUTED, HINT, TEXT } from './styles';
+import AvatarImage from '@/components/common/AvatarImage';
 
 export default function DiscoverSearch({ visible, query, setQuery, filteredPosts, onClose, onOpenPost }: any) {
+  const Row = ({ item, index }: any) => {
+    const PLACEHOLDER = 'https://i.pravatar.cc/150?img=12';
+    return (
+      <Animated.View entering={FadeInDown.delay(index * 35).duration(280)}>
+        <TouchableOpacity
+          onPress={() => onOpenPost(item.id)}
+          style={st.searchRow}
+          activeOpacity={0.7}
+        >
+          <View style={st.searchAvatarWrap}>
+            <AvatarImage uri={item?.athlete?.avatarUrl} size={40} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text allowFontScaling={false} style={st.searchName}>
+              {item.athlete.name}
+            </Text>
+            <Text allowFontScaling={false} style={st.searchCaption} numberOfLines={1}>
+              {item.caption}
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={14} color={MUTED} />
+        </TouchableOpacity>
+      </Animated.View>
+    );
+  };
+
   return (
     <Modal visible={visible} animationType="slide">
       <LinearGradient
@@ -63,28 +90,7 @@ export default function DiscoverSearch({ visible, query, setQuery, filteredPosts
               ItemSeparatorComponent={() => (
                 <View style={{ height: 0.5, backgroundColor: 'rgba(255,255,255,0.05)' }} />
               )}
-              renderItem={({ item, index }) => (
-                <Animated.View entering={FadeInDown.delay(index * 35).duration(280)}>
-                  <TouchableOpacity
-                    onPress={() => onOpenPost(item.id)}
-                    style={st.searchRow}
-                    activeOpacity={0.7}
-                  >
-                    <View style={st.searchAvatarWrap}>
-                      <Image source={{ uri: item.athlete.avatarUrl }} style={st.searchAvatar} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text allowFontScaling={false} style={st.searchName}>
-                        {item.athlete.name}
-                      </Text>
-                      <Text allowFontScaling={false} style={st.searchCaption} numberOfLines={1}>
-                        {item.caption}
-                      </Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={14} color={MUTED} />
-                  </TouchableOpacity>
-                </Animated.View>
-              )}
+              renderItem={({ item, index }) => <Row item={item} index={index} />}
             />
           )}
         </SafeAreaView>

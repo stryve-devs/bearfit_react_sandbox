@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import * as Haptics from 'expo-haptics';
 import { fetchPostService } from '@/api/services/fetchpost.service';
+import { userService } from '@/api/services/user.service';
 import utils from './utils';
 
 const toLocalComment = utils.toLocalComment;
@@ -26,15 +27,43 @@ export default function useDiscoverFeed() {
     const response = await fetchPostService.getDiscoverPosts(3, reset ? undefined : nextCursor ?? undefined);
     const initialPosts = response.posts.map(toLocalPost);
 
+    // Hydrate posts with missing exercise details and attach user profile pictures.
+    const userCache: Record<string | number, any> = {};
+
     const hydratedPosts = await Promise.all(
       initialPosts.map(async (post) => {
-        if (post.exercises.length > 0) return post;
+        let current = post;
         try {
-          const detail = await fetchPostService.getDiscoverPostById(post.id);
-          return toLocalPost(detail.post);
+          if (post.exercises.length === 0) {
+            const detail = await fetchPostService.getDiscoverPostById(post.id);
+            current = toLocalPost(detail.post);
+          }
+
+          // Attach profile pic for the post's user by fetching user data once (cached)
+          // Prefer the top-level userId; fallback to athlete.username if necessary
+          const uid = current.userId ?? current.athlete?.username ?? null;
+          if (uid != null && !userCache[uid]) {
+            try {
+              userCache[uid] = await userService.getUserById(uid);
+              console.debug('[useDiscoverFeed] fetched user for uid', uid, userCache[uid]?.profile_pic_url);
+            } catch (err) {
+              // ignore user fetch failures — we'll keep whatever avatar exists on the post
+              console.warn('Failed fetching user for post', post.id, err);
+              userCache[uid] = null;
+            }
+          }
+
+          const user = uid != null ? userCache[uid] : null;
+          if (user && user.profile_pic_url) {
+            console.debug('[useDiscoverFeed] attaching profile_pic_url to post', post.id, user.profile_pic_url);
+            // Normalize athlete object to include avatarUrl field expected by components
+            current = { ...current, athlete: { ...current.athlete, avatarUrl: user.profile_pic_url } };
+          }
+
+          return current;
         } catch (e) {
           console.warn('hydrate failed', e);
-          return post;
+          return current;
         }
       }),
     );

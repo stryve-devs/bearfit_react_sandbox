@@ -290,6 +290,7 @@ export const me = async (req: Request, res: Response) => {
     }
 
     const profile = await getCurrentUserProfile(userId);
+    console.log('[auth.controller] me profile:', profile);
     return res.status(200).json(profile);
   } catch (error: any) {
     if (error?.message === "User not found") {
@@ -347,3 +348,70 @@ export const unfollow = async (req: Request, res: Response) => {
     return res.status(500).json({ message: 'Failed to unfollow user' });
   }
 };
+
+export const updateProfile = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+
+    // Accept additional fields for profile updates
+    const { name, username, email, bio, link_url, profile_pic_url } = req.body;
+
+    if (!name && !username && !email && !bio && !link_url && !profile_pic_url) {
+      return res.status(400).json({ message: 'At least one field (name, username, email, bio, link_url, profile_pic_url) is required' });
+    }
+
+    // Validate username if provided
+    if (username) {
+      const usernameTrim = String(username).trim();
+      const usernameRegex = /^[a-zA-Z0-9_-]{3,20}$/;
+      if (!usernameRegex.test(usernameTrim)) {
+        return res.status(400).json({ message: 'Username must be 3-20 characters (letters, numbers, _, -)' });
+      }
+
+      const existing = await prisma.users.findUnique({ where: { username: usernameTrim }, select: { user_id: true } });
+      if (existing && existing.user_id !== userId) {
+        return res.status(409).json({ message: 'Username already taken' });
+      }
+    }
+
+    // Validate email if provided
+    if (email) {
+      const emailTrim = String(email).trim();
+      // Basic email check
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(emailTrim)) {
+        return res.status(400).json({ message: 'Invalid email' });
+      }
+
+      const existingEmail = await prisma.users.findUnique({ where: { email: emailTrim }, select: { user_id: true } });
+      if (existingEmail && existingEmail.user_id !== userId) {
+        return res.status(409).json({ message: 'Email already in use' });
+      }
+    }
+
+    const updateData: any = {};
+    if (name) updateData.name = String(name).trim();
+    if (username) updateData.username = String(username).trim();
+    if (email) updateData.email = String(email).trim();
+
+    // Accept optional profile fields
+    if (typeof bio !== 'undefined') updateData.bio = bio === null ? null : String(bio).trim();
+    if (typeof link_url !== 'undefined') updateData.link_url = link_url === null ? null : String(link_url).trim();
+    if (typeof profile_pic_url !== 'undefined') updateData.profile_pic_url = profile_pic_url === null ? null : String(profile_pic_url).trim();
+
+    const updated = await prisma.users.update({
+      where: { user_id: userId },
+      data: updateData,
+      select: { user_id: true, username: true, email: true, name: true, profile_pic_url: true }
+    });
+
+    return res.status(200).json({ message: 'Profile updated', user: updated });
+  } catch (error: any) {
+    console.error('[authController] updateProfile error', error);
+    if (error?.code === 'P2025') { // Prisma record not found
+      return res.status(404).json({ message: 'User not found' });
+    }
+    return res.status(500).json({ message: error.message || 'Failed to update profile' });
+  }
+};
+

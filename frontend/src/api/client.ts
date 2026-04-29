@@ -45,18 +45,25 @@ api.interceptors.response.use(
         return response;
     },
     async (error) => {
-        // 👇 ADD THIS - Better error logging
-        console.error('❌ API Error:', {
+        const status = error.response?.status;
+        const info = {
             message: error.message,
             url: error.config?.url,
             fullUrl: `${error.config?.baseURL}${error.config?.url}`,
-            status: error.response?.status,
-        });
+            status: status,
+        };
+
+        // For expected auth errors (401) or not found (404) avoid noisy error logging — log as warning
+        if (status === 401 || status === 404) {
+            console.warn('⚠️ API Auth/NotFound:', info);
+        } else {
+            console.error('❌ API Error:', info);
+        }
 
         const originalRequest = error.config;
 
         // If 401 and not already retried, try refreshing token
-        if (error.response?.status === 401 && !originalRequest._retry) {
+        if (status === 401 && !originalRequest._retry) {
             originalRequest._retry = true;
 
             try {
@@ -75,8 +82,9 @@ api.interceptors.response.use(
                     return api(originalRequest);
                 }
             } catch (refreshError) {
-                // Clear tokens and redirect to login
+                // Clear tokens and reject (caller can handle navigation to login)
                 await AsyncStorage.multiRemove(['accessToken', 'refreshToken', 'user']);
+                console.warn('⚠️ Token refresh failed, cleared stored tokens.');
                 return Promise.reject(refreshError);
             }
         }

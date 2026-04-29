@@ -39,6 +39,8 @@ import { fetchPostService } from '@/api/services/fetchpost.service';
 import { DiscoverComment, DiscoverPost } from '@/types/fetchpost.types';
 import { useAuth } from '@/context/AuthContext';
 import { VideoView, useVideoPlayer } from 'expo-video';
+import useResolvedImageUri from '@/hooks/useResolvedImageUri';
+import AvatarImage from '@/components/common/AvatarImage';
 
 type Athlete = { name: string; username: string; avatarUrl: string };
 type Post = {
@@ -664,7 +666,7 @@ export default function FetchPostDetailScreen() {
               activeOpacity={0.8}
             >
               <View style={styles.avatarRing}>
-                <Image source={{ uri: post.athlete.avatarUrl }} style={styles.avatar} />
+                <AvatarImage src={post?.athlete?.avatarUrl} style={styles.avatar} />
               </View>
             </TouchableOpacity>
             <TouchableOpacity
@@ -1021,7 +1023,7 @@ export default function FetchPostDetailScreen() {
                     entering={FadeInDown.delay(idx * 30).duration(260).easing(Easing.out(Easing.cubic))}
                   >
                     <View style={styles.commentItem}>
-                      <Image source={{ uri: c.avatarUrl }} style={styles.commentAvatar} />
+                      <AvatarImage src={c.avatarUrl} style={styles.commentAvatar} />
                       <View style={{ flex: 1 }}>
                         <View style={styles.commentTopRow}>
                           <Text allowFontScaling={false} style={styles.commentUser}>
@@ -1063,8 +1065,8 @@ export default function FetchPostDetailScreen() {
                         {c.showReplies &&
                           c.replies.map((r) => (
                             <View key={r.id} style={styles.replyItem}>
-                              <Image source={{ uri: r.avatarUrl }} style={styles.replyAvatar} />
-                              <View style={{ flex: 1 }}>
+                              <AvatarImage src={r.avatarUrl} style={styles.replyAvatar} />
+                               <View style={{ flex: 1 }}>
                                 <View style={styles.commentTopRow}>
                                   <Text allowFontScaling={false} style={styles.commentUser}>
                                     {r.user}

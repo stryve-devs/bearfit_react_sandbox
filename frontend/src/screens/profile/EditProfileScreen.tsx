@@ -21,6 +21,7 @@ import { useRouter } from "expo-router";
 import Toast from "@/components/profile/Toast";
 import * as ImagePicker from "expo-image-picker";
 import { profileService } from "@/api/services/profile.service";
+import api from '@/api/client';
 
 const ORANGE = "#ff7a00";
 
@@ -31,11 +32,13 @@ const MONTHS = [
 const DAYS_OF_WEEK = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
 
 // ─── Glass card wrapper ───────────────────────────────────────────────────────
-const GlassCard = ({ children, style }: { children: React.ReactNode; style?: any }) => (
+type GlassCardProps = React.PropsWithChildren<{ style?: any } & { [key: string]: any }>;
+const GlassCard: React.FC<GlassCardProps> = ({ children, style, ...rest }: GlassCardProps) => (
     <LinearGradient
         colors={["rgba(255,255,255,0.05)", "rgba(255,255,255,0.02)"]}
         start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
         style={[cardSt.card, style]}
+        {...rest}
     >
         <LinearGradient
             colors={["transparent", "rgba(255,255,255,0.1)", "transparent"]}
@@ -104,13 +107,170 @@ export default function EditProfileScreen() {
     const [link, setLink] = useState("");
     const [sex, setSex] = useState("");
     const [profilePicUri, setProfilePicUri] = useState("https://i.pravatar.cc/150?img=12");
-    const [profilePicUrl, setProfilePicUrl] = useState("https://i.pravatar.cc/150?img=12");
+    const [profilePicUrl, setProfilePicUrl] = useState<string | null>(null);
     const [profilePicR2Key, setProfilePicR2Key] = useState<string | null>(null);
     const [showProfilePicModal, setShowProfilePicModal] = useState(false);
     const [uploadingProfilePic, setUploadingProfilePic] = useState(false);
     const [uploadProgressPercent, setUploadProgressPercent] = useState(0);
     const [toastVisible, setToastVisible] = useState(false);
     const [toastMessage, setToastMessage] = useState("");
+    const [loadingProfile, setLoadingProfile] = useState(true);
+    const [imageLoading, setImageLoading] = useState(false);
+    const [imageError, setImageError] = useState<string | null>(null);
+    // Reactive state to indicate image has successfully loaded (causes a render)
+    const [imageLoaded, setImageLoaded] = useState(false);
+    // Only true when an error is final (debounced and not recovered). Used to show red text.
+    const [imageFinalError, setImageFinalError] = useState(false);
+    const [imageProxyTried, setImageProxyTried] = useState(false);
+    // When we probe/validate URLs we want to suppress immediate Image error UI until probing finishes
+    const [validatingImage, setValidatingImage] = useState(false);
+    const [pendingImageError, setPendingImageError] = useState<string | null>(null);
+    const [pendingErrorWaiting, setPendingErrorWaiting] = useState(false);
+    // Debounce timer ref: when an Image onError occurs, wait a short time before showing red error
+    const pendingErrorTimerRef = React.useRef<number | null>(null);
+    // Per-URI request id — incremented whenever profilePicUri changes. Used to ignore stale timers/promotions.
+    const imageRequestIdRef = React.useRef(0);
+    // Track whether the Image actually loaded successfully (to ignore stale onError events)
+    const imageLoadedRef = React.useRef(false);
+
+    // Validate image URL when it changes and attempt encoded fallbacks automatically
+    useEffect(() => {
+        let mounted = true;
+        if (!profilePicUri) return;
+
+        (async () => {
+             // New URI -> mark as not yet loaded (prevents stale onError promotions)
+             imageLoadedRef.current = false;
+             // bump request id so any previous timers/promotions are considered stale
+             imageRequestIdRef.current += 1;
+             const myRequestId = imageRequestIdRef.current;
+             setValidatingImage(true);
+             setImageLoading(true);
+             setImageError(null);
+             setPendingImageError(null);
+            // If this URI already points to our backend proxy, skip further retry/encoding logic
+            try {
+                const proxyBase = api.defaults.baseURL ? api.defaults.baseURL.replace(/\/$/, '') + '/uploads/proxy' : null;
+                if (proxyBase && profilePicUri && profilePicUri.startsWith(proxyBase)) {
+                    // Ensure it's well-formed and let RN Image attempt to load it
+                    setImageLoading(false);
+                    return;
+                }
+            } catch (e) {
+                // ignore and continue
+            }
+
+            const tryFetch = async (url: string) => {
+                try {
+                    const res = await fetch(url, { method: 'GET' });
+                    return res.ok;
+                } catch (err) {
+                    return false;
+                }
+            };
+
+            try {
+                // 1) Try original
+                if (await tryFetch(profilePicUri)) {
+                    if (mounted) setImageLoading(false);
+                    return;
+                }
+
+                // 2) Try encodeURI
+                const enc1 = encodeURI(profilePicUri);
+                if (enc1 !== profilePicUri && await tryFetch(enc1)) {
+                    if (mounted) { setProfilePicUri(enc1); setImageLoading(false); }
+                    return;
+                }
+
+                // 3) Try per-segment encoding
+                const parts = profilePicUri.split('/');
+                const encParts = parts.map((p: string) => encodeURIComponent(p));
+                const enc2 = encParts.join('/');
+                if (enc2 !== profilePicUri && await tryFetch(enc2)) {
+                    if (mounted) { setProfilePicUri(enc2); setImageLoading(false); }
+                    return;
+                }
+
+                // Not reachable
+                if (mounted) {
+                    // If we haven't tried proxying yet, attempt proxy via backend once
+                    if (!imageProxyTried) {
+                        try {
+                            const proxyUrl = `${api.defaults.baseURL.replace(/\/$/, '')}/uploads/proxy?url=${encodeURIComponent(profilePicUri)}`;
+                            console.log('Attempting backend proxy for image:', proxyUrl);
+                            setImageProxyTried(true);
+                            setProfilePicUri(proxyUrl);
+                            return;
+                        } catch (err) {
+                            console.error('Failed to build proxy URL', err);
+                        }
+                    }
+
+                    if (!imageLoadedRef.current) {
+                        setImageError('Could not fetch image (network or invalid URL)');
+                    }
+                }
+            } catch (err: any) {
+                if (mounted && !imageLoadedRef.current && imageRequestIdRef.current === myRequestId) setImageError(String(err?.message || err));
+            } finally {
+                if (mounted) {
+                    setImageLoading(false);
+                    setValidatingImage(false);
+                    // If an Image onError occurred while we were validating, promote pending error now
+                    if (pendingImageError && !imageLoadedRef.current && imageRequestIdRef.current === myRequestId) {
+                        setImageError(pendingImageError);
+                        setImageFinalError(true);
+                        setPendingImageError(null);
+                    } else {
+                        // clear pending if image already loaded or request changed
+                        setPendingImageError(null);
+                    }
+                }
+            }
+        })();
+
+        return () => {
+            mounted = false;
+            if (pendingErrorTimerRef.current) {
+                clearTimeout(pendingErrorTimerRef.current as unknown as number);
+                pendingErrorTimerRef.current = null;
+            }
+        };
+    }, [profilePicUri]);
+
+    // Load profile from backend on mount and populate fields
+    useEffect(() => {
+        let mounted = true;
+        (async () => {
+            try {
+                const profile = await profileService.getProfile();
+                console.log('🎯 fetched profile for EditProfileScreen:', profile);
+                if (!mounted || !profile) return;
+
+                if (profile.name) setName(profile.name);
+                if (profile.bio) setBio(profile.bio);
+                if (profile.link_url) setLink(profile.link_url);
+                if (profile.sex) setSex(profile.sex);
+
+                // If profile_pic_url is stored in DB, use it as the displayed avatar
+                if (profile.profile_pic_url) {
+                    console.log('🎯 profile_pic_url:', profile.profile_pic_url);
+                    setProfilePicUri(profile.profile_pic_url);
+                    setProfilePicUrl(profile.profile_pic_url);
+                    // reset image error state when new URL set
+                    setImageError(null);
+                    setImageProxyTried(false);
+                }
+            } catch (err) {
+                console.error('Failed to load profile', err);
+            } finally {
+                if (mounted) setLoadingProfile(false);
+            }
+        })();
+
+        return () => { mounted = false; };
+    }, []);
 
     // Calendar & Birthday state
     const [hasBirthday, setHasBirthday] = useState(false);
@@ -153,7 +313,10 @@ export default function EditProfileScreen() {
                 });
 
                 if (!result.canceled && result.assets?.length > 0) {
-                    setProfilePicUri(result.assets[0].uri);
+                    const uri = result.assets[0].uri;
+                    setProfilePicUri(uri);
+                    // Start upload
+                    await uploadProfilePic(uri);
                 }
             } else {
                 const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -170,13 +333,48 @@ export default function EditProfileScreen() {
                 });
 
                 if (!result.canceled && result.assets?.length > 0) {
-                    setProfilePicUri(result.assets[0].uri);
+                    const uri = result.assets[0].uri;
+                    setProfilePicUri(uri);
+                    // Start upload
+                    await uploadProfilePic(uri);
                 }
             }
             setShowProfilePicModal(false);
         } catch (error) {
             Alert.alert('Error', 'Failed to pick image');
             console.error(error);
+        }
+    };
+
+    const uploadProfilePic = async (uri: string) => {
+        try {
+            setUploadingProfilePic(true);
+            setUploadProgressPercent(0);
+
+            const onProgress = (p: number) => {
+                // p expected between 0 and 1
+                const percent = Math.round(Math.max(0, Math.min(1, p)) * 100);
+                setUploadProgressPercent(percent);
+            };
+
+            const { url, key } = await profileService.uploadProfilePicture(uri, onProgress);
+
+            // When done, set the profile pic URL (public) and keep key if needed
+            setProfilePicUrl(url);
+            setProfilePicR2Key(key);
+
+            // Update local displayed avatar to the uploaded URL
+            setProfilePicUri(url);
+
+            setUploadProgressPercent(100);
+        } catch (error) {
+            console.error('Upload failed', error);
+            Alert.alert('Upload failed', 'Could not upload profile picture. Please try again.');
+        } finally {
+            // small delay so user can see 100%
+            setTimeout(() => {
+                setUploadingProfilePic(false);
+            }, 400);
         }
     };
 
@@ -195,7 +393,7 @@ export default function EditProfileScreen() {
             };
 
             // Only include profile_pic_url if it has been uploaded to R2
-            if (profilePicUrl && profilePicUrl !== "https://i.pravatar.cc/150?img=12") {
+            if (profilePicUrl) {
                 updatePayload.profile_pic_url = profilePicUrl;
             }
 
@@ -334,11 +532,76 @@ export default function EditProfileScreen() {
                     <View style={st.avatarSection}>
                         <View style={st.avatarWrap}>
                             <AvatarRing />
-                            <Image source={{ uri: "https://i.pravatar.cc/150?img=12" }} style={st.avatarImg} />
+                            <Image
+                                source={{ uri: profilePicUri }}
+                                style={st.avatarImg}
+                                resizeMode="cover"
+                                onLoadStart={() => { setImageLoading(true); setImageError(null); console.log('Image load start', profilePicUri); }}
+                                onLoad={() => {
+                                     // Cancel any pending error promotion and clear states
+                                     if (pendingErrorTimerRef.current) {
+                                         clearTimeout(pendingErrorTimerRef.current as unknown as number);
+                                         pendingErrorTimerRef.current = null;
+                                     }
+                                     imageLoadedRef.current = true;
+                                     setImageLoaded(true);
+                                     setImageFinalError(false);
+                                     setPendingImageError(null);
+                                     setPendingErrorWaiting(false);
+                                     setImageError(null);
+                                     setImageLoading(false);
+                                     console.log('Image loaded successfully');
+                                }}
+                                onError={(e: any) => {
+                                    setImageLoading(false);
+                                    const msg = (e.nativeEvent && (e.nativeEvent as any).error) || JSON.stringify(e);
+                                    // Always store the pending error (so it can be promoted later if validation finishes)
+                                    setPendingImageError(String(msg));
+
+                                    // Clear any existing timer
+                                    if (pendingErrorTimerRef.current) {
+                                        clearTimeout(pendingErrorTimerRef.current as unknown as number);
+                                        pendingErrorTimerRef.current = null;
+                                    }
+
+                                    // If image already loaded (stale error), ignore entirely
+                                    if (imageLoadedRef.current) {
+                                        return;
+                                    }
+
+                                    // If we're validating/probing alternative URLs, defer showing the red error (don't log yet)
+                                    if (validatingImage) {
+                                        // pendingImageError will be promoted when validation completes
+                                        return;
+                                    }
+
+                                    // Otherwise, wait briefly before showing the error to avoid flashing transient network errors
+                                    const delayMs = 1500; // 1.5s
+                                    setPendingErrorWaiting(true);
+                                    // capture the request id at this moment so the timer can detect staleness
+                                    const myReqId = imageRequestIdRef.current;
+                                    pendingErrorTimerRef.current = setTimeout(() => {
+                                        // Only promote if image still not loaded and request hasn't changed
+                                        if (!imageLoadedRef.current && imageRequestIdRef.current === myReqId) {
+                                            setImageError(String(msg));
+                                            setImageFinalError(true);
+                                        }
+                                        setPendingImageError(null);
+                                        setPendingErrorWaiting(false);
+                                        pendingErrorTimerRef.current = null;
+                                    }, delayMs) as unknown as number;
+                            }}
+                            />
                             <TouchableOpacity style={st.cameraBtn} activeOpacity={0.8} onPress={() => setShowProfilePicModal(true)}>
                                 <Feather name="camera" size={12} color="#fff" />
                             </TouchableOpacity>
                         </View>
+                        {/* Show loading while either the Image component is loading or we are probing/validating URLs */}
+                        {(imageLoading || validatingImage || pendingErrorWaiting) && (
+                            <ActivityIndicator size="small" color={ORANGE} style={{ marginTop: 8 }} />
+                        )}
+                        {/* Only show error after validation finished and only if image hasn't successfully loaded */}
+                        {(!validatingImage && imageError && !imageLoaded) && <Text style={{ color: '#ff6b6b', fontSize: 11 }}>Image error: {imageError}</Text>}
                         <Text style={st.username}>{name || "Your Name"}</Text>
                         <Text style={st.handle}>@{(name || "yourname").toLowerCase().replace(/\s+/g, "")}</Text>
                         <TouchableOpacity onPress={() => setShowProfilePicModal(true)}>
@@ -559,6 +822,17 @@ export default function EditProfileScreen() {
                                 <Text style={sh.cancelTxt}>Cancel</Text>
                             </TouchableOpacity>
                         </LinearGradient>
+                    </View>
+                </Modal>
+
+                {/* Upload Progress Modal */}
+                <Modal visible={uploadingProfilePic} transparent animationType="fade">
+                    <View style={progressSt.overlay}>
+                        <View style={progressSt.box}>
+                            <Text style={progressSt.title}>Uploading</Text>
+                            <ActivityIndicator size="large" color={ORANGE} style={{ marginVertical: 12 }} />
+                            <Text style={progressSt.percent}>{uploadProgressPercent}%</Text>
+                        </View>
                     </View>
                 </Modal>
 
@@ -819,3 +1093,14 @@ const ringst = StyleSheet.create({
     },
     beam: { width: "100%", height: "50%" },
 });
+
+// Upload progress styles
+const progressSt = StyleSheet.create({
+    overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
+    box: { width: 200, padding: 18, borderRadius: 12, backgroundColor: '#121212', alignItems: 'center', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.06)' },
+    title: { color: '#fff', fontSize: 16, fontWeight: '700' },
+    percent: { color: '#fff', marginTop: 8, fontSize: 14, fontWeight: '600' },
+});
+
+export {};
+

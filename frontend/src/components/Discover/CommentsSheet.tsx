@@ -21,6 +21,7 @@ import Animated, {
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import st, { ORANGE, MUTED, HINT, IS_ANDROID } from './styles';
+import AvatarImage from '@/components/common/AvatarImage';
 import CommentLike from './CommentLike';
 import type { Dispatch, SetStateAction } from 'react';
 
@@ -112,7 +113,7 @@ export default function CommentsSheet({
                   entering={FadeInDown.delay(idx * 30).duration(260).easing(Easing.out(Easing.cubic))}
                 >
                   <View style={st.commentItem}>
-                    <Image source={{ uri: c.avatarUrl }} style={st.commentAvatar} />
+                    <AvatarImage src={c.avatarUrl} style={st.commentAvatar} />
                     <View style={{ flex: 1 }}>
                       <View style={st.commentTopRow}>
                         <Text allowFontScaling={false} style={st.commentUser}>
@@ -151,7 +152,7 @@ export default function CommentsSheet({
                       {c.showReplies &&
                         c.replies.map((r) => (
                           <View key={r.id} style={st.replyItem}>
-                            <Image source={{ uri: r.avatarUrl }} style={st.replyAvatar} />
+                            <AvatarImage src={r.avatarUrl} style={st.replyAvatar} />
                             <View style={{ flex: 1 }}>
                               <View style={st.commentTopRow}>
                                 <Text allowFontScaling={false} style={st.commentUser}>

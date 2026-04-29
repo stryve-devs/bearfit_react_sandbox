@@ -33,6 +33,7 @@ import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { AppColors } from "../../constants/colors";
+import AvatarImage from '@/components/common/AvatarImage';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Athlete = {
@@ -183,7 +184,7 @@ function AthleteCard({
 
                         {/* Avatar */}
                         <View style={cardSt.avatarRing}>
-                            <Image source={{ uri: item.avatarUrl }} style={cardSt.avatar} />
+                            <AvatarImage src={item.avatarUrl} style={cardSt.avatar} />
                             <View style={cardSt.onlineDot} />
                         </View>
 
@@ -677,7 +678,7 @@ export default function HomeScreen() {
                                                 style={st.searchRow}
                                             >
                                                 <View style={st.searchAvatarWrap}>
-                                                    <Image source={{ uri: item.avatarUrl }} style={st.searchAvatar} />
+                                                    <AvatarImage src={item.avatarUrl} style={st.searchAvatar} />
                                                 </View>
                                                 <View style={{ flex: 1 }}>
                                                     <Text allowFontScaling={false} style={st.searchName}>{item.name}</Text>

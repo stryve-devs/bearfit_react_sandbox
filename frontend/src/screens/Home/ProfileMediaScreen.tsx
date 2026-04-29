@@ -31,6 +31,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { AppColors } from "../../constants/colors";
+import AvatarImage from "@/components/common/AvatarImage";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Athlete  = { name: string; username: string; avatarUrl?: string };
@@ -207,12 +208,12 @@ export default function ProfileMediaScreen() {
                         <View style={styles.avatarOuter}>
                             <View style={styles.avatarRing}>
                                 {athlete.avatarUrl ? (
-                                    <Image source={{ uri: athlete.avatarUrl }} style={styles.avatar} />
+                                    <AvatarImage src={athlete.avatarUrl} style={styles.avatar} />
                                 ) : (
-                                    <View style={[styles.avatar, styles.avatarFallback]}>
-                                        <Ionicons name="person" size={IS_ANDROID ? 28 : 32} color={AppColors.grey} />
-                                    </View>
-                                )}
+                                     <View style={[styles.avatar, styles.avatarFallback]}>
+                                         <Ionicons name="person" size={IS_ANDROID ? 28 : 32} color={AppColors.grey} />
+                                     </View>
+                                 )}
                             </View>
                             {/* Online dot */}
                             <View style={styles.onlineDot} />

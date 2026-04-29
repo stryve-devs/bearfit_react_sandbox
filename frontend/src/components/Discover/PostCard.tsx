@@ -7,6 +7,8 @@ import { MediaSlide } from './MediaSlide';
 import FollowButton from './FollowButton';
 import LikeButton from './LikeButton';
 import { Ionicons } from '@expo/vector-icons';
+import useResolvedImageUri from '@/hooks/useResolvedImageUri';
+import AvatarImage from '@/components/common/AvatarImage';
 
 export default function PostCard({
   item,
@@ -71,6 +73,13 @@ export default function PostCard({
         : [item.athlete.avatarUrl]
   ).slice(0, 2);
 
+  // Resolve avatar URL robustly using shared hook
+  const { resolvedUri: avatarResolvedUri, isValidating: avatarValidating } = useResolvedImageUri(item?.athlete?.avatarUrl);
+  // Debugging: log resolved uri and validation status for this post's avatar
+  console.debug('[PostCard] avatarResolvedUri', item.id, avatarResolvedUri, 'validating:', avatarValidating);
+
+  const PLACEHOLDER = 'https://i.pravatar.cc/150?img=12';
+
   return (
     <Animated.View entering={FadeInDown.delay(index * 60).duration(400)}>
       <Pressable
@@ -106,7 +115,7 @@ export default function PostCard({
             <View style={st.cardHeader}>
               <TouchableOpacity onPress={onAvatarPress} activeOpacity={0.8}>
                 <View style={st.avatarWrap}>
-                  <Image source={{ uri: item.athlete.avatarUrl }} style={st.avatar} />
+                  <AvatarImage src={avatarResolvedUri || item?.athlete?.avatarUrl} style={st.avatar} skipResolve={!!avatarResolvedUri} />
                   <View style={st.avatarOnline} />
                 </View>
               </TouchableOpacity>
@@ -275,11 +284,9 @@ export default function PostCard({
             {likeCount > 0 && likedByName && (
               <View style={st.likedByRow}>
                 {likedByAvatars.map((avatarUrl: string, idx: number) => (
-                  <Image
-                    key={`${item.id}-liked-avatar-${idx}`}
-                    source={{ uri: avatarUrl }}
-                    style={[st.tinyAvatar, idx > 0 && { marginLeft: -8 }]}
-                  />
+                  <View key={`${item.id}-liked-avatar-${idx}`} style={idx > 0 ? { marginLeft: -8 } : undefined}>
+                    <AvatarImage src={avatarUrl || PLACEHOLDER} style={st.tinyAvatar} skipResolve={false} />
+                  </View>
                 ))}
                 <Text allowFontScaling={false} numberOfLines={1} style={st.likedByText}>
                   Liked by <Text style={{ color: 'White', fontWeight: '700' }}>{likedByName}</Text>
@@ -293,4 +300,3 @@ export default function PostCard({
     </Animated.View>
   );
 }
-

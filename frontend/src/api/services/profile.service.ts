@@ -1,82 +1,15 @@
 // Location: src/api/services/profile.service.ts
 
-import { PutObjectCommand, S3Client, DeleteObjectCommand } from '@aws-sdk/client-s3';
+declare const process: any;
+
 import api from '../client';
 
-const R2_ENDPOINT = process.env.EXPO_PUBLIC_R2_ENDPOINT || '';
-const R2_ACCESS_KEY_ID = process.env.EXPO_PUBLIC_R2_ACCESS_KEY_ID || '';
-const R2_SECRET_ACCESS_KEY = process.env.EXPO_PUBLIC_R2_SECRET_ACCESS_KEY || '';
-const R2_BUCKET_NAME = process.env.EXPO_PUBLIC_R2_BUCKET_NAME || 'bearfit-assets';
+// Default to the known public R2 dev host used elsewhere in the project so keys become usable URLs
 const R2_PUBLIC_URL = process.env.EXPO_PUBLIC_R2_PUBLIC_URL || 'https://pub-d0fbe48b068b460e96f026d1d9fe3c68.r2.dev';
 
-const s3Client = new S3Client({
-    region: 'auto',
-    endpoint: R2_ENDPOINT,
-    credentials: {
-        accessKeyId: R2_ACCESS_KEY_ID,
-        secretAccessKey: R2_SECRET_ACCESS_KEY,
-    },
-});
-
-const ensureR2Config = () => {
-    if (!R2_ENDPOINT || !R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY || !R2_BUCKET_NAME) {
-        throw new Error('Missing R2 config. Set EXPO_PUBLIC_R2_ENDPOINT, EXPO_PUBLIC_R2_ACCESS_KEY_ID, EXPO_PUBLIC_R2_SECRET_ACCESS_KEY, EXPO_PUBLIC_R2_BUCKET_NAME.');
-    }
-};
-
-const toBytes = async (uri: string): Promise<Uint8Array> => {
+const toBlob = async (uri: string): Promise<Blob> => {
     const response = await fetch(uri);
-    const blob = await response.blob();
-
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-            const arrayBuffer = reader.result as ArrayBuffer;
-            resolve(new Uint8Array(arrayBuffer));
-        };
-        reader.onerror = () => reject(reader.error || new Error('Failed reading image blob'));
-        reader.readAsArrayBuffer(blob);
-    });
-};
-
-const getCrypto = (): Crypto | undefined => {
-    const globalObj = typeof globalThis !== 'undefined' ? (globalThis as any) : undefined;
-    if (!globalObj || !('crypto' in globalObj)) {
-        return undefined;
-    }
-
-    return globalObj['crypto'] as Crypto | undefined;
-};
-
-const randomHex = (): string | undefined => {
-    const cryptoApi = getCrypto();
-    if (!cryptoApi || typeof cryptoApi.getRandomValues !== 'function') {
-        return undefined;
-    }
-
-    const bytes = new Uint8Array(16);
-    cryptoApi.getRandomValues(bytes);
-    return Array.from(bytes, (value) => value.toString(16).padStart(2, '0')).join('');
-};
-
-const fallbackUuid = (): string => {
-    const ts = Date.now().toString(16);
-    const rand = Math.random().toString(16).slice(2, 14).padEnd(12, '0');
-    return `${ts.slice(-8)}-${rand.slice(0, 4)}-4${rand.slice(4, 7)}-a${rand.slice(7, 10)}-${rand.slice(10, 12)}${ts.slice(-10)}`;
-};
-
-const generateUuid = (): string => {
-    const cryptoApi = getCrypto();
-    if (cryptoApi && typeof cryptoApi.randomUUID === 'function') {
-        return cryptoApi.randomUUID();
-    }
-
-    const hex = randomHex();
-    if (hex) {
-        return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-a${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
-    }
-
-    return fallbackUuid();
+    return await response.blob();
 };
 
 const getImageExtension = (uri: string): string => {
@@ -84,12 +17,8 @@ const getImageExtension = (uri: string): string => {
     const dotIndex = uriWithoutQuery.lastIndexOf('.');
     if (dotIndex > -1) {
         const ext = uriWithoutQuery.slice(dotIndex).toLowerCase();
-        // Ensure it's a valid image extension
-        if (['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext)) {
-            return ext;
-        }
+        if (['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext)) return ext;
     }
-
     return '.jpg';
 };
 
@@ -102,42 +31,61 @@ export interface ProfileUpdatePayload {
 
 export const profileService = {
     /**
-     * Upload profile picture to R2 and return the URL
+     * Upload profile picture using backend presigned URL and return public URL + key
      */
-    async uploadProfilePicture(
-        imageUri: string,
-        onProgress?: (progress: number) => void,
-    ): Promise<{ url: string; key: string }> {
-        ensureR2Config();
+    async uploadProfilePicture(imageUri: string, onProgress?: (progress: number) => void): Promise<{ url: string; key: string }> {
+        // 1) Fetch blob to determine content type
+        const blob = await toBlob(imageUri);
+        const contentType = (blob && (blob as any).type) || 'image/jpeg';
 
-        const extension = getImageExtension(imageUri);
-        const fileName = `${generateUuid()}${extension}`;
-        const key = `profile/profile_pic/${fileName}`;
+        // 2) Ask backend for presigned URL
+        const extension = getImageExtension(imageUri).replace('.', '');
+        const filename = `profile_pic.${extension}`;
 
-        const body = await toBytes(imageUri);
+        const presignResp = await api.post('/uploads/profile-picture', { filename, contentType });
+        const { uploadUrl, publicUrl, key } = presignResp.data;
 
-        if (onProgress) {
-            onProgress(0.2);
+        // 3) Upload via fetch PUT to presigned URL
+        if (onProgress) onProgress(0.1);
+
+        const res = await fetch(uploadUrl, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': contentType,
+            },
+            body: blob as any,
+        });
+
+        if (!res.ok) {
+            const text = await res.text().catch(() => '');
+            throw new Error(`Upload failed: ${res.status} ${res.statusText} ${text}`);
         }
 
-        await s3Client.send(new PutObjectCommand({
-            Bucket: R2_BUCKET_NAME,
-            Key: key,
-            Body: body,
-            ContentType: 'image/jpeg',
-        }));
+        if (onProgress) onProgress(1);
 
-        if (onProgress) {
-            onProgress(1);
-        }
+        // 4) Return public URL and key
+        // Normalize/encode publicUrl so RN Image can fetch (encode path segments only)
+        const normalizeUrl = (u: string) => {
+            if (!u) return u;
+            try {
+                // If URL already appears absolute, encode each path segment
+                const urlObj = new URL(u);
+                urlObj.pathname = urlObj.pathname
+                    .split('/')
+                    .map((seg) => encodeURIComponent(decodeURIComponent(seg)))
+                    .join('/');
+                return urlObj.toString();
+            } catch (e) {
+                // fallback to encodeURI for non-standard URLs
+                return encodeURI(u);
+            }
+        };
 
-        const url = `${R2_PUBLIC_URL}/${key}`;
+        const rawUrl = publicUrl || (R2_PUBLIC_URL ? `${R2_PUBLIC_URL.replace(/\/$/, '')}/${key.replace(/^\//, '')}` : key);
+        const url = normalizeUrl(rawUrl);
         return { url, key };
     },
 
-    /**
-     * Update user profile with new data
-     */
     async updateProfile(payload: ProfileUpdatePayload): Promise<any> {
         try {
             const response = await api.put('/auth/profile', payload);
@@ -148,33 +96,61 @@ export const profileService = {
         }
     },
 
-    /**
-     * Get current user profile
-     */
     async getProfile(): Promise<any> {
         try {
-            const response = await api.get('/auth/profile');
-            return response.data;
-        } catch (error) {
+            // The backend exposes the current user's profile at GET /auth/me
+            const response = await api.get('/auth/me');
+            const profile = response.data;
+
+            // Normalize profile_pic_url: ensure it's an absolute, encoded URL
+            if (profile && profile.profile_pic_url && typeof profile.profile_pic_url === 'string') {
+                const v = profile.profile_pic_url;
+                if (!/^https?:\/\//i.test(v)) {
+                    if (R2_PUBLIC_URL) {
+                        profile.profile_pic_url = `${R2_PUBLIC_URL.replace(/\/$/, '')}/${v.replace(/^\//, '')}`;
+                    } else {
+                        console.warn('profileService.getProfile: profile_pic_url looks like a key but R2 public URL is not configured', v);
+                    }
+                }
+
+                // Encode path segments to be safe for RN Image
+                try {
+                    const urlObj = new URL(profile.profile_pic_url);
+                    urlObj.pathname = urlObj.pathname
+                        .split('/')
+                        .map((seg) => encodeURIComponent(decodeURIComponent(seg)))
+                        .join('/');
+                    profile.profile_pic_url = urlObj.toString();
+                } catch (e) {
+                    profile.profile_pic_url = encodeURI(profile.profile_pic_url);
+                }
+            }
+
+            // If backend returned a profile_pic_key (the storage key), use our backend proxy endpoint
+            if (profile && !profile.profile_pic_url && profile.profile_pic_key) {
+                const key = String(profile.profile_pic_key);
+                const proxyUrl = `${api.defaults.baseURL.replace(/\/$/, '')}/uploads/proxy?key=${encodeURIComponent(key)}`;
+                profile.profile_pic_url = proxyUrl;
+            }
+
+            return profile;
+        } catch (error: any) {
+            // If 404 or 401, return null to let the UI show defaults
+            if (error.response?.status === 404 || error.response?.status === 401) {
+                console.warn('Profile not found or unauthenticated:', error.response?.status);
+                return null;
+            }
             console.error('Error fetching profile:', error);
             throw error;
         }
     },
 
-    /**
-     * Delete profile picture from R2
-     */
     async deleteProfilePicture(key: string): Promise<void> {
-        ensureR2Config();
-
+        // Optional: call backend to delete by key or keep client-side delete. For now attempt backend route if exists.
         try {
-            await s3Client.send(new DeleteObjectCommand({
-                Bucket: R2_BUCKET_NAME,
-                Key: key,
-            }));
+            await api.delete('/uploads', { data: { key } });
         } catch (error) {
-            console.error(`Failed to delete profile picture from R2 (${key}):`, error);
+            console.error('Failed to delete profile picture via backend:', error);
         }
     },
 };
-

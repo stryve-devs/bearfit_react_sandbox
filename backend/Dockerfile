@@ -7,8 +7,8 @@ WORKDIR /app
 # Copy dependency files
 COPY package.json package-lock.json ./
 
-# Install dependencies
-RUN npm install
+# Install dependencies (including dev dependencies for ts-node/types)
+RUN npm ci --no-audit --no-fund
 
 # Copy Prisma schema
 COPY prisma ./prisma
@@ -22,5 +22,5 @@ COPY . .
 # Expose port 3001 for the backend
 EXPOSE 3001
 
-# Run TypeScript directly with ts-node
-CMD ["npx", "ts-node", "src/server.ts"]
+# Run nodemon directly (avoid npm wrapper to prevent interleaved npm SIGTERM logs)
+CMD ["npx", "nodemon", "src/server.ts"]

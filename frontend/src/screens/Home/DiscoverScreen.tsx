@@ -14,6 +14,7 @@ import { DiscoverComment } from '@/types/fetchpost.types';
 import useDiscoverFeed from '@/components/Discover/useDiscoverFeed';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { useAuth } from '@/context/AuthContext';
+import api from '@/api/client';
 
 // New imports: small components and utils extracted from this file
 import CommentsSheet from '@/components/Discover/CommentsSheet';
@@ -165,7 +166,7 @@ export default function DiscoverScreen() {
   const filteredPosts = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return posts;
-    return posts.filter((p) => `${p.athlete.name} ${p.athlete.username} ${p.caption}`.toLowerCase().includes(q));
+    return posts.filter((p: Post) => `${p.athlete.name} ${p.athlete.username} ${p.caption}`.toLowerCase().includes(q));
   }, [query, posts]);
 
   const openComments = (postId: string) => {
@@ -195,6 +196,109 @@ export default function DiscoverScreen() {
     }
   };
 
+  // Avatar resolution cache & map (postId -> resolved avatar URI)
+  const resolvedAvatarCacheRef = useRef<Record<string, string>>({});
+  const [avatarUriByPostId, setAvatarUriByPostId] = useState<Record<string, string>>({});
+
+  // Resolve avatar URLs for posts: try original, encoded variants, then backend proxy fallback
+  useEffect(() => {
+    let mounted = true;
+    if (!posts || posts.length === 0) return;
+
+    const tryFetch = async (url: string) => {
+      try {
+        const res = await fetch(url, { method: 'GET' });
+        return res.ok;
+      } catch (err) {
+        return false;
+      }
+    };
+
+    (async () => {
+      for (const p of posts) {
+        try {
+          const orig = p?.athlete?.avatarUrl;
+          if (!orig) continue;
+
+          // If we already have a resolved entry for this exact source URL, reuse it
+          if (resolvedAvatarCacheRef.current[orig]) {
+            if (mounted) setAvatarUriByPostId((prev: Record<string, string>) => ({ ...prev, [p.id]: resolvedAvatarCacheRef.current[orig] }));
+            continue;
+          }
+
+          // Build proxy base if available
+          const proxyBase = api.defaults.baseURL ? api.defaults.baseURL.replace(/\/$/, '') + '/uploads/proxy' : null;
+          if (proxyBase && orig.startsWith(proxyBase)) {
+            resolvedAvatarCacheRef.current[orig] = orig;
+            if (mounted) setAvatarUriByPostId((prev: Record<string, string>) => ({ ...prev, [p.id]: orig }));
+            console.debug('[DiscoverScreen] resolved (proxyBase) ', orig, '->', orig);
+            continue;
+          }
+
+          // 1) try original
+          if (await tryFetch(orig)) {
+            resolvedAvatarCacheRef.current[orig] = orig;
+            if (mounted) setAvatarUriByPostId((prev: Record<string, string>) => ({ ...prev, [p.id]: orig }));
+            console.debug('[DiscoverScreen] resolved (original) ', orig, '->', orig);
+            continue;
+          }
+
+          // 2) encodeURI
+          const enc1 = encodeURI(orig);
+          if (enc1 !== orig && await tryFetch(enc1)) {
+            resolvedAvatarCacheRef.current[orig] = enc1;
+            if (mounted) setAvatarUriByPostId((prev: Record<string, string>) => ({ ...prev, [p.id]: enc1 }));
+            console.debug('[DiscoverScreen] resolved (encodeURI) ', orig, '->', enc1);
+            continue;
+          }
+
+          // 3) per-segment encode
+          const parts = orig.split('/');
+          const encParts = parts.map((s: string) => encodeURIComponent(s));
+          const enc2 = encParts.join('/');
+          if (enc2 !== orig && await tryFetch(enc2)) {
+            resolvedAvatarCacheRef.current[orig] = enc2;
+            if (mounted) setAvatarUriByPostId((prev: Record<string, string>) => ({ ...prev, [p.id]: enc2 }));
+            console.debug('[DiscoverScreen] resolved (encodeURIComponent) ', orig, '->', enc2);
+            continue;
+          }
+
+          // 4) fallback to backend proxy once
+          if (proxyBase) {
+            const proxyUrl = `${proxyBase}?url=${encodeURIComponent(orig)}`;
+            resolvedAvatarCacheRef.current[orig] = proxyUrl;
+            if (mounted) setAvatarUriByPostId((prev: Record<string, string>) => ({ ...prev, [p.id]: proxyUrl }));
+            console.debug('[DiscoverScreen] resolved (proxy fallback) ', orig, '->', proxyUrl);
+            continue;
+          }
+        } catch (err) {
+          // ignore per-post errors and leave original avatar in place
+          console.error('Failed resolving avatar for post', p?.id, err);
+        }
+      }
+    })();
+
+    return () => { mounted = false; };
+  }, [posts]);
+
+  // Derived posts where athlete.avatarUrl is replaced with resolved avatar URI when available
+  const derivedPosts = useMemo(() => {
+    if (!posts) return posts;
+    return posts.map((p: Post) => {
+      const resolved = avatarUriByPostId[p.id];
+      if (resolved) {
+        return { ...p, athlete: { ...p.athlete, avatarUrl: resolved } };
+      }
+      return p;
+    });
+  }, [posts, avatarUriByPostId]);
+
+  const derivedFilteredPosts = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return derivedPosts;
+    return derivedPosts.filter((p: Post) => `${p.athlete.name} ${p.athlete.username} ${p.caption}`.toLowerCase().includes(q));
+  }, [query, derivedPosts]);
+
   return (
     <LinearGradient
       colors={['#0e0e11', '#0a0906', '#080808', '#0a0906', '#0b0b0e']}
@@ -211,8 +315,8 @@ export default function DiscoverScreen() {
         <Header onOpenMenu={() => setMenuOpen(true)} onSearchOpen={() => setSearchOpen(true)} onSyncPress={handleSyncPress} isSyncing={isSyncing} />
 
         <DiscoverList
-          posts={posts}
-          filteredPosts={filteredPosts}
+          posts={derivedPosts}
+          filteredPosts={derivedFilteredPosts}
           activeMediaByPost={activeMediaByPost}
           activePlaybackPostId={activePlaybackPostId}
           isScreenFocused={isScreenFocused}
@@ -236,7 +340,7 @@ export default function DiscoverScreen() {
 
         <DiscoverMenu visible={menuOpen} onClose={() => setMenuOpen(false)} />
 
-        <DiscoverSearch visible={searchOpen} query={query} setQuery={setQuery} filteredPosts={filteredPosts} onClose={() => setSearchOpen(false)} onOpenPost={(id: string) => { setSearchOpen(false); setQuery(''); setActivePlaybackPostId(null); router.push({ pathname: '/(tabs)/home/post-detail', params: { postId: id } }); }} />
+        <DiscoverSearch visible={searchOpen} query={query} setQuery={setQuery} filteredPosts={derivedFilteredPosts} onClose={() => setSearchOpen(false)} onOpenPost={(id: string) => { setSearchOpen(false); setQuery(''); setActivePlaybackPostId(null); router.push({ pathname: '/(tabs)/home/post-detail', params: { postId: id } }); }} />
 
         <CommentsSheet
           visible={commentsOpen}

@@ -28,8 +28,8 @@ model users {
   role            Role             @default(USER)
   googleId        String?          @unique @db.VarChar(191)
   bio             String?
-  profile_pic_url String?          @db.VarChar(500)
   link_url        String?          @db.VarChar(500)
+  profile_pic_url String?          @db.VarChar(500)
   Comment         Comment[]
   Food            Food[]
   Like            Like[]
