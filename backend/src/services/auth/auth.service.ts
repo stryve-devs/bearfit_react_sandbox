@@ -273,7 +273,6 @@ export interface MeProfileResponse {
 }
 
 export const getCurrentUserProfile = async (userId: number): Promise<MeProfileResponse> => {
-  // Select only simple scalar fields to avoid complex nested types at the moment
   const user = await prisma.users.findUnique({
     where: { user_id: userId },
     select: {
@@ -281,7 +280,35 @@ export const getCurrentUserProfile = async (userId: number): Promise<MeProfileRe
       name: true,
       bio: true,
       profile_pic_url: true,
-      // counts/relations omitted to keep types simple for now
+      following_links: {
+        select: {
+          following: {
+            select: {
+              user_id: true,
+              username: true,
+              name: true,
+            },
+          },
+        },
+      },
+      follower_links: {
+        select: {
+          follower: {
+            select: {
+              user_id: true,
+              username: true,
+              name: true,
+            },
+          },
+        },
+      },
+      _count: {
+        select: {
+          following_links: true,
+          follower_links: true,
+          workouts: true,
+        },
+      },
     },
   });
 
@@ -294,13 +321,20 @@ export const getCurrentUserProfile = async (userId: number): Promise<MeProfileRe
     name: user.name,
     bio: user.bio,
     profile_pic_url: user.profile_pic_url,
-    // Return empty arrays/counts for followers/following for now
-    followers: [],
-    following: [],
+    followers: user.follower_links.map((link) => ({
+      user_id: link.follower.user_id,
+      username: link.follower.username,
+      name: link.follower.name,
+    })),
+    following: user.following_links.map((link) => ({
+      user_id: link.following.user_id,
+      username: link.following.username,
+      name: link.following.name,
+    })),
     _count: {
-      followers: 0,
-      following: 0,
-      workouts: 0,
+      followers: user._count.follower_links,
+      following: user._count.following_links,
+      workouts: user._count.workouts,
     },
   };
 };

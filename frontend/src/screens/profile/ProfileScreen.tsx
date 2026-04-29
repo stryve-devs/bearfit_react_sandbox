@@ -11,6 +11,9 @@ import {
     Platform,
     Dimensions,
     ActivityIndicator,
+    Modal,
+    Pressable,
+    FlatList,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -19,6 +22,7 @@ import { useRouter } from "expo-router";
 import { authService } from "@/api/services/auth.service";
 import { useAuth } from "@/context/AuthContext";
 import AvatarImage from '@/components/common/AvatarImage';
+import type { PublicProfileUser, MeProfileResponse } from '@/types/auth.types';
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 const ORANGE  = "#FF7825";
@@ -212,6 +216,53 @@ function SparkBars({ tab, selectedDay, setSelectedDay }: { tab: string; selected
         </View>
     );
 }
+
+function PeopleModal({
+    visible,
+    title,
+    people,
+    onClose,
+}: {
+    visible: boolean;
+    title: string;
+    people: PublicProfileUser[];
+    onClose: () => void;
+}) {
+    return (
+        <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+            <View style={peopleSt.overlay}>
+                <Pressable style={peopleSt.backdrop} onPress={onClose} />
+                <View style={peopleSt.sheet}>
+                    <View style={peopleSt.handle} />
+                    <Text style={peopleSt.title}>{title}</Text>
+                    <FlatList
+                        data={people}
+                        keyExtractor={(item) => String(item.user_id)}
+                        contentContainerStyle={peopleSt.listContent}
+                        showsVerticalScrollIndicator={false}
+                        ListEmptyComponent={
+                            <Text style={peopleSt.emptyText}>
+                                {title === "Followers" ? "No followers yet" : "Not following anyone yet"}
+                            </Text>
+                        }
+                        renderItem={({ item }) => {
+                            const avatarUri = `https://i.pravatar.cc/150?u=${encodeURIComponent(String(item.user_id))}`;
+                            return (
+                                <View style={peopleSt.row}>
+                                    <AvatarImage src={avatarUri} style={peopleSt.avatar} />
+                                    <View style={peopleSt.textWrap}>
+                                        <Text style={peopleSt.name}>{item.name || "-"}</Text>
+                                        <Text style={peopleSt.username}>@{item.username || `user-${item.user_id}`}</Text>
+                                    </View>
+                                </View>
+                            );
+                        }}
+                    />
+                </View>
+            </View>
+        </Modal>
+    );
+}
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function ProfileScreen() {
     const router = useRouter();
@@ -221,6 +272,7 @@ export default function ProfileScreen() {
     const [profile, setProfile] = useState<MeProfileResponse | null>(null);
     const [profileLoading, setProfileLoading] = useState(true);
     const [profileError, setProfileError] = useState<string | null>(null);
+    const [peopleModal, setPeopleModal] = useState<"Followers" | "Following" | null>(null);
 
     const fetchProfile = useCallback(async () => {
         setProfileLoading(true);
@@ -332,15 +384,15 @@ export default function ProfileScreen() {
                                 <Text style={st.statLbl}>Workouts</Text>
                             </View>
                             <View style={st.statDivider} />
-                            <View style={st.statBlock}>
+                            <TouchableOpacity style={st.statBlock} activeOpacity={0.8} onPress={() => setPeopleModal("Followers")}>
                                 <Text style={st.statNum}>{followersCount}</Text>
                                 <Text style={st.statLbl}>Followers</Text>
-                            </View>
+                            </TouchableOpacity>
                             <View style={st.statDivider} />
-                            <View style={st.statBlock}>
+                            <TouchableOpacity style={st.statBlock} activeOpacity={0.8} onPress={() => setPeopleModal("Following")}>
                                 <Text style={st.statNum}>{followingCount}</Text>
                                 <Text style={st.statLbl}>Following</Text>
-                            </View>
+                            </TouchableOpacity>
                         </View>
                     </View>
                 </View>
@@ -434,6 +486,13 @@ export default function ProfileScreen() {
                         <Feather name="chevron-down" size={16} color={ORANGE} />
                     </TouchableOpacity>
                 </ScrollView>
+
+                <PeopleModal
+                    visible={!!peopleModal}
+                    title={peopleModal || ""}
+                    people={peopleModal === "Followers" ? (profile?.followers || []) : (profile?.following || [])}
+                    onClose={() => setPeopleModal(null)}
+                />
             </SafeAreaView>
         </LinearGradient>
     );
@@ -546,6 +605,77 @@ const st = StyleSheet.create({
         marginTop: 22, paddingVertical: 12,
     },
     startText: { fontSize: 15, fontWeight: "600", color: ORANGE, letterSpacing: -0.2 },
+});
+
+const peopleSt = StyleSheet.create({
+    overlay: {
+        flex: 1,
+        backgroundColor: "rgba(0,0,0,0.55)",
+        justifyContent: "flex-end",
+    },
+    backdrop: { flex: 1 },
+    sheet: {
+        maxHeight: "70%",
+        backgroundColor: "#111214",
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+        borderWidth: 0.5,
+        borderColor: "rgba(255,255,255,0.08)",
+        paddingTop: 12,
+        paddingBottom: 20,
+    },
+    handle: {
+        width: 42,
+        height: 4,
+        borderRadius: 999,
+        backgroundColor: "rgba(255,255,255,0.18)",
+        alignSelf: "center",
+        marginBottom: 14,
+    },
+    title: {
+        color: TEXT,
+        fontSize: 18,
+        fontWeight: "700",
+        textAlign: "center",
+        marginBottom: 8,
+    },
+    listContent: {
+        paddingHorizontal: 18,
+        paddingBottom: 16,
+    },
+    emptyText: {
+        color: MUTED,
+        fontSize: 14,
+        textAlign: "center",
+        marginTop: 24,
+    },
+    row: {
+        flexDirection: "row",
+        alignItems: "center",
+        paddingVertical: 12,
+        borderBottomWidth: 0.5,
+        borderBottomColor: "rgba(255,255,255,0.06)",
+    },
+    avatar: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        backgroundColor: "#1a1a1a",
+    },
+    textWrap: {
+        marginLeft: 12,
+        flex: 1,
+    },
+    name: {
+        color: TEXT,
+        fontSize: 15,
+        fontWeight: "600",
+    },
+    username: {
+        color: MUTED,
+        fontSize: 12,
+        marginTop: 2,
+    },
 });
 
 // ─── Ring styles ──────────────────────────────────────────────────────────────

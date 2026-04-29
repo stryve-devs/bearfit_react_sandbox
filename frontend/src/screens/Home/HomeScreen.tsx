@@ -39,6 +39,7 @@ import { useAuth } from '@/context/AuthContext';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Athlete = {
+    user_id?: number;
     name: string;
     username: string;
     avatarUrl: string;
@@ -382,6 +383,7 @@ export default function HomeScreen() {
     const { width }    = useWindowDimensions();
     const [followed,   setFollowed]   = useState<Set<string>>(new Set());
     const [suggested, setSuggested] = useState<Athlete[]>(ALL_ATHLETES);
+    const [followLoading, setFollowLoading] = useState<Set<string>>(new Set());
     const { user: authUser } = useAuth();
     const [menuOpen,   setMenuOpen]   = useState(false);
     const [searchOpen, setSearchOpen] = useState(false);
@@ -405,13 +407,52 @@ export default function HomeScreen() {
         transform: [{ scale: menuScale.value }],
     }));
 
-    const toggleFollow = (username: string) => {
-        setFollowed((prev: Set<string>) => {
+    const toggleFollow = async (athlete: Athlete) => {
+        if (!athlete.user_id) {
+            console.warn('Cannot follow suggested athlete without user_id', athlete.username);
+            return;
+        }
+
+        if (followLoading.has(athlete.username)) {
+            return;
+        }
+
+        const wasFollowed = followed.has(athlete.username);
+
+        setFollowLoading((prev) => {
             const next = new Set(prev);
-            if (next.has(username)) next.delete(username);
-            else next.add(username);
+            next.add(athlete.username);
             return next;
         });
+
+        setFollowed((prev) => {
+            const next = new Set(prev);
+            if (wasFollowed) next.delete(athlete.username);
+            else next.add(athlete.username);
+            return next;
+        });
+
+        try {
+            if (wasFollowed) {
+                await userService.unfollowUser(athlete.user_id);
+            } else {
+                await userService.followUser(athlete.user_id);
+            }
+        } catch (err) {
+            console.error(`Failed to ${wasFollowed ? 'unfollow' : 'follow'} user`, err);
+            setFollowed((prev) => {
+                const next = new Set(prev);
+                if (wasFollowed) next.add(athlete.username);
+                else next.delete(athlete.username);
+                return next;
+            });
+        } finally {
+            setFollowLoading((prev) => {
+                const next = new Set(prev);
+                next.delete(athlete.username);
+                return next;
+            });
+        }
     };
 
     // Fetch suggested users from backend (users the current user doesn't follow)
@@ -424,6 +465,7 @@ export default function HomeScreen() {
                 if (!mounted) return;
                 if (Array.isArray(users) && users.length > 0) {
                     const mapped = users.map((u: any) => ({
+                        user_id: u.user_id,
                         name: u.name || u.username || `user-${u.user_id}`,
                         username: u.username || `user-${u.user_id}`,
                         avatarUrl: u.profile_pic_url || `https://i.pravatar.cc/150?u=${encodeURIComponent(String(u.user_id))}`,
@@ -439,11 +481,11 @@ export default function HomeScreen() {
 
     const filtered = useMemo(() => {
         const q = query.trim().toLowerCase();
-        if (!q) return ALL_ATHLETES;
-        return ALL_ATHLETES.filter(
+        if (!q) return suggested;
+        return suggested.filter(
             (a) => a.name.toLowerCase().includes(q) || a.username.toLowerCase().includes(q)
         );
-    }, [query]);
+    }, [query, suggested]);
 
     const cardWidth = Math.min(
         IS_ANDROID ? 112 : 120,
@@ -537,7 +579,7 @@ export default function HomeScreen() {
                                     index={index}
                                     cardWidth={cardWidth}
                                     isFollowed={followed.has(item.username)}
-                                    onToggle={() => toggleFollow(item.username)}
+                                    onToggle={() => toggleFollow(item)}
                                     onPress={() => router.push(`/Profile/${item.username}`)}
                                 />
                             )}
