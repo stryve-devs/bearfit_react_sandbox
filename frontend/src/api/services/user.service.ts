@@ -1,4 +1,5 @@
 import api from '../client';
+import { DiscoverFeedResponse } from '../../types/fetchpost.types';
 
 declare const process: any;
 
@@ -72,6 +73,16 @@ export const userService = {
       name: u.name,
       profile_pic_url: u.profile_pic_url ? normalizeProfilePicUrl(u.profile_pic_url) : null,
     }));
+  },
+
+  async getUserPosts(userId: number | string, limit = 20, cursor?: string): Promise<DiscoverFeedResponse> {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (cursor) {
+      params.set('cursor', cursor);
+    }
+
+    const response = await api.get(`/users/${userId}/posts?${params.toString()}`);
+    return response.data;
   },
 
   async followUser(targetUserId: number | string): Promise<{ isFollowing: boolean }> {

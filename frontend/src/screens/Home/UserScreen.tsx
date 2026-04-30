@@ -44,6 +44,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { userService } from '@/api/services/user.service';
 import { useAuth } from '@/context/AuthContext';
 import api from '@/api/client';
+import { fetchPostService } from '@/api/services/fetchpost.service';
+import { DiscoverPost } from '@/types/fetchpost.types';
+import discoverUtils from '@/components/Discover/utils';
+import { VideoView, useVideoPlayer } from 'expo-video';
 
 const { width, height } = Dimensions.get('window');
 const HEADER_HEIGHT = 260;
@@ -87,6 +91,7 @@ const ROUTINES = [
 ];
 
 const QUICK_EMOJIS = ['💪', '🔥', '👏', '🏋️', '👊', '🥵', '🏆'];
+const resolveExerciseIcon = discoverUtils.resolveExerciseIcon;
 
 const INITIAL_POSTS = [
     {
@@ -147,6 +152,54 @@ const INITIAL_POSTS = [
     },
 ];
 
+const formatAbsolutePostDate = (relativeTime?: string) => relativeTime || 'Recently';
+
+const mapApiCommentToUiComment = (comment: any): any => ({
+    id: comment.id,
+    user: comment.user,
+    avatar: comment.avatarUrl,
+    avatarUrl: comment.avatarUrl,
+    text: comment.text,
+    time: comment.time,
+    likes: comment.likes ?? 0,
+    liked: !!comment.liked,
+    showReplies: false,
+    replies: Array.isArray(comment.replies) ? comment.replies.map(mapApiCommentToUiComment) : [],
+});
+
+const mapApiPostToUiPost = (post: DiscoverPost) => ({
+    id: post.id,
+    userId: post.userId,
+    title: post.title || 'Workout',
+    routineId: post.id,
+    routineName: post.exercises?.[0]?.name || 'Workout',
+    caption: post.caption || '',
+    desc: post.caption || '',
+    time: post.stats?.time || '0min',
+    volume: post.stats?.weight || '0 kgs',
+    records: '0',
+    bpm: post.stats?.bpm || '--',
+    date: formatAbsolutePostDate(post.time),
+    media: Array.isArray(post.media) ? post.media : [],
+    images: post.media?.length ? post.media.map((media) => media.url) : [],
+    likes: post.likesCount || 0,
+    liked: !!post.likedByMe,
+    likesCount: post.likesCount || 0,
+    likedByMe: !!post.likedByMe,
+    likedByUsername: post.likedByUsername,
+    likedByAvatarUrls: Array.isArray(post.likedByAvatarUrls) ? post.likedByAvatarUrls : [],
+    athlete: post.athlete,
+    stats: post.stats,
+    exercises: Array.isArray(post.exercises)
+        ? post.exercises.map((exercise) => ({
+            ...exercise,
+            iconUrl: resolveExerciseIcon(exercise.name, exercise.imagePath),
+        }))
+        : [],
+    commentsCount: post.commentsCount || 0,
+    comments: Array.isArray(post.comments) ? post.comments.map(mapApiCommentToUiComment) : [],
+});
+
 const FOLLOWING_LIST = [
     { id: '1', user: 'mikelifts',   name: 'Mike Johnson',  avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=80',  isFollowing: true  },
     { id: '2', user: 'fitnessfan',  name: 'Sara Williams', avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=80',   isFollowing: false },
@@ -167,6 +220,51 @@ const GlassCard = ({ children, style, shine = true, glowColor }: any) => (
         <View style={{ zIndex: 2 }}>{children}</View>
     </View>
 );
+
+const ProfileVideoMedia = ({ uri, isActive }: { uri: string; isActive: boolean }) => {
+    const player = useVideoPlayer(uri as any);
+
+    useEffect(() => {
+        player.loop = true;
+
+        if (isActive) {
+            player.muted = false;
+            try {
+                if (typeof (player as any).play === 'function') (player as any).play();
+                if (typeof (player as any).playAsync === 'function') (player as any).playAsync();
+            } catch {}
+            return;
+        }
+
+        player.muted = true;
+        try {
+            if (typeof (player as any).pause === 'function') (player as any).pause();
+            if (typeof (player as any).pauseAsync === 'function') (player as any).pauseAsync();
+        } catch {}
+        try {
+            if (typeof (player as any).setCurrentTime === 'function') (player as any).setCurrentTime(0);
+            (player as any).currentTime = 0;
+        } catch {}
+    }, [isActive, player]);
+
+    return <VideoView player={player} style={styles.postImage} contentFit="cover" nativeControls={false} />;
+};
+
+const ProfileMediaSlide = ({ media, isActive }: { media: { url: string; type: 'IMAGE' | 'VIDEO' }; isActive: boolean }) => {
+    if (media.type === 'VIDEO') {
+        return (
+            <View style={styles.mediaSlide}>
+                <ProfileVideoMedia uri={media.url} isActive={isActive} />
+                <View style={styles.videoHint}>
+                    <Ionicons name="videocam" size={11} color={C.white} />
+                    <Text style={styles.videoHintText}>Video</Text>
+                </View>
+            </View>
+        );
+    }
+
+    return <Image source={{ uri: media.url }} style={styles.postImage} />;
+};
 
 // ─── ANIMATED BAR (PREMIUM) ───────────────────────────────────
 const AnimatedBar = ({ value, label, index }: any) => {
@@ -741,22 +839,70 @@ const PostCard = ({ post, index, onOpenComments, onUpdatePost }: any) => {
     const [imgIndex, setImgIndex] = useState(0);
     const [liked, setLiked]       = useState(post.liked);
     const [likes, setLikes]       = useState(post.likes);
+    const [mediaWidth, setMediaWidth] = useState(0);
+    const mediaCount = Array.isArray(post.media) ? post.media.length : 0;
+    const totalSlides = mediaCount + 1;
+    const slideWidth = mediaWidth || (width - 28);
+
+    useEffect(() => {
+        setLiked(post.liked);
+        setLikes(post.likes);
+    }, [post.id, post.liked, post.likes]);
+
     const heartScale = useSharedValue<number>(1);
     const heartStyle = useAnimatedStyle(() => ({
         transform: [{ scale: heartScale.value }] as { scale: number }[],
     }));
 
-    const toggleLike = () => {
+    const toggleLike = async () => {
         heartScale.value = withSequence(
             withTiming(0.7,  { duration: 80  }),
             withTiming(1.25, { duration: 120 }),
             withTiming(1,    { duration: 100 })
         );
-        setLiked((v: boolean) => { setLikes((l: number) => l + (v ? -1 : 1)); return !v; });
+
+        const prevLiked = liked;
+        const prevLikes = likes;
+        const nextLiked = !prevLiked;
+        const nextLikes = prevLikes + (prevLiked ? -1 : 1);
+
+        setLiked(nextLiked);
+        setLikes(nextLikes);
+        onUpdatePost({ ...post, liked: nextLiked, likedByMe: nextLiked, likes: nextLikes, likesCount: nextLikes });
+
+        try {
+            const result = await fetchPostService.togglePostLike(post.id);
+            setLiked(result.liked);
+            setLikes(result.likesCount);
+            onUpdatePost({
+                ...post,
+                liked: result.liked,
+                likedByMe: result.liked,
+                likes: result.likesCount,
+                likesCount: result.likesCount,
+                likedByUsername: result.likedByUsername,
+                likedByAvatarUrls: result.likedByAvatarUrls,
+            });
+        } catch (error) {
+            console.warn('Failed to toggle post like', error);
+            setLiked(prevLiked);
+            setLikes(prevLikes);
+            onUpdatePost({ ...post, liked: prevLiked, likedByMe: prevLiked, likes: prevLikes, likesCount: prevLikes });
+        }
     };
 
     const handleShare = async () => {
-        try { await Share.share({ message: `Check out this workout: "${post.title}" — ${post.desc}`, title: post.title }); } catch {}
+        try { await Share.share({ message: `Check out this workout: "${post.title}" - ${post.desc}`, title: post.title }); } catch {}
+    };
+
+    const onMediaScrollEnd = (event: any) => {
+        if (totalSlides <= 1) return;
+        const measuredWidth = event.nativeEvent.layoutMeasurement.width || slideWidth;
+        const nextIndex = Math.round(event.nativeEvent.contentOffset.x / measuredWidth);
+        const clampedIndex = Math.min(Math.max(0, nextIndex), totalSlides - 1);
+        if (clampedIndex !== imgIndex) {
+            setImgIndex(clampedIndex);
+        }
     };
 
     return (
@@ -766,23 +912,23 @@ const PostCard = ({ post, index, onOpenComments, onUpdatePost }: any) => {
                 start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
                 style={styles.postCard}
             >
-                {/* Top shine */}
                 <LinearGradient
                     colors={['transparent', 'rgba(255,255,255,0.07)', 'transparent']}
                     start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
                     style={styles.cardShine} pointerEvents="none"
                 />
-                {/* Orange accent bar */}
                 <LinearGradient colors={[C.orange, C.orangeD]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.cardAccentBar} />
 
-                {/* HEADER */}
                 <View style={styles.postHeader}>
                     <View style={styles.avatarWrap}>
-                        <Image source={{ uri: 'https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?w=80' }} style={styles.postAvatar} />
+                        <Image
+                            source={{ uri: post.athlete?.avatarUrl || 'https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?w=80' }}
+                            style={styles.postAvatar}
+                        />
                         <View style={styles.avatarOnline} />
                     </View>
                     <View style={{ flex: 1, minWidth: 0 }}>
-                        <Text style={styles.postUser} numberOfLines={1}>jadewolfe</Text>
+                        <Text style={styles.postUser} numberOfLines={1}>{post.athlete?.username || 'user'}</Text>
                         <Text style={styles.postDate}>{post.date}</Text>
                     </View>
                     <GlassCard style={styles.bpmBadge} shine={false}>
@@ -793,21 +939,21 @@ const PostCard = ({ post, index, onOpenComments, onUpdatePost }: any) => {
                     </GlassCard>
                 </View>
 
-                {/* TITLE + ROUTINE BADGE */}
                 <View style={{ paddingHorizontal: 14, paddingTop: 10 }}>
                     <Text style={styles.postTitle}>{post.title}</Text>
-                    <TouchableOpacity
-                        onPress={() => router.push({ pathname: '/home/workout-detail', params: { routineId: post.routineId, title: post.routineName } })}
-                        style={{ alignSelf: 'flex-start', marginBottom: 8 }}
-                    >
-                        <LinearGradient colors={['rgba(255,120,37,0.18)', 'rgba(255,120,37,0.06)']} style={styles.routineBadgeGrad}>
-                            <Text style={styles.routineBadgeText}>🏋️  {post.routineName}  →</Text>
-                        </LinearGradient>
-                    </TouchableOpacity>
+                    {!!post.routineName && (
+                        <TouchableOpacity
+                            onPress={() => router.push({ pathname: '/home/workout-detail', params: { routineId: post.routineId, title: post.routineName } })}
+                            style={{ alignSelf: 'flex-start', marginBottom: 8 }}
+                        >
+                            <LinearGradient colors={['rgba(255,120,37,0.18)', 'rgba(255,120,37,0.06)']} style={styles.routineBadgeGrad}>
+                                <Text style={styles.routineBadgeText}>🏋️  {post.routineName}  →</Text>
+                            </LinearGradient>
+                        </TouchableOpacity>
+                    )}
                     <Text style={styles.postDesc}>{post.desc}</Text>
                 </View>
 
-                {/* STATS */}
                 <View style={styles.postStats}>
                     {[{ icon: '⏱', val: post.time }, { icon: '🏋️', val: post.volume }, { icon: '🏅', val: `${post.records} PRs` }].map((s, i) => (
                         <View key={i} style={styles.statChip}>
@@ -817,29 +963,103 @@ const PostCard = ({ post, index, onOpenComments, onUpdatePost }: any) => {
                     ))}
                 </View>
 
-                {/* IMAGES */}
-                <View style={{ marginHorizontal: 14, borderRadius: 14, overflow: 'hidden' }}>
-                    <ScrollView
-                        horizontal pagingEnabled showsHorizontalScrollIndicator={false}
-                        onMomentumScrollEnd={e => setImgIndex(Math.round(e.nativeEvent.contentOffset.x / (width - 28)))}
+                {(post.media?.length > 0 || (post.exercises?.length ?? 0) > 0) && (
+                    <View
+                        style={styles.imageWrap}
+                        onLayout={(event) => setMediaWidth(event.nativeEvent.layout.width)}
                     >
-                        {post.images.map((img: string, i: number) => (
-                            <View key={i} style={{ width: width - 28 }}>
-                                <Image source={{ uri: img }} style={[styles.postImage, { width: width - 28 }]} />
-                                <LinearGradient colors={['transparent', 'rgba(8,8,16,0.65)']} style={[StyleSheet.absoluteFillObject, { top: '40%' }]} />
-                            </View>
-                        ))}
-                    </ScrollView>
-                    {post.images.length > 1 && (
-                        <View style={styles.dotRow}>
-                            {post.images.map((_: any, i: number) => (
-                                <View key={i} style={[styles.dot, i === imgIndex && styles.dotActive]} />
+                        <ScrollView
+                            horizontal
+                            pagingEnabled
+                            showsHorizontalScrollIndicator={false}
+                            onMomentumScrollEnd={onMediaScrollEnd}
+                        >
+                            {(post.media || []).map((media: { url: string; type: 'IMAGE' | 'VIDEO' }, i: number) => (
+                                <View key={i} style={[styles.mediaSlide, { width: slideWidth }]}>
+                                    <ProfileMediaSlide media={media} isActive={imgIndex === i} />
+                                </View>
                             ))}
-                        </View>
-                    )}
-                </View>
 
-                {/* ACTIONS */}
+                            <TouchableOpacity
+                                activeOpacity={0.9}
+                                onPress={() => router.push({ pathname: '/(tabs)/home/post-detail', params: { postId: post.id } })}
+                            >
+                                <View
+                                    style={[
+                                        styles.exerciseSlide,
+                                        { width: slideWidth },
+                                        (post.exercises || []).length === 1 && styles.exerciseSlideSingle,
+                                    ]}
+                                >
+                                    {(post.exercises || []).length === 1 ? (
+                                        <View style={styles.singleExerciseContainer}>
+                                            <View style={styles.singleExerciseIconWrap}>
+                                                {post.exercises[0]?.iconUrl ? (
+                                                    <Image source={{ uri: post.exercises[0].iconUrl }} style={styles.singleExerciseIcon} />
+                                                ) : (
+                                                    <Ionicons name="barbell-outline" size={48} color={C.orange} />
+                                                )}
+                                            </View>
+                                            <Text style={styles.singleExerciseSetsText}>
+                                                {post.exercises[0]?.setsCount || 0} {(post.exercises[0]?.setsCount || 0) === 1 ? 'set' : 'sets'}
+                                            </Text>
+                                            <Text style={styles.singleExerciseNameText}>
+                                                {post.exercises[0]?.name?.split(' ').map((word: string) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ') || 'Exercise'}
+                                            </Text>
+                                        </View>
+                                    ) : (
+                                        <>
+                                            {(post.exercises || []).slice(0, 3).map((exercise: any, exerciseIndex: number) => (
+                                                <View key={`${post.id}-exercise-${exerciseIndex}`} style={styles.exerciseRow}>
+                                                    <View style={styles.exerciseIconWrap}>
+                                                        {exercise.iconUrl ? (
+                                                            <Image source={{ uri: exercise.iconUrl }} style={styles.exerciseIcon} />
+                                                        ) : (
+                                                            <Ionicons name="barbell-outline" size={16} color={C.orange} />
+                                                        )}
+                                                    </View>
+                                                    <Text style={styles.exerciseSetsText}>
+                                                        {exercise.setsCount} {exercise.setsCount === 1 ? 'set' : 'sets'}
+                                                    </Text>
+                                                    <Text style={styles.exerciseNameText} numberOfLines={1}>
+                                                        {exercise.name.split(' ').map((word: string) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ')}
+                                                    </Text>
+                                                </View>
+                                            ))}
+
+                                            {(!post.exercises || post.exercises.length === 0) && (
+                                                <Text style={styles.exerciseEmptyText}>
+                                                    No exercise details
+                                                </Text>
+                                            )}
+
+                                            {(post.exercises && post.exercises.length > 3) && (
+                                                <TouchableOpacity
+                                                    onPress={() => router.push({ pathname: '/(tabs)/home/post-detail', params: { postId: post.id } })}
+                                                    activeOpacity={0.75}
+                                                    style={styles.moreExercisesBtn}
+                                                >
+                                                    <Text style={styles.moreExercisesText}>
+                                                        More exercises
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            )}
+                                        </>
+                                    )}
+                                </View>
+                            </TouchableOpacity>
+                        </ScrollView>
+                        <View style={styles.imageOverlay} />
+                        {totalSlides > 1 && (
+                            <View style={styles.dotRow}>
+                                {Array.from({ length: totalSlides }).map((_: any, i: number) => (
+                                    <View key={i} style={[styles.dot, i === imgIndex && styles.dotActive]} />
+                                ))}
+                            </View>
+                        )}
+                    </View>
+                )}
+
                 <View style={styles.actionsRow}>
                     <TouchableOpacity onPress={toggleLike} style={styles.actionBtn}>
                         <Animated.View style={heartStyle}>
@@ -860,10 +1080,9 @@ const PostCard = ({ post, index, onOpenComments, onUpdatePost }: any) => {
                     </TouchableOpacity>
                 </View>
 
-                {/* COMMENT PREVIEW */}
                 {post.comments?.length > 0 && (
                     <TouchableOpacity onPress={() => onOpenComments(post)} style={styles.commentPreviewRow}>
-                        <Image source={{ uri: post.comments[0].avatar }} style={styles.commentPreviewAvatar} />
+                        <Image source={{ uri: post.comments[0].avatar || post.comments[0].avatarUrl }} style={styles.commentPreviewAvatar} />
                         <Text style={styles.commentPreviewText} numberOfLines={1}>
                             <Text style={{ color: C.white, fontWeight: '700' }}>{post.comments[0].user}  </Text>
                             {post.comments[0].text}
@@ -924,19 +1143,29 @@ export default function UserScreen() {
 
     // Centralized profile fetch used on mount and pull-to-refresh
     const [refreshing, setRefreshing] = useState(false);
+    const [postsLoading, setPostsLoading] = useState(false);
 
     const fetchUser = async (idParam: string) => {
         setError(null);
+        setPostsLoading(true);
         try {
-            const data = await userService.getUserById(idParam);
+            const [data, postsResponse] = await Promise.all([
+                userService.getUserById(idParam),
+                userService.getUserPosts(idParam),
+            ]);
             console.log('🧾 getUserById response:', data);
             setUserData(data);
+            const mappedPosts = (postsResponse.posts || []).map(mapApiPostToUiPost);
+            setPosts(mappedPosts);
             if (typeof data.is_followed_by_current_user !== 'undefined') {
                 setIsFollowing(!!data.is_followed_by_current_user);
             }
         } catch (e: any) {
             console.error('Failed to load user:', e);
             setError(e?.message || 'Failed to load user');
+            setPosts([]);
+        } finally {
+            setPostsLoading(false);
         }
     };
 
@@ -960,7 +1189,6 @@ export default function UserScreen() {
         if (!userParam) return;
         setRefreshing(true);
         await fetchUser(userParam);
-        // TODO: refresh posts list when posts are backed by API
         setRefreshing(false);
     };
 
@@ -1000,8 +1228,6 @@ export default function UserScreen() {
             setPendingAction(null);
         }
     };
-
-    const isOwner = userParam === 'me';
 
     if (loading) {
         return (
@@ -1132,11 +1358,24 @@ export default function UserScreen() {
                     <View onLayout={(e) => { postsY.current = e.nativeEvent.layout.y; }}>
                         <Text style={styles.section}>Posts</Text>
                     </View>
-                    {posts.map((p, i) => (
-                        <View key={p.id} style={{ marginBottom: 14 }}>
-                            <PostCard post={p} index={i} onOpenComments={openComments} onUpdatePost={updatePost} />
+                    {postsLoading ? (
+                        <View style={{ paddingVertical: 24, alignItems: 'center' }}>
+                            <ActivityIndicator size="small" color={C.orange} />
                         </View>
-                    ))}
+                    ) : posts.length === 0 ? (
+                        <GlassCard style={styles.emptyPostsCard}>
+                            <Text style={styles.emptyPostsTitle}>No posts yet</Text>
+                            <Text style={styles.emptyPostsText}>
+                                This profile has not shared any workout posts yet.
+                            </Text>
+                        </GlassCard>
+                    ) : (
+                        posts.map((p, i) => (
+                            <View key={p.id} style={{ marginBottom: 14 }}>
+                                <PostCard post={p} index={i} onOpenComments={openComments} onUpdatePost={updatePost} />
+                            </View>
+                        ))
+                    )}
 
                     <View style={{ height: 40 }} />
                 </View>
@@ -1220,6 +1459,9 @@ const styles = StyleSheet.create({
     routineTitle: { color: C.white, fontWeight: '700', fontSize: 14 },
     routineCount: { color: C.gray, fontSize: 11, marginTop: 2, marginBottom: 10 },
     routineBar:   { height: 3, borderRadius: 2 },
+    emptyPostsCard: { padding: 18, marginTop: 4 },
+    emptyPostsTitle: { color: C.white, fontSize: 16, fontWeight: '700', marginBottom: 6 },
+    emptyPostsText: { color: C.gray, fontSize: 13, lineHeight: 18 },
 
     // Post card
     postCard: {
@@ -1244,10 +1486,30 @@ const styles = StyleSheet.create({
     statChip:      { alignItems: 'center', gap: 2 },
     statChipIcon:  { fontSize: 16 },
     statChipVal:   { color: C.white, fontWeight: '600', fontSize: 12 },
-    postImage:     { height: 240, backgroundColor: '#1a1a1a' },
+    imageWrap:     { position: 'relative', marginHorizontal: 14, borderRadius: 14, overflow: 'hidden' },
+    mediaSlide:    { overflow: 'hidden' },
+    postImage:     { width: '100%', height: 240, backgroundColor: '#1a1a1a' },
+    imageOverlay:  { position: 'absolute', bottom: 0, left: 0, right: 0, height: 60, backgroundColor: 'rgba(0,0,0,0.2)' },
+    videoHint:     { position: 'absolute', top: 10, right: 10, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 999, backgroundColor: 'rgba(8,8,16,0.72)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
+    videoHintText: { color: C.white, fontSize: 11, fontWeight: '700' },
     dotRow:        { position: 'absolute', bottom: 12, flexDirection: 'row', gap: 6, left: 0, right: 0, justifyContent: 'center' },
     dot:           { width: 5, height: 5, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.3)' },
     dotActive:     { width: 14, backgroundColor: C.orange },
+    exerciseSlide: { height: 240, justifyContent: 'center', paddingHorizontal: 18, paddingVertical: 16, backgroundColor: 'rgba(16,16,20,0.96)' },
+    exerciseSlideSingle: { paddingHorizontal: 20, alignItems: 'center' },
+    singleExerciseContainer: { alignItems: 'center', justifyContent: 'center', flex: 1 },
+    singleExerciseIconWrap: { width: 72, height: 72, borderRadius: 36, backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center', marginBottom: 8, overflow: 'hidden' },
+    singleExerciseIcon: { width: 56, height: 56, borderRadius: 28 },
+    singleExerciseSetsText: { color: C.orange, fontSize: 13, fontWeight: '700', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.6 },
+    singleExerciseNameText: { color: C.white, fontSize: 22, fontWeight: '800', textAlign: 'center', lineHeight: 28 },
+    exerciseRow:   { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+    exerciseIconWrap: { width: 28, height: 28, borderRadius: 14, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.08)', marginRight: 12 },
+    exerciseIcon:  { width: '100%', height: '100%' },
+    exerciseSetsText: { color: C.orange, fontSize: 12, fontWeight: '700', marginRight: 12, minWidth: 48 },
+    exerciseNameText: { color: C.white, fontSize: 14, fontWeight: '600', flex: 1 },
+    exerciseEmptyText: { color: C.gray, fontSize: 14, textAlign: 'center' },
+    moreExercisesBtn: { alignSelf: 'flex-start', marginTop: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, backgroundColor: 'rgba(255,120,37,0.12)', borderWidth: 1, borderColor: 'rgba(255,120,37,0.18)' },
+    moreExercisesText: { color: C.orange, fontSize: 12, fontWeight: '700' },
     actionsRow:    { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingTop: 12, paddingBottom: 4, gap: 16 },
     actionBtn:     { flexDirection: 'row', alignItems: 'center', gap: 5 },
     actionText:    { color: C.gray, fontSize: 13, fontWeight: '600' },

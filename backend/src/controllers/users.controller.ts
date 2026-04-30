@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import prisma from '../config/prismaClient';
 import { verifyAccessToken } from '../utils/jwtUtils';
+import { discoverFeedQuerySchema } from '../utils/validationSchemas';
+import { getUserProfilePosts } from '../services/workout/workout.service';
 
 export const getUserById = async (req: Request, res: Response) => {
   try {
@@ -137,5 +139,38 @@ export const getFollowingList = async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('[users.controller] getFollowingList error', error);
     return res.status(500).json({ message: error?.message || 'Failed to fetch following list' });
+  }
+};
+
+export const getUserPosts = async (req: Request, res: Response) => {
+  try {
+    const viewerUserId = req.user?.userId;
+    if (!viewerUserId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const raw = String(req.params.id || '');
+    if (!raw) return res.status(400).json({ message: 'Invalid user id' });
+
+    const asNum = Number(raw);
+    const isNumeric = !Number.isNaN(asNum) && Number.isFinite(asNum) && String(asNum) === raw;
+
+    const targetUser = isNumeric
+      ? await prisma.users.findUnique({ where: { user_id: asNum }, select: { user_id: true } })
+      : await prisma.users.findUnique({ where: { username: raw }, select: { user_id: true } });
+
+    if (!targetUser) return res.status(404).json({ message: 'User not found' });
+
+    const query = discoverFeedQuerySchema.parse(req.query);
+    const limit = query.limit ?? 20;
+    const result = await getUserProfilePosts(viewerUserId, targetUser.user_id, limit, query.cursor);
+
+    return res.status(200).json({
+      posts: result.posts,
+      nextCursor: result.nextCursor,
+    });
+  } catch (error: any) {
+    console.error('[users.controller] getUserPosts error', error);
+    return res.status(500).json({ message: error?.message || 'Failed to fetch user posts' });
   }
 };

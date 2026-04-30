@@ -53,6 +53,13 @@ type DiscoverFeedResult = {
   nextCursor: string | null;
 };
 
+type PostFeedOptions = {
+  limit: number;
+  cursor?: number;
+  where: Prisma.PostWhereInput;
+  orderBy?: Prisma.PostOrderByWithRelationInput[];
+};
+
 const avatarFromUserId = (userId: number): string => {
   const avatarIndex = (userId % 70) + 1;
   return `https://i.pravatar.cc/150?img=${avatarIndex}`;
@@ -290,14 +297,56 @@ const mapPrismaPostToDiscoverPost = (post: any, userId: number): DiscoverPostDto
   };
 };
 
-export const getDiscoverPosts = async (
+const discoverPostInclude = {
+  users: { select: { user_id: true, username: true, name: true, profile_pic_url: true } },
+  workouts: {
+    include: {
+      workout_exercises: {
+        include: {
+          WorkoutSet: true,
+          exercises: {
+            select: {
+              name: true,
+              image: true,
+            },
+          },
+        },
+      },
+    },
+  },
+  PostMedia: {
+    orderBy: { order: 'asc' as const },
+    select: { url: true, type: true },
+  },
+  Like: {
+    orderBy: { created_at: 'asc' as const },
+    select: {
+      user_id: true,
+      users: { select: { username: true, name: true, profile_pic_url: true } },
+    },
+  },
+  Comment: {
+    where: { parent_id: null },
+    include: {
+      users: { select: { username: true, name: true, profile_pic_url: true } },
+      other_Comment: {
+        include: {
+          users: { select: { username: true, name: true, profile_pic_url: true } },
+        },
+        orderBy: { created_at: 'asc' as const },
+      },
+    },
+    orderBy: { created_at: 'asc' as const },
+  },
+};
+
+const getPostFeed = async (
   userId: number,
-  limit: number,
-  cursor?: number,
+  options: PostFeedOptions,
 ): Promise<DiscoverFeedResult> => {
+  const { limit, cursor, where, orderBy } = options;
   const rows = await prisma.post.findMany({
-    // Exclude the requesting user's own posts so Discover shows content from others
-    where: { visibility: 'PUBLIC', user_id: { not: userId } },
+    where,
     ...(cursor
       ? {
           skip: 1,
@@ -305,55 +354,11 @@ export const getDiscoverPosts = async (
         }
       : {}),
     take: limit + 1,
-    orderBy: [
-      { likes_count: 'desc' },
+    orderBy: orderBy || [
       { created_at: 'desc' },
       { post_id: 'desc' },
     ],
-    include: {
-      // Include profile_pic_url so we can return the user's stored public avatar URL
-      users: { select: { user_id: true, username: true, name: true, profile_pic_url: true } },
-      workouts: {
-        include: {
-          workout_exercises: {
-            include: {
-              WorkoutSet: true,
-              exercises: {
-                select: {
-                  name: true,
-                  image: true,
-                },
-              },
-            },
-          },
-        },
-      },
-      PostMedia: {
-        orderBy: { order: 'asc' },
-        select: { url: true, type: true },
-      },
-      Like: {
-        orderBy: { created_at: 'asc' },
-        select: {
-          user_id: true,
-          // Include profile_pic_url so likedByAvatarUrls can use user's real avatar when available
-          users: { select: { username: true, name: true, profile_pic_url: true } },
-        },
-      },
-      Comment: {
-        where: { parent_id: null },
-        include: {
-          users: { select: { username: true, name: true, profile_pic_url: true } },
-          other_Comment: {
-            include: {
-              users: { select: { username: true, name: true, profile_pic_url: true } },
-            },
-            orderBy: { created_at: 'asc' },
-          },
-        },
-        orderBy: { created_at: 'asc' },
-      },
-    },
+    include: discoverPostInclude,
   });
 
   const hasMore = rows.length > limit;
@@ -365,6 +370,42 @@ export const getDiscoverPosts = async (
     : null;
 
   return { posts, nextCursor };
+};
+
+export const getDiscoverPosts = async (
+  userId: number,
+  limit: number,
+  cursor?: number,
+): Promise<DiscoverFeedResult> => {
+  return getPostFeed(userId, {
+    limit,
+    cursor,
+    // Exclude the requesting user's own posts so Discover shows content from others
+    where: { visibility: 'PUBLIC', user_id: { not: userId } },
+    orderBy: [
+      { likes_count: 'desc' },
+      { created_at: 'desc' },
+      { post_id: 'desc' },
+    ],
+  });
+};
+
+export const getUserProfilePosts = async (
+  viewerUserId: number,
+  targetUserId: number,
+  limit: number,
+  cursor?: number,
+): Promise<DiscoverFeedResult> => {
+  const where: Prisma.PostWhereInput = {
+    user_id: targetUserId,
+    ...(viewerUserId === targetUserId ? {} : { visibility: 'PUBLIC' }),
+  };
+
+  return getPostFeed(viewerUserId, {
+    limit,
+    cursor,
+    where,
+  });
 };
 
 export const getDiscoverPostById = async (userId: number, postId: number): Promise<DiscoverPostDto | null> => {
