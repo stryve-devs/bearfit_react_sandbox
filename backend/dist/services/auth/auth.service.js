@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.unfollowUser = exports.followUser = exports.getCurrentUserProfile = exports.googleSignIn = exports.revokeRefreshToken = exports.refreshAccessToken = exports.loginUser = exports.registerUser = void 0;
+exports.getSuggestedUsers = exports.removeFollower = exports.unfollowUser = exports.followUser = exports.getCurrentUserProfile = exports.googleSignIn = exports.revokeRefreshToken = exports.refreshAccessToken = exports.loginUser = exports.registerUser = void 0;
 const prismaClient_1 = __importDefault(require("../../config/prismaClient"));
 const passwordUtils_1 = require("../../utils/passwordUtils");
 const jwtUtils_1 = require("../../utils/jwtUtils");
@@ -210,17 +210,7 @@ const getCurrentUserProfile = async (userId) => {
             username: true,
             name: true,
             bio: true,
-            follower_links: {
-                select: {
-                    follower: {
-                        select: {
-                            user_id: true,
-                            username: true,
-                            name: true,
-                        },
-                    },
-                },
-            },
+            profile_pic_url: true,
             following_links: {
                 select: {
                     following: {
@@ -232,10 +222,21 @@ const getCurrentUserProfile = async (userId) => {
                     },
                 },
             },
+            follower_links: {
+                select: {
+                    follower: {
+                        select: {
+                            user_id: true,
+                            username: true,
+                            name: true,
+                        },
+                    },
+                },
+            },
             _count: {
                 select: {
-                    follower_links: true,
                     following_links: true,
+                    follower_links: true,
                     workouts: true,
                 },
             },
@@ -248,8 +249,17 @@ const getCurrentUserProfile = async (userId) => {
         username: user.username,
         name: user.name,
         bio: user.bio,
-        followers: user.follower_links.map((entry) => entry.follower),
-        following: user.following_links.map((entry) => entry.following),
+        profile_pic_url: user.profile_pic_url,
+        followers: user.follower_links.map((link) => ({
+            user_id: link.follower.user_id,
+            username: link.follower.username,
+            name: link.follower.name,
+        })),
+        following: user.following_links.map((link) => ({
+            user_id: link.following.user_id,
+            username: link.following.username,
+            name: link.following.name,
+        })),
         _count: {
             followers: user._count.follower_links,
             following: user._count.following_links,
@@ -302,3 +312,40 @@ const unfollowUser = async (followerId, followingId) => {
     return { isFollowing: false };
 };
 exports.unfollowUser = unfollowUser;
+// Remove a follower from the given user's followers (i.e. current user removes target as a follower)
+const removeFollower = async (userId, followerId) => {
+    if (userId === followerId) {
+        throw new Error('Cannot remove yourself');
+    }
+    await ensureTargetUserExists(followerId);
+    const deleted = await prismaClient_1.default.user_follows.deleteMany({
+        where: {
+            follower_id: followerId,
+            following_id: userId,
+        },
+    });
+    return { removed: deleted.count > 0 };
+};
+exports.removeFollower = removeFollower;
+// Return a list of suggested users (those the requester does not follow and excluding themself)
+const getSuggestedUsers = async (userId, limit = 8) => {
+    const followingRows = await prismaClient_1.default.user_follows.findMany({
+        where: { follower_id: userId },
+        select: { following_id: true },
+    });
+    const excludeIds = followingRows.map((r) => r.following_id);
+    excludeIds.push(userId);
+    const users = await prismaClient_1.default.users.findMany({
+        where: { user_id: { notIn: excludeIds } },
+        orderBy: { created_at: 'desc' },
+        take: limit,
+        select: {
+            user_id: true,
+            username: true,
+            name: true,
+            profile_pic_url: true,
+        },
+    });
+    return users;
+};
+exports.getSuggestedUsers = getSuggestedUsers;

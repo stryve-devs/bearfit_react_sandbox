@@ -61,7 +61,8 @@ const resolveExerciseId = async (tx, name, externalId) => {
 const mapCommentTree = (comment) => ({
     id: String(comment.comment_id),
     user: comment.users?.username || comment.users?.name || `user-${comment.user_id}`,
-    avatarUrl: avatarFromUserId(comment.user_id),
+    // Prefer stored profile_pic_url when available; otherwise fall back to generated placeholder
+    avatarUrl: (comment.users && comment.users.profile_pic_url) ? comment.users.profile_pic_url : avatarFromUserId(comment.user_id),
     text: comment.text,
     time: formatRelativeTime(comment.created_at),
     likes: 0,
@@ -191,10 +192,12 @@ const mapPrismaPostToDiscoverPost = (post, userId) => {
         caption: post.caption || post.title || '',
         time: formatRelativeTime(post.created_at),
         stats: buildPostStats(post.workouts),
+        // Prefer the stored profile_pic_url when available (public R2 URL or proxy URL),
+        // otherwise fall back to the deterministic placeholder avatar.
         athlete: {
             name: post.users.name || post.users.username || `user-${post.users.user_id}`,
             username: post.users.username || `user-${post.users.user_id}`,
-            avatarUrl: avatarFromUserId(post.users.user_id),
+            avatarUrl: post.users.profile_pic_url || avatarFromUserId(post.users.user_id),
         },
         media: (post.PostMedia || []).map((media) => ({
             url: media.url,
@@ -206,14 +209,15 @@ const mapPrismaPostToDiscoverPost = (post, userId) => {
         likedByUsername: firstLike?.users?.username ||
             firstLike?.users?.name ||
             (firstLike ? `user-${firstLike.user_id}` : undefined),
-        likedByAvatarUrls: likes.slice(0, 2).map((like) => avatarFromUserId(like.user_id)),
+        likedByAvatarUrls: likes.slice(0, 2).map((like) => (like.users && like.users.profile_pic_url) ? like.users.profile_pic_url : avatarFromUserId(like.user_id)),
         commentsCount: post.Comment?.length || 0,
         comments: (post.Comment || []).map((comment) => mapCommentTree(comment)),
     };
 };
 const getDiscoverPosts = async (userId, limit, cursor) => {
     const rows = await prismaClient_1.default.post.findMany({
-        where: { visibility: 'PUBLIC' },
+        // Exclude the requesting user's own posts so Discover shows content from others
+        where: { visibility: 'PUBLIC', user_id: { not: userId } },
         ...(cursor
             ? {
                 skip: 1,
@@ -227,7 +231,8 @@ const getDiscoverPosts = async (userId, limit, cursor) => {
             { post_id: 'desc' },
         ],
         include: {
-            users: { select: { user_id: true, username: true, name: true } },
+            // Include profile_pic_url so we can return the user's stored public avatar URL
+            users: { select: { user_id: true, username: true, name: true, profile_pic_url: true } },
             workouts: {
                 include: {
                     workout_exercises: {
@@ -251,16 +256,17 @@ const getDiscoverPosts = async (userId, limit, cursor) => {
                 orderBy: { created_at: 'asc' },
                 select: {
                     user_id: true,
-                    users: { select: { username: true, name: true } },
+                    // Include profile_pic_url so likedByAvatarUrls can use user's real avatar when available
+                    users: { select: { username: true, name: true, profile_pic_url: true } },
                 },
             },
             Comment: {
                 where: { parent_id: null },
                 include: {
-                    users: { select: { username: true, name: true } },
+                    users: { select: { username: true, name: true, profile_pic_url: true } },
                     other_Comment: {
                         include: {
-                            users: { select: { username: true, name: true } },
+                            users: { select: { username: true, name: true, profile_pic_url: true } },
                         },
                         orderBy: { created_at: 'asc' },
                     },
@@ -285,7 +291,7 @@ const getDiscoverPostById = async (userId, postId) => {
             visibility: 'PUBLIC',
         },
         include: {
-            users: { select: { user_id: true, username: true, name: true } },
+            users: { select: { user_id: true, username: true, name: true, profile_pic_url: true } },
             workouts: {
                 include: {
                     workout_exercises: {
@@ -312,10 +318,10 @@ const getDiscoverPostById = async (userId, postId) => {
             Comment: {
                 where: { parent_id: null },
                 include: {
-                    users: { select: { username: true, name: true } },
+                    users: { select: { username: true, name: true, profile_pic_url: true } },
                     other_Comment: {
                         include: {
-                            users: { select: { username: true, name: true } },
+                            users: { select: { username: true, name: true, profile_pic_url: true } },
                         },
                         orderBy: { created_at: 'asc' },
                     },
@@ -352,7 +358,7 @@ const togglePostLike = async (userId, postId) => {
             take: 2,
             select: {
                 user_id: true,
-                users: { select: { username: true, name: true } },
+                users: { select: { username: true, name: true, profile_pic_url: true } },
             },
         });
         const likesCount = await tx.like.count({ where: { post_id: postId } });
@@ -367,7 +373,8 @@ const togglePostLike = async (userId, postId) => {
             likedByUsername: firstLike?.users?.username ||
                 firstLike?.users?.name ||
                 (firstLike ? `user-${firstLike.user_id}` : undefined),
-            likedByAvatarUrls: likes.map((like) => avatarFromUserId(like.user_id)),
+            // Prefer stored profile_pic_url when available, otherwise fallback to generated avatar
+            likedByAvatarUrls: likes.map((like) => (like.users && like.users.profile_pic_url) ? like.users.profile_pic_url : avatarFromUserId(like.user_id)),
         };
     });
 };

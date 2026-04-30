@@ -19,6 +19,12 @@ router.post('/register-google', (0, validationMiddleware_1.validate)(validationS
 router.get('/exists', auth_controller_1.checkEmailExists);
 router.get('/username-exists', auth_controller_1.checkUsernameExists);
 router.get('/me', authMiddleware_1.authMiddleware, auth_controller_1.me);
+router.put('/profile', authMiddleware_1.authMiddleware, auth_controller_1.updateProfile);
+router.get('/suggestions', authMiddleware_1.authMiddleware, auth_controller_1.suggestedUsers);
+router.post('/follow/:targetUserId', authMiddleware_1.authMiddleware, auth_controller_1.follow);
+router.delete('/follow/:targetUserId', authMiddleware_1.authMiddleware, auth_controller_1.unfollow);
+router.delete('/follower/:followerId', authMiddleware_1.authMiddleware, auth_controller_1.removeFollowerController);
+console.log('[auth.routes] registered: GET /auth/suggestions');
 // OTP
 router.post('/send-otp', auth_controller_1.sendOtp);
 router.post('/verify-otp', auth_controller_1.verifyOtp);

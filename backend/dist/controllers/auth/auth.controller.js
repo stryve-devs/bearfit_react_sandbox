@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.unfollow = exports.follow = exports.me = exports.verifyOtp = exports.sendOtp = exports.checkEmailExists = exports.registerGoogle = exports.googleAuth = exports.logout = exports.refresh = exports.login = exports.register = exports.checkUsernameExists = void 0;
+exports.removeFollowerController = exports.suggestedUsers = exports.updateProfile = exports.unfollow = exports.follow = exports.me = exports.verifyOtp = exports.sendOtp = exports.checkEmailExists = exports.registerGoogle = exports.googleAuth = exports.logout = exports.refresh = exports.login = exports.register = exports.checkUsernameExists = void 0;
 const auth_service_1 = require("../../services/auth/auth.service");
 const jwtUtils_1 = require("../../utils/jwtUtils");
 const prismaClient_1 = __importDefault(require("../../config/prismaClient"));
@@ -267,6 +267,7 @@ const me = async (req, res) => {
             return res.status(401).json({ message: "Unauthorized" });
         }
         const profile = await (0, auth_service_1.getCurrentUserProfile)(userId);
+        console.log('[auth.controller] me profile:', profile);
         return res.status(200).json(profile);
     }
     catch (error) {
@@ -319,3 +320,121 @@ const unfollow = async (req, res) => {
     }
 };
 exports.unfollow = unfollow;
+const updateProfile = async (req, res) => {
+    try {
+        const userId = req.user?.userId;
+        if (!userId)
+            return res.status(401).json({ message: 'Unauthorized' });
+        // Accept additional fields for profile updates
+        const { name, username, email, bio, link_url, profile_pic_url, profile_pic_key } = req.body;
+        if (!name && !username && !email && !bio && !link_url && !profile_pic_url && !profile_pic_key) {
+            return res.status(400).json({ message: 'At least one field (name, username, email, bio, link_url, profile_pic_url, profile_pic_key) is required' });
+        }
+        // Validate username if provided
+        if (username) {
+            const usernameTrim = String(username).trim();
+            const usernameRegex = /^[a-zA-Z0-9_-]{3,20}$/;
+            if (!usernameRegex.test(usernameTrim)) {
+                return res.status(400).json({ message: 'Username must be 3-20 characters (letters, numbers, _, -)' });
+            }
+            const existing = await prismaClient_1.default.users.findUnique({ where: { username: usernameTrim }, select: { user_id: true } });
+            if (existing && existing.user_id !== userId) {
+                return res.status(409).json({ message: 'Username already taken' });
+            }
+        }
+        // Validate email if provided
+        if (email) {
+            const emailTrim = String(email).trim();
+            // Basic email check
+            if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(emailTrim)) {
+                return res.status(400).json({ message: 'Invalid email' });
+            }
+            const existingEmail = await prismaClient_1.default.users.findUnique({ where: { email: emailTrim }, select: { user_id: true } });
+            if (existingEmail && existingEmail.user_id !== userId) {
+                return res.status(409).json({ message: 'Email already in use' });
+            }
+        }
+        const updateData = {};
+        if (name)
+            updateData.name = String(name).trim();
+        if (username)
+            updateData.username = String(username).trim();
+        if (email)
+            updateData.email = String(email).trim();
+        // Accept optional profile fields
+        if (typeof bio !== 'undefined')
+            updateData.bio = bio === null ? null : String(bio).trim();
+        if (typeof link_url !== 'undefined')
+            updateData.link_url = link_url === null ? null : String(link_url).trim();
+        // If client provided a profile_pic_key, convert to a public URL using R2 config
+        if (typeof profile_pic_key !== 'undefined' && profile_pic_key !== null) {
+            const R2_PUBLIC_URL = process.env.EXPO_PUBLIC_R2_PUBLIC_URL || '';
+            const R2_ENDPOINT = process.env.EXPO_PUBLIC_R2_ENDPOINT || '';
+            const R2_BUCKET_NAME = process.env.EXPO_PUBLIC_R2_BUCKET_NAME || 'bearfit-assets';
+            const encodeKeyForUrl = (key) => key.split('/').map(encodeURIComponent).join('/');
+            const key = String(profile_pic_key).trim();
+            let computedUrl;
+            if (R2_PUBLIC_URL) {
+                computedUrl = `${R2_PUBLIC_URL.replace(/\/$/, '')}/${encodeKeyForUrl(key)}`;
+            }
+            else if (R2_ENDPOINT) {
+                computedUrl = `${R2_ENDPOINT.replace(/\/$/, '')}/${encodeKeyForUrl(key)}`;
+            }
+            else {
+                computedUrl = `https://${R2_BUCKET_NAME}.s3.auto.amazonaws.com/${encodeKeyForUrl(key)}`;
+            }
+            updateData.profile_pic_url = computedUrl;
+        }
+        // If client provided a full profile_pic_url, allow it
+        if (typeof profile_pic_url !== 'undefined')
+            updateData.profile_pic_url = profile_pic_url === null ? null : String(profile_pic_url).trim();
+        const updated = await prismaClient_1.default.users.update({
+            where: { user_id: userId },
+            data: updateData,
+            select: { user_id: true, username: true, email: true, name: true, profile_pic_url: true }
+        });
+        return res.status(200).json({ message: 'Profile updated', user: updated });
+    }
+    catch (error) {
+        console.error('[authController] updateProfile error', error);
+        if (error?.code === 'P2025') { // Prisma record not found
+            return res.status(404).json({ message: 'User not found' });
+        }
+        return res.status(500).json({ message: error.message || 'Failed to update profile' });
+    }
+};
+exports.updateProfile = updateProfile;
+const suggestedUsers = async (req, res) => {
+    try {
+        const userId = req.user?.userId;
+        if (!userId)
+            return res.status(401).json({ message: 'Unauthorized' });
+        const limit = Number(req.query.limit || 8);
+        const users = await (0, auth_service_1.getSuggestedUsers)(userId, limit);
+        return res.status(200).json({ users });
+    }
+    catch (error) {
+        console.error('[authController] suggestedUsers error', error);
+        return res.status(500).json({ message: error?.message || 'Failed to fetch suggestions' });
+    }
+};
+exports.suggestedUsers = suggestedUsers;
+const removeFollowerController = async (req, res) => {
+    try {
+        const userId = req.user?.userId;
+        if (!userId)
+            return res.status(401).json({ message: 'Unauthorized' });
+        const followerId = Number(req.params.followerId);
+        if (!followerId)
+            return res.status(400).json({ message: 'Invalid follower id' });
+        const result = await (0, auth_service_1.removeFollower)(userId, followerId);
+        return res.status(200).json({ removed: result.removed });
+    }
+    catch (error) {
+        console.error('[authController] removeFollower error', error);
+        if (error?.message === 'User not found')
+            return res.status(404).json({ message: 'User not found' });
+        return res.status(500).json({ message: error?.message || 'Failed to remove follower' });
+    }
+};
+exports.removeFollowerController = removeFollowerController;

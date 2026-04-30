@@ -357,10 +357,10 @@ export const updateProfile = async (req: Request, res: Response) => {
     if (!userId) return res.status(401).json({ message: 'Unauthorized' });
 
     // Accept additional fields for profile updates
-    const { name, username, email, bio, link_url, profile_pic_url } = req.body;
+    const { name, username, email, bio, link_url, profile_pic_url, profile_pic_key } = req.body;
 
-    if (!name && !username && !email && !bio && !link_url && !profile_pic_url) {
-      return res.status(400).json({ message: 'At least one field (name, username, email, bio, link_url, profile_pic_url) is required' });
+    if (!name && !username && !email && !bio && !link_url && !profile_pic_url && !profile_pic_key) {
+      return res.status(400).json({ message: 'At least one field (name, username, email, bio, link_url, profile_pic_url, profile_pic_key) is required' });
     }
 
     // Validate username if provided
@@ -399,6 +399,27 @@ export const updateProfile = async (req: Request, res: Response) => {
     // Accept optional profile fields
     if (typeof bio !== 'undefined') updateData.bio = bio === null ? null : String(bio).trim();
     if (typeof link_url !== 'undefined') updateData.link_url = link_url === null ? null : String(link_url).trim();
+
+    // If client provided a profile_pic_key, convert to a public URL using R2 config
+    if (typeof profile_pic_key !== 'undefined' && profile_pic_key !== null) {
+      const R2_PUBLIC_URL = process.env.EXPO_PUBLIC_R2_PUBLIC_URL || '';
+      const R2_ENDPOINT = process.env.EXPO_PUBLIC_R2_ENDPOINT || '';
+      const R2_BUCKET_NAME = process.env.EXPO_PUBLIC_R2_BUCKET_NAME || 'bearfit-assets';
+
+      const encodeKeyForUrl = (key: string) => key.split('/').map(encodeURIComponent).join('/');
+      const key = String(profile_pic_key).trim();
+      let computedUrl: string;
+      if (R2_PUBLIC_URL) {
+        computedUrl = `${R2_PUBLIC_URL.replace(/\/$/, '')}/${encodeKeyForUrl(key)}`;
+      } else if (R2_ENDPOINT) {
+        computedUrl = `${R2_ENDPOINT.replace(/\/$/, '')}/${encodeKeyForUrl(key)}`;
+      } else {
+        computedUrl = `https://${R2_BUCKET_NAME}.s3.auto.amazonaws.com/${encodeKeyForUrl(key)}`;
+      }
+      updateData.profile_pic_url = computedUrl;
+    }
+
+    // If client provided a full profile_pic_url, allow it
     if (typeof profile_pic_url !== 'undefined') updateData.profile_pic_url = profile_pic_url === null ? null : String(profile_pic_url).trim();
 
     const updated = await prisma.users.update({

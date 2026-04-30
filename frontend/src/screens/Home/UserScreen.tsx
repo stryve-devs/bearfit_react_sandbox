@@ -14,10 +14,12 @@ import {
     Share,
     FlatList,
     Pressable,
+    ActivityIndicator,
 } from 'react-native';
 
 import { useLocalSearchParams, router } from 'expo-router';
-import Animated, {
+import Animated,
+{
     FadeInDown,
     SlideInRight,
     FadeIn,
@@ -38,6 +40,8 @@ import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { userService } from '@/api/services/user.service';
+import api from '@/api/client';
 
 const { width, height } = Dimensions.get('window');
 const HEADER_HEIGHT = 260;
@@ -726,9 +730,18 @@ const PostCard = ({ post, index, onOpenComments, onUpdatePost }: any) => {
 
 // ─── MAIN SCREEN ──────────────────────────────────────────────
 export default function UserScreen() {
-    const { name, user, avatar } = useLocalSearchParams();
+    const params = useLocalSearchParams();
+    // support multiple param names used across the app
+    const userIdParam = (params?.userId ?? params?.user ?? params?.id ?? params?.username ?? params?.userid) as string | undefined;
+    console.log('🧭 UserScreen params:', params);
+    console.log('🧭 Resolved userIdParam:', userIdParam);
+    const userParam = userIdParam;
     const insets = useSafeAreaInsets();
-    const [isFollowing,  setIsFollowing]  = useState(false);
+    const [userData, setUserData] = useState<any>(null);
+    // don't show perpetual loading when no param provided — start false
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [isFollowing, setIsFollowing] = useState(false);
     const [posts,        setPosts]        = useState(INITIAL_POSTS);
     const [commentsPost, setCommentsPost] = useState<any>(null);
     const [commentsOpen, setCommentsOpen] = useState(false);
@@ -756,6 +769,53 @@ export default function UserScreen() {
         setCommentsPost(updated);
     };
 
+    useEffect(() => {
+        async function fetchUser(idParam: string) {
+            setLoading(true);
+            setError(null);
+            try {
+                const data = await userService.getUserById(idParam);
+                console.log('🧾 getUserById response:', data);
+                setUserData(data);
+            } catch (e: any) {
+                console.error('Failed to load user:', e);
+                setError(e?.message || 'Failed to load user');
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        if (userParam) {
+            fetchUser(userParam);
+        } else {
+            // No param provided — surface a helpful error instead of indefinite loading
+            setError('Missing user id parameter');
+            setUserData(null);
+            setLoading(false);
+        }
+    }, [userParam]);
+
+    const isOwner = userParam === 'me';
+
+    if (loading) {
+        return (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: C.bg }}>
+                <ActivityIndicator size="large" color={C.white} />
+            </View>
+        );
+    }
+    if (error || !userData) {
+        return (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: C.bg, padding: 20 }}>
+                <Text style={{ color: C.white, marginBottom: 8 }}>{error || 'User not found'}</Text>
+                {/* Show resolved params to help debugging */}
+                <Text style={{ color: C.gray, fontSize: 12, marginTop: 8 }}>Params: {JSON.stringify(params || {})}</Text>
+                <Text style={{ color: C.gray, fontSize: 12, marginTop: 6 }}>API baseURL: {String(api.defaults.baseURL || '')}</Text>
+                <Text style={{ color: C.gray, fontSize: 12, marginTop: 6, textAlign: 'center' }}>If this is "http://localhost:3001/api" and you're running the app on a device/emulator, set EXPO_PUBLIC_API_URL to your machine IP (e.g., http://192.168.1.42:3001/api) and restart the app.</Text>
+            </View>
+        );
+    }
+
     return (
         <View style={styles.root}>
             <StatusBar barStyle="light-content" />
@@ -772,7 +832,7 @@ export default function UserScreen() {
             <Animated.View style={[styles.stickyBar, { height: 60 + insets.top, paddingTop: insets.top }, navStyle]} pointerEvents="none">
                 <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFillObject} />
                 <LinearGradient colors={['rgba(8,8,16,0.92)', 'transparent']} style={StyleSheet.absoluteFillObject} />
-                <Text style={styles.stickyName}>{name || 'Jessica'}</Text>
+                <Text style={styles.stickyName}>{userData.name || 'Jessica'}</Text>
             </Animated.View>
 
             <Animated.ScrollView ref={scrollRef} onScroll={scrollHandler} scrollEventThrottle={16} showsVerticalScrollIndicator={false}>
@@ -790,12 +850,12 @@ export default function UserScreen() {
                     {/* Profile Row */}
                     <Animated.View entering={FadeInDown.delay(100).springify()} style={styles.profileRow}>
                         <View style={styles.mainAvatarWrap}>
-                            <Image source={{ uri: 'https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?w=200' }} style={styles.mainAvatar} />
-                            <LinearGradient colors={[C.orange, C.orangeL, 'transparent']} style={styles.mainAvatarRing} />
+                            <Image source={{ uri: userData.profile_pic_url || 'https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?w=200' }} style={styles.mainAvatar} />
+                            {/* removed decorative gradient overlay to keep avatar unfiltered */}
                         </View>
                         <View style={{ flex: 1, marginLeft: 14 }}>
-                            <Text style={styles.name}>{name || 'Jessica'}</Text>
-                            <Text style={styles.handle}>@jadewolfe</Text>
+                            <Text style={styles.name}>{userData.name || 'Jessica'}</Text>
+                            <Text style={styles.handle}>@{userData.username || 'jadewolfe'}</Text>
                         </View>
                     </Animated.View>
 
@@ -805,9 +865,9 @@ export default function UserScreen() {
 
                     {/* Stats */}
                     <View style={styles.statsRow}>
-                        <StatPill label="Workouts" value="142" delay={200} onPress={scrollToPosts} />
-                        <StatPill label="Following" value="88"  delay={260} onPress={() => setPeopleModal('Following')} />
-                        <StatPill label="Followers" value="1.2k" delay={320} onPress={() => setPeopleModal('Followers')} />
+                        <StatPill label="Workouts" value={userData.workoutCount?.toString() || '0'} delay={200} onPress={scrollToPosts} />
+                        <StatPill label="Following" value={userData.followingCount?.toString() || '0'} delay={260} onPress={() => setPeopleModal('Following')} />
+                        <StatPill label="Followers" value={userData.followersCount?.toString() || '0'} delay={320} onPress={() => setPeopleModal('Followers')} />
                     </View>
 
                     <Animated.View entering={FadeInDown.delay(350).springify()}>
@@ -938,7 +998,7 @@ const styles = StyleSheet.create({
 
     // Glass
     glass: { borderRadius: 18, overflow: 'hidden', backgroundColor: C.surface, borderWidth: 1, borderColor: C.border },
-    glassShine: { position: 'absolute', top: 0, left: 0, right: 0, height: 1.5, zIndex: 1 },
+    glassShine: { position: 'absolute', top: 0, left: 0, right: 0, height: 1 },
 
     // Routines
     routineCard:  { width: 130, padding: 14 },
