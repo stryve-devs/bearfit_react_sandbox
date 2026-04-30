@@ -15,6 +15,7 @@ import {
     FlatList,
     Pressable,
     ActivityIndicator,
+    RefreshControl,
 } from 'react-native';
 
 import { useLocalSearchParams, router } from 'expo-router';
@@ -41,6 +42,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { userService } from '@/api/services/user.service';
+import { useAuth } from '@/context/AuthContext';
 import api from '@/api/client';
 
 const { width, height } = Dimensions.get('window');
@@ -205,7 +207,7 @@ const AnimatedBar = ({ value, label, index }: any) => {
 };
 
 // ─── FOLLOW BUTTON ────────────────────────────────────────────
-const FollowButton = ({ isFollowing, onPress }: any) => {
+const FollowButton = ({ isFollowing, onPress, pending, pendingAction }: any) => {
     const scale = useSharedValue<number>(1);
     const animStyle = useAnimatedStyle(() => ({
         transform: [{ scale: scale.value }] as { scale: number }[],
@@ -227,7 +229,7 @@ const FollowButton = ({ isFollowing, onPress }: any) => {
                         : <Ionicons name="add"       size={13} color={C.white}  style={{ marginRight: 4 }} />
                     }
                     <Text style={[styles.followText, isFollowing && { color: C.orange }]}>
-                        {isFollowing ? 'Following' : 'Follow'}
+                        {pendingAction === 'follow' ? 'Following...' : pendingAction === 'unfollow' ? 'Unfollowing...' : (isFollowing ? 'Following' : 'Follow')}
                     </Text>
                 </LinearGradient>
             </TouchableOpacity>
@@ -509,21 +511,78 @@ const CommentsModal = ({ visible, onClose, post, onUpdatePost }: any) => {
 };
 
 // ─── PEOPLE MODAL ─────────────────────────────────────────────
-const PeopleModal = ({ visible, onClose, title }: any) => {
-    const [list, setList] = useState(FOLLOWING_LIST);
-    const SHEET_H = height * 0.62;
-    const sheetY = useSharedValue<number>(SHEET_H);
-    const dragY  = useSharedValue<number>(0);
+const PeopleModal = ({ visible, onClose, title, targetUserId }: any) => {
+     const SHEET_H = height * 0.62;
+     const sheetY = useSharedValue<number>(SHEET_H);
+     const dragY  = useSharedValue<number>(0);
 
-    const sheetStyle = useAnimatedStyle(() => ({
+     const { user: authUser } = useAuth();
+     const [list, setList] = useState<any[]>([]);
+     const [loadingList, setLoadingList] = useState(false);
+     const [pendingMap, setPendingMap] = useState<Record<number, boolean>>({});
+     const [myFollowingSet, setMyFollowingSet] = useState<Set<number>>(new Set());
+
+     const sheetStyle = useAnimatedStyle(() => ({
         transform: [{ translateY: sheetY.value + dragY.value }] as { translateY: number }[],
     }));
+
     useEffect(() => {
         sheetY.value = visible
             ? withTiming(0,       { duration: 320, easing: Easing.out(Easing.cubic) })
             : withTiming(SHEET_H, { duration: 280, easing: Easing.in(Easing.cubic)  });
         if (!visible) dragY.value = 0;
     }, [visible]);
+
+    // Fetch list when modal opens or when targetUserId/title changes
+    useEffect(() => {
+        let mounted = true;
+        if (!visible) return;
+        if (!targetUserId) return;
+
+        (async () => {
+            try {
+                setLoadingList(true);
+
+                // Fetch the list of people (followers or following for the target user)
+                const users = title === 'Followers'
+                    ? await userService.getFollowers(targetUserId)
+                    : await userService.getFollowing(targetUserId);
+
+                // If authenticated, fetch the current user's following so we can mark which of these users the current user already follows
+                let myFollowingIds: number[] = [];
+                if (authUser?.user_id) {
+                    try {
+                        const myFollowing = await userService.getFollowing(authUser.user_id);
+                        myFollowingIds = myFollowing.map((u: any) => Number(u.user_id));
+                    } catch (err) {
+                        // ignore - we can still show the list without follow state
+                        console.warn('[UserScreen.PeopleModal] failed to fetch my following list', err);
+                    }
+                }
+
+                if (!mounted) return;
+
+                const mySet = new Set(myFollowingIds);
+                setMyFollowingSet(mySet);
+
+                // Annotate each user with isFollowing (whether current user follows them) and removed flag
+                const annotated = users.map((u: any) => ({
+                    ...u,
+                    isFollowing: mySet.has(Number(u.user_id)),
+                    removed: false,
+                }));
+
+                setList(annotated);
+            } catch (err) {
+                console.warn('[UserScreen.PeopleModal] failed to fetch people', err);
+                setList([]);
+            } finally {
+                if (mounted) setLoadingList(false);
+            }
+        })();
+
+        return () => { mounted = false; };
+    }, [visible, targetUserId, title, authUser?.user_id]);
 
     const onHandleRelease = (dy: number) => {
         if (dy > 60) {
@@ -534,8 +593,44 @@ const PeopleModal = ({ visible, onClose, title }: any) => {
         }
     };
 
-    const toggle = (id: string) =>
-        setList(prev => prev.map(p => p.id === id ? { ...p, isFollowing: !p.isFollowing } : p));
+    const handleFollow = async (userId: number) => {
+        if (pendingMap[userId]) return;
+        setPendingMap(p => ({ ...p, [userId]: true }));
+        try {
+            await userService.followUser(userId);
+            setList(prev => prev.map(p => p.user_id === userId ? { ...p, isFollowing: true } : p));
+        } catch (err) {
+            console.warn('follow failed', err);
+        } finally {
+            setPendingMap(p => { const n = { ...p }; delete n[userId]; return n; });
+        }
+    };
+
+    const handleUnfollow = async (userId: number) => {
+        if (pendingMap[userId]) return;
+        setPendingMap(p => ({ ...p, [userId]: true }));
+        try {
+            await userService.unfollowUser(userId);
+            setList(prev => prev.map(p => p.user_id === userId ? { ...p, isFollowing: false } : p));
+        } catch (err) {
+            console.warn('unfollow failed', err);
+        } finally {
+            setPendingMap(p => { const n = { ...p }; delete n[userId]; return n; });
+        }
+    };
+
+    const handleRemoveFollower = async (userId: number) => {
+        if (pendingMap[userId]) return;
+        setPendingMap(p => ({ ...p, [userId]: true }));
+        try {
+            await userService.removeFollower(userId);
+            setList(prev => prev.map(p => p.user_id === userId ? { ...p, removed: true } : p));
+        } catch (err) {
+            console.warn('remove follower failed', err);
+        } finally {
+            setPendingMap(p => { const n = { ...p }; delete n[userId]; return n; });
+        }
+    };
 
     return (
         <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
@@ -552,39 +647,94 @@ const PeopleModal = ({ visible, onClose, title }: any) => {
                         <View style={styles.sheetHandle} />
                     </TouchableOpacity>
                     <Text style={styles.sheetTitle}>{title}</Text>
-                    <FlatList
-                        data={list}
-                        keyExtractor={item => item.id}
-                        contentContainerStyle={{ padding: 16 }}
-                        showsVerticalScrollIndicator={false}
-                        renderItem={({ item, index }) => (
-                            <Animated.View entering={FadeInDown.delay(index * 50).springify()} style={styles.peopleItem}>
-                                <View style={styles.peopleAvatarWrap}>
-                                    <Image source={{ uri: item.avatar }} style={styles.peopleAvatar} />
-                                </View>
-                                <View style={{ flex: 1, marginLeft: 12 }}>
-                                    <Text style={styles.peopleName}>{item.name}</Text>
-                                    <Text style={styles.peopleHandle}>@{item.user}</Text>
-                                </View>
-                                <TouchableOpacity onPress={() => toggle(item.id)} activeOpacity={0.8}>
-                                    <LinearGradient
-                                        colors={item.isFollowing ? ['rgba(255,120,37,0.12)', 'rgba(255,120,37,0.06)'] : [C.orangeL, C.orange]}
-                                        style={styles.peopleBtn}
-                                    >
-                                        {item.isFollowing && <Ionicons name="checkmark" size={11} color={C.orange} style={{ marginRight: 3 }} />}
-                                        <Text style={[styles.peopleBtnText, item.isFollowing && { color: C.orange }]}>
-                                            {item.isFollowing ? 'Following' : 'Follow'}
-                                        </Text>
-                                    </LinearGradient>
-                                </TouchableOpacity>
-                            </Animated.View>
-                        )}
-                    />
-                </Animated.View>
-            </View>
-        </Modal>
-    );
-};
+
+                    {loadingList ? (
+                        <View style={{ padding: 24, alignItems: 'center' }}>
+                            <ActivityIndicator size="small" color={C.orange} />
+                        </View>
+                    ) : (
+                        <FlatList
+                            data={list}
+                            keyExtractor={(item: any) => String(item.user_id)}
+                            contentContainerStyle={{ padding: 16 }}
+                            showsVerticalScrollIndicator={false}
+                            renderItem={({ item, index }: any) => (
+                                <Animated.View entering={FadeInDown.delay(index * 50).springify()} style={styles.peopleItem}>
+                                    <View style={styles.peopleAvatarWrap}>
+                                        <Image source={{ uri: item.profile_pic_url || `https://i.pravatar.cc/150?u=${item.user_id}` }} style={styles.peopleAvatar} />
+                                    </View>
+                                    <View style={{ flex: 1, marginLeft: 12 }}>
+                                        <Text style={styles.peopleName}>{item.name}</Text>
+                                        <Text style={styles.peopleHandle}>@{item.username}</Text>
+                                    </View>
+                                    {/* Don't show follow/unfollow/remove controls for the current signed-in user */}
+                                    {(() => {
+                                        const isSelf = !!(authUser && Number(item.user_id) === Number(authUser.user_id));
+                                        return (
+                                            <>
+                                                {title === 'Following' && !isSelf && (
+                                                    <TouchableOpacity
+                                                        onPress={() => item.isFollowing ? handleUnfollow(item.user_id) : handleFollow(item.user_id)}
+                                                        activeOpacity={0.8}
+                                                    >
+                                                        <LinearGradient
+                                                            colors={item.isFollowing ? ['rgba(255,120,37,0.12)', 'rgba(255,120,37,0.06)'] : [C.orangeL, C.orange]}
+                                                            style={styles.peopleBtn}
+                                                        >
+                                                            {item.isFollowing && <Ionicons name="checkmark" size={11} color={C.orange} style={{ marginRight: 3 }} />}
+                                                            <Text style={[styles.peopleBtnText, item.isFollowing && { color: C.orange }]}>
+                                                                {pendingMap[item.user_id] ? (item.isFollowing ? 'Unfollowing...' : 'Following...') : (item.isFollowing ? 'Following' : 'Follow')}
+                                                            </Text>
+                                                        </LinearGradient>
+                                                    </TouchableOpacity>
+                                                )}
+
+                                                {title === 'Followers' && !isSelf && (
+                                                    authUser && Number(targetUserId) === Number(authUser.user_id) ? (
+                                                        // owner view: allow removing followers
+                                                        <TouchableOpacity
+                                                            onPress={() => handleRemoveFollower(item.user_id)}
+                                                            activeOpacity={0.8}
+                                                        >
+                                                            <LinearGradient
+                                                                colors={[C.orangeL, C.orange]}
+                                                                style={styles.peopleBtn}
+                                                            >
+                                                                <Text style={[styles.peopleBtnText, { color: '#111' }]}>
+                                                                    {pendingMap[item.user_id] ? 'Removing...' : 'Remove'}
+                                                                </Text>
+                                                            </LinearGradient>
+                                                        </TouchableOpacity>
+                                                    ) : (
+                                                        // public view: show follow/unfollow state
+                                                        <TouchableOpacity
+                                                            onPress={() => item.isFollowing ? handleUnfollow(item.user_id) : handleFollow(item.user_id)}
+                                                            activeOpacity={0.8}
+                                                        >
+                                                            <LinearGradient
+                                                                colors={item.isFollowing ? ['rgba(255,120,37,0.12)', 'rgba(255,120,37,0.06)'] : [C.orangeL, C.orange]}
+                                                                style={styles.peopleBtn}
+                                                            >
+                                                                {item.isFollowing && <Ionicons name="checkmark" size={11} color={C.orange} style={{ marginRight: 3 }} />}
+                                                                <Text style={[styles.peopleBtnText, item.isFollowing && { color: C.orange }]}>
+                                                                    {pendingMap[item.user_id] ? (item.isFollowing ? 'Unfollowing...' : 'Following...') : (item.isFollowing ? 'Following' : 'Follow')}
+                                                                </Text>
+                                                            </LinearGradient>
+                                                        </TouchableOpacity>
+                                                    )
+                                                )}
+                                            </>
+                                        );
+                                    })()}
+                                 </Animated.View>
+                             )}
+                         />
+                     )}
+                 </Animated.View>
+             </View>
+         </Modal>
+     );
+ };
 
 // ─── POST CARD ────────────────────────────────────────────────
 const PostCard = ({ post, index, onOpenComments, onUpdatePost }: any) => {
@@ -742,6 +892,9 @@ export default function UserScreen() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [isFollowing, setIsFollowing] = useState(false);
+    const [pendingFollow, setPendingFollow] = useState(false);
+    const [pendingAction, setPendingAction] = useState<'follow' | 'unfollow' | null>(null);
+    const { user: authUser } = useAuth();
     const [posts,        setPosts]        = useState(INITIAL_POSTS);
     const [commentsPost, setCommentsPost] = useState<any>(null);
     const [commentsOpen, setCommentsOpen] = useState(false);
@@ -769,31 +922,84 @@ export default function UserScreen() {
         setCommentsPost(updated);
     };
 
-    useEffect(() => {
-        async function fetchUser(idParam: string) {
-            setLoading(true);
-            setError(null);
-            try {
-                const data = await userService.getUserById(idParam);
-                console.log('🧾 getUserById response:', data);
-                setUserData(data);
-            } catch (e: any) {
-                console.error('Failed to load user:', e);
-                setError(e?.message || 'Failed to load user');
-            } finally {
-                setLoading(false);
+    // Centralized profile fetch used on mount and pull-to-refresh
+    const [refreshing, setRefreshing] = useState(false);
+
+    const fetchUser = async (idParam: string) => {
+        setError(null);
+        try {
+            const data = await userService.getUserById(idParam);
+            console.log('🧾 getUserById response:', data);
+            setUserData(data);
+            if (typeof data.is_followed_by_current_user !== 'undefined') {
+                setIsFollowing(!!data.is_followed_by_current_user);
             }
+        } catch (e: any) {
+            console.error('Failed to load user:', e);
+            setError(e?.message || 'Failed to load user');
+        }
+    };
+
+    useEffect(() => {
+        let mounted = true;
+        (async () => {
+            if (!mounted) return;
+            setLoading(true);
+            if (userParam) {
+                await fetchUser(userParam);
+            } else {
+                setError('Missing user id parameter');
+                setUserData(null);
+            }
+            if (mounted) setLoading(false);
+        })();
+        return () => { mounted = false; };
+    }, [userParam]);
+
+    const onRefresh = async () => {
+        if (!userParam) return;
+        setRefreshing(true);
+        await fetchUser(userParam);
+        // TODO: refresh posts list when posts are backed by API
+        setRefreshing(false);
+    };
+
+    // Toggle follow/unfollow for the profile being viewed
+    const handleProfileFollowToggle = async () => {
+        if (!userData?.user_id) return;
+        if (!authUser?.user_id) {
+            console.warn('User must be signed in to follow/unfollow');
+            return;
         }
 
-        if (userParam) {
-            fetchUser(userParam);
-        } else {
-            // No param provided — surface a helpful error instead of indefinite loading
-            setError('Missing user id parameter');
-            setUserData(null);
-            setLoading(false);
+        const targetId = Number(userData.user_id);
+        if (authUser.user_id === targetId) return; // defensive
+
+        if (pendingFollow) return; // avoid double submits
+        setPendingFollow(true);
+        const prev = isFollowing;
+        setPendingAction(prev ? 'unfollow' : 'follow');
+        // optimistic update
+        setIsFollowing(!prev);
+        setUserData((u: any) => ({ ...u, followersCount: prev ? Math.max(0, (u?.followersCount || 1) - 1) : ((u?.followersCount || 0) + 1) }));
+        try {
+            if (prev) {
+                await userService.unfollowUser(targetId);
+            } else {
+                await userService.followUser(targetId);
+            }
+            // refresh from server to get canonical state (and updated counts)
+            await fetchUser(String(targetId));
+        } catch (err) {
+            console.warn('Profile follow toggle failed', err);
+            // revert optimistic update
+            setIsFollowing(prev);
+            setUserData((u: any) => ({ ...u, followersCount: prev ? ((u?.followersCount || 0) + 1) : Math.max(0, (u?.followersCount || 1) - 1) }));
+        } finally {
+            setPendingFollow(false);
+            setPendingAction(null);
         }
-    }, [userParam]);
+    };
 
     const isOwner = userParam === 'me';
 
@@ -835,7 +1041,13 @@ export default function UserScreen() {
                 <Text style={styles.stickyName}>{userData.name || 'Jessica'}</Text>
             </Animated.View>
 
-            <Animated.ScrollView ref={scrollRef} onScroll={scrollHandler} scrollEventThrottle={16} showsVerticalScrollIndicator={false}>
+            <Animated.ScrollView
+                ref={scrollRef}
+                onScroll={scrollHandler}
+                scrollEventThrottle={16}
+                showsVerticalScrollIndicator={false}
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.orange} />}
+            >
 
                 {/* PHOTO GRID */}
                 <Animated.View style={[{ height: HEADER_HEIGHT }, headerStyle]}>
@@ -871,7 +1083,9 @@ export default function UserScreen() {
                     </View>
 
                     <Animated.View entering={FadeInDown.delay(350).springify()}>
-                        <FollowButton isFollowing={isFollowing} onPress={() => setIsFollowing(v => !v)} />
+                        {!(authUser && Number(authUser.user_id) === Number(userData.user_id)) && (
+                            <FollowButton isFollowing={isFollowing} pending={pendingFollow} pendingAction={pendingAction} onPress={handleProfileFollowToggle} />
+                        )}
                     </Animated.View>
 
                     {/* ── PREMIUM GRAPH ── */}
@@ -929,7 +1143,7 @@ export default function UserScreen() {
             </Animated.ScrollView>
 
             <CommentsModal visible={commentsOpen} onClose={() => setCommentsOpen(false)} post={commentsPost} onUpdatePost={updatePost} />
-            <PeopleModal   visible={!!peopleModal} onClose={() => setPeopleModal(null)} title={peopleModal || ''} />
+            <PeopleModal   visible={!!peopleModal} onClose={() => setPeopleModal(null)} title={peopleModal || ''} targetUserId={userData.user_id} />
         </View>
     );
 }

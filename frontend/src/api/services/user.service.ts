@@ -52,6 +52,28 @@ export const userService = {
     }));
   },
 
+  async getFollowers(userId: number | string): Promise<any[]> {
+    const response = await api.get(`/users/${userId}/followers`);
+    const users = response.data?.followers || [];
+    return users.map((u: any) => ({
+      user_id: u.user_id,
+      username: u.username,
+      name: u.name,
+      profile_pic_url: u.profile_pic_url ? normalizeProfilePicUrl(u.profile_pic_url) : null,
+    }));
+  },
+
+  async getFollowing(userId: number | string): Promise<any[]> {
+    const response = await api.get(`/users/${userId}/following`);
+    const users = response.data?.following || [];
+    return users.map((u: any) => ({
+      user_id: u.user_id,
+      username: u.username,
+      name: u.name,
+      profile_pic_url: u.profile_pic_url ? normalizeProfilePicUrl(u.profile_pic_url) : null,
+    }));
+  },
+
   async followUser(targetUserId: number | string): Promise<{ isFollowing: boolean }> {
     const response = await api.post(`/auth/follow/${Number(targetUserId)}`);
     return response.data;
