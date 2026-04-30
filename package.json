@@ -15,13 +15,6 @@
     "upload:videos:r2:dry": "bash uploadvideostoR2.sh --dry-run"
   },
   "dependencies": {
-    "expo-linear-gradient": "~14.0.2"
-  },
-  "devDependencies": {
-    "@types/react": "~19.2.10"
-    "fe:start": "npm start -w frontend"
-  },
-  "dependencies": {
     "expo": "^54.0.33",
     "expo-blur": "~15.0.8",
     "expo-font": "~14.0.11",
