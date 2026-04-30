@@ -53,8 +53,10 @@ export const authService = {
         }
     },
 
-    async getMeProfile(): Promise<MeProfileResponse> {
-        const response = await api.get('/auth/me');
+    async getMeProfile(force = false): Promise<MeProfileResponse> {
+        // Add cache-busting query when force=true to bypass any intermediary caches
+        const url = '/auth/me' + (force ? `?_t=${Date.now()}` : '');
+        const response = await api.get(url);
         return response.data;
     },
 };

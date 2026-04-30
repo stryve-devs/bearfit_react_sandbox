@@ -16,6 +16,7 @@ import {
     suggestedUsers,
     follow,
     unfollow,
+    removeFollowerController,
 } from '../../controllers/auth/auth.controller';
 import { validate } from '../../middlewares/validationMiddleware';
 import {
@@ -46,6 +47,7 @@ router.put('/profile', authMiddleware, updateProfile);
 router.get('/suggestions', authMiddleware, suggestedUsers);
 router.post('/follow/:targetUserId', authMiddleware, follow);
 router.delete('/follow/:targetUserId', authMiddleware, unfollow);
+router.delete('/follower/:followerId', authMiddleware, removeFollowerController);
 console.log('[auth.routes] registered: GET /auth/suggestions');
 
 // OTP

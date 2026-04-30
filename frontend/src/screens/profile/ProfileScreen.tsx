@@ -3,7 +3,6 @@ import {
     View,
     Text,
     StyleSheet,
-    Image,
     TouchableOpacity,
     ScrollView,
     Animated,
@@ -11,6 +10,7 @@ import {
     Platform,
     Dimensions,
     ActivityIndicator,
+    RefreshControl,
     Modal,
     Pressable,
     FlatList,
@@ -22,6 +22,7 @@ import { useRouter } from "expo-router";
 import { authService } from "@/api/services/auth.service";
 import { useAuth } from "@/context/AuthContext";
 import AvatarImage from '@/components/common/AvatarImage';
+import userService from '@/api/services/user.service';
 import type { PublicProfileUser, MeProfileResponse } from '@/types/auth.types';
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
@@ -222,22 +223,114 @@ function PeopleModal({
     title,
     people,
     onClose,
+    onUnfollow,
 }: {
     visible: boolean;
     title: string;
     people: PublicProfileUser[];
     onClose: () => void;
+    // onUnfollow will be called when the modal is closed with the list of confirmed unfollowed ids
+    onUnfollow?: (unfollowedIds?: number[]) => Promise<void> | void;
 }) {
+    // Cache of user_id -> resolved profile_pic_url (nullable)
+    const [avatarMap, setAvatarMap] = React.useState<Record<number, string | null>>({});
+
+    React.useEffect(() => {
+        if (!visible) return;
+        let mounted = true;
+
+        // Find IDs we haven't fetched yet
+        const idsToFetch = people
+            .map((p) => p.user_id)
+            .filter((id) => typeof avatarMap[id] === 'undefined');
+
+        if (idsToFetch.length === 0) return;
+
+        (async () => {
+            try {
+                const results = await Promise.all(
+                    idsToFetch.map((id) => userService.getUserById(id).catch(() => null))
+                );
+
+                if (!mounted) return;
+
+                const next = { ...avatarMap };
+                results.forEach((res, idx) => {
+                    const id = idsToFetch[idx];
+                    if (res && res.profile_pic_url) next[id] = res.profile_pic_url;
+                    else next[id] = null;
+                });
+
+                setAvatarMap(next);
+            } catch (err) {
+                // ignore - we'll just show fallbacks
+                console.warn('[PeopleModal] failed to fetch avatars', err);
+            }
+        })();
+
+        return () => { mounted = false; };
+    }, [visible, people]);
+
+    // Local copy so UI can be updated (we won't remove rows immediately)
+    const [localPeople, setLocalPeople] = React.useState<PublicProfileUser[]>(people);
+    React.useEffect(() => setLocalPeople(people), [people]);
+
+    // Track pending unfollow requests and confirmed unfollows
+    const [pendingUnfollow, setPendingUnfollow] = React.useState<Record<number, boolean>>({});
+    const [confirmedUnfollow, setConfirmedUnfollow] = React.useState<Record<number, boolean>>({});
+    // Track pending remove requests and confirmed removals (for Followers list)
+    const [pendingRemove, setPendingRemove] = React.useState<Record<number, boolean>>({});
+    const [confirmedRemoved, setConfirmedRemoved] = React.useState<Record<number, boolean>>({});
+
+    const handleUnfollow = async (targetId: number) => {
+        if (pendingUnfollow[targetId] || confirmedUnfollow[targetId]) return;
+        // mark pending
+        setPendingUnfollow((p) => ({ ...p, [targetId]: true }));
+
+        try {
+            await userService.unfollowUser(targetId);
+            // mark confirmed
+            setConfirmedUnfollow((p) => ({ ...p, [targetId]: true }));
+        } catch (err) {
+            console.warn('[PeopleModal] unfollow failed', err);
+            // clear pending flag
+            setPendingUnfollow((p) => { const n = { ...p }; delete n[targetId]; return n; });
+        }
+    };
+
+    const handleRemoveFollower = async (followerId: number) => {
+        if (pendingRemove[followerId] || confirmedRemoved[followerId]) return;
+        setPendingRemove((p) => ({ ...p, [followerId]: true }));
+        try {
+            await userService.removeFollower(followerId);
+            setConfirmedRemoved((p) => ({ ...p, [followerId]: true }));
+        } catch (err) {
+            console.warn('[PeopleModal] removeFollower failed', err);
+            setPendingRemove((p) => { const n = { ...p }; delete n[followerId]; return n; });
+        }
+    };
+
+    // When modal closes, notify parent of confirmed unfollows then call onClose
+    const handleClose = async () => {
+        const unfollowedIds = Object.keys(confirmedUnfollow).map((k) => Number(k));
+        try {
+            await onUnfollow?.(unfollowedIds.length ? unfollowedIds : undefined);
+        } catch (e) {
+            // ignore parent errors
+        }
+        onClose();
+    };
+
     return (
-        <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+        <Modal visible={visible} transparent animationType="fade" onRequestClose={handleClose}>
             <View style={peopleSt.overlay}>
-                <Pressable style={peopleSt.backdrop} onPress={onClose} />
+                <Pressable style={peopleSt.backdrop} onPress={handleClose} />
                 <View style={peopleSt.sheet}>
                     <View style={peopleSt.handle} />
                     <Text style={peopleSt.title}>{title}</Text>
                     <FlatList
-                        data={people}
-                        keyExtractor={(item) => String(item.user_id)}
+                        data={localPeople}
+                        keyExtractor={(item: PublicProfileUser) => String(item.user_id)}
                         contentContainerStyle={peopleSt.listContent}
                         showsVerticalScrollIndicator={false}
                         ListEmptyComponent={
@@ -245,8 +338,21 @@ function PeopleModal({
                                 {title === "Followers" ? "No followers yet" : "Not following anyone yet"}
                             </Text>
                         }
-                        renderItem={({ item }) => {
-                            const avatarUri = `https://i.pravatar.cc/150?u=${encodeURIComponent(String(item.user_id))}`;
+                        renderItem={({ item }: { item: PublicProfileUser }) => {
+                            const resolved = avatarMap[item.user_id];
+                            const avatarUri = resolved ?? `https://i.pravatar.cc/150?u=${encodeURIComponent(String(item.user_id))}`;
+                            const isFollowingList = title === 'Following';
+                            const isFollowersList = title === 'Followers';
+                            const isPending = !!pendingUnfollow[item.user_id];
+                            const isConfirmed = !!confirmedUnfollow[item.user_id];
+                            const isRemovePending = !!pendingRemove[item.user_id];
+                            const isRemoved = !!confirmedRemoved[item.user_id];
+
+                            // Debug: log follower row rendering so we can verify the button logic in runtime
+                            if (isFollowersList) {
+                                console.log('[PeopleModal] follower row', item.user_id, { isRemovePending, isRemoved });
+                            }
+
                             return (
                                 <View style={peopleSt.row}>
                                     <AvatarImage src={avatarUri} style={peopleSt.avatar} />
@@ -254,6 +360,33 @@ function PeopleModal({
                                         <Text style={peopleSt.name}>{item.name || "-"}</Text>
                                         <Text style={peopleSt.username}>@{item.username || `user-${item.user_id}`}</Text>
                                     </View>
+                                    {isFollowingList && (
+                                        <TouchableOpacity
+                                            style={[peopleSt.followingBtn, isConfirmed && peopleSt.unfollowedBtn]}
+                                            activeOpacity={0.8}
+                                            onPress={() => handleUnfollow(item.user_id)}
+                                            disabled={isPending || isConfirmed}
+                                        >
+                                            <Text style={peopleSt.followingBtnText}>
+                                                {isPending ? 'Unfollowing...' : isConfirmed ? 'Unfollowed' : 'Following'}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    )}
+                                    {isFollowersList && (
+                                        <TouchableOpacity
+                                            style={[
+                                                peopleSt.removeBtn,
+                                                isRemoved ? peopleSt.removedBtn : peopleSt.removeBtnActive,
+                                            ]}
+                                            activeOpacity={0.8}
+                                            onPress={() => handleRemoveFollower(item.user_id)}
+                                            disabled={isRemovePending || isRemoved}
+                                        >
+                                            <Text style={[peopleSt.removeBtnText, isRemoved ? { color: MUTED } : { color: '#111' }]}>
+                                                {isRemovePending ? 'Removing...' : isRemoved ? 'Removed' : 'Remove'}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    )}
                                 </View>
                             );
                         }}
@@ -273,13 +406,14 @@ export default function ProfileScreen() {
     const [profileLoading, setProfileLoading] = useState(true);
     const [profileError, setProfileError] = useState<string | null>(null);
     const [peopleModal, setPeopleModal] = useState<"Followers" | "Following" | null>(null);
+    const [refreshing, setRefreshing] = useState(false);
 
-    const fetchProfile = useCallback(async () => {
+    const fetchProfile = useCallback(async (force = false) => {
         setProfileLoading(true);
         setProfileError(null);
 
         try {
-            const response = await authService.getMeProfile();
+            const response = await authService.getMeProfile(force);
             setProfile(response);
         } catch (error: any) {
             setProfileError(error?.response?.data?.message || "Unable to load profile");
@@ -296,8 +430,19 @@ export default function ProfileScreen() {
             return;
         }
 
+        // initial fetch without force
         fetchProfile();
     }, [authUser?.user_id, fetchProfile]);
+
+    const handleRefresh = useCallback(async () => {
+        setRefreshing(true);
+        try {
+            // force bypass caches
+            await fetchProfile(true);
+        } finally {
+            setRefreshing(false);
+        }
+    }, [fetchProfile]);
 
     const username = profile?.username || authUser?.username || "";
     const name = profile?.name || authUser?.name || username;
@@ -361,8 +506,9 @@ export default function ProfileScreen() {
                 <View style={st.profileRow}>
                     <View style={st.avatarWrap}>
                         <AvatarRing />
-                        <Image
-                            source={{ uri: avatarUri }}
+                        {/* Use AvatarImage which normalizes/probes profile URLs and handles fallbacks */}
+                        <AvatarImage
+                            src={profile?.profile_pic_url ?? avatarUri}
                             style={st.avatarImg}
                         />
                         <View style={st.onlineDot} />
@@ -402,6 +548,14 @@ export default function ProfileScreen() {
                     style={st.scroll}
                     contentContainerStyle={st.scrollContent}
                     showsVerticalScrollIndicator={false}
+                    refreshControl={
+                        <RefreshControl
+                            refreshing={refreshing}
+                            onRefresh={handleRefresh}
+                            colors={[ORANGE]}
+                            tintColor={ORANGE}
+                        />
+                    }
                 >
                     {/* Chart card */}
                     <LinearGradient
@@ -448,18 +602,19 @@ export default function ProfileScreen() {
                     <Text style={st.sectionTitle}>Dashboard</Text>
                     <View style={st.dashGrid}>
                         {DASH_ITEMS.map((item) => (
-                            <GlowCard
-                                key={item.label}
-                                label={item.label}
-                                sub={item.sub}
-                                icon={item.icon}
-                                startOffset={item.startOffset}
-                                onPress={() => {
-                                    if (item.route) {
-                                        router.push(item.route);
-                                    }
-                                }}
-                            />
+                            <View key={item.label}>
+                                <GlowCard
+                                    label={item.label}
+                                    sub={item.sub}
+                                    icon={item.icon}
+                                    startOffset={item.startOffset}
+                                    onPress={() => {
+                                        if (item.route) {
+                                            router.push(item.route);
+                                        }
+                                    }}
+                                />
+                            </View>
                         ))}
                     </View>
 
@@ -492,6 +647,7 @@ export default function ProfileScreen() {
                     title={peopleModal || ""}
                     people={peopleModal === "Followers" ? (profile?.followers || []) : (profile?.following || [])}
                     onClose={() => setPeopleModal(null)}
+                    onUnfollow={fetchProfile}
                 />
             </SafeAreaView>
         </LinearGradient>
@@ -675,6 +831,48 @@ const peopleSt = StyleSheet.create({
         color: MUTED,
         fontSize: 12,
         marginTop: 2,
+    },
+    followingBtn: {
+        marginLeft: 'auto',
+        backgroundColor: "rgba(255,255,255,0.08)",
+        borderRadius: 16,
+        paddingVertical: 4,
+        paddingHorizontal: 10,
+        borderWidth: 0.5,
+        borderColor: "rgba(255,255,255,0.12)",
+    },
+    unfollowedBtn: {
+        backgroundColor: "rgba(255,255,255,0.12)",
+        borderColor: "rgba(255,255,255,0.18)",
+    },
+    removeBtn: {
+        marginLeft: 'auto',
+        backgroundColor: 'transparent',
+        borderRadius: 16,
+        paddingVertical: 6,
+        paddingHorizontal: 12,
+        borderWidth: 1,
+        borderColor: ORANGE,
+        minWidth: 88,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    removedBtn: {
+        backgroundColor: 'transparent',
+        borderColor: 'rgba(255,255,255,0.12)',
+    },
+    removeBtnActive: {
+        backgroundColor: ORANGE,
+        borderColor: ORANGE,
+    },
+    followingBtnText: {
+        color: TEXT,
+        fontSize: 12,
+        fontWeight: "500",
+    },
+    removeBtnText: {
+        fontSize: 12,
+        fontWeight: "500",
     },
 });
 

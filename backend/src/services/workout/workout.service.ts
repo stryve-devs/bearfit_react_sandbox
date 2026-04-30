@@ -296,7 +296,8 @@ export const getDiscoverPosts = async (
   cursor?: number,
 ): Promise<DiscoverFeedResult> => {
   const rows = await prisma.post.findMany({
-    where: { visibility: 'PUBLIC' },
+    // Exclude the requesting user's own posts so Discover shows content from others
+    where: { visibility: 'PUBLIC', user_id: { not: userId } },
     ...(cursor
       ? {
           skip: 1,

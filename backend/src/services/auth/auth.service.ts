@@ -396,6 +396,24 @@ export const unfollowUser = async (
   return { isFollowing: false };
 };
 
+// Remove a follower from the given user's followers (i.e. current user removes target as a follower)
+export const removeFollower = async (userId: number, followerId: number): Promise<{ removed: boolean }> => {
+  if (userId === followerId) {
+    throw new Error('Cannot remove yourself');
+  }
+
+  await ensureTargetUserExists(followerId);
+
+  const deleted = await prisma.user_follows.deleteMany({
+    where: {
+      follower_id: followerId,
+      following_id: userId,
+    },
+  });
+
+  return { removed: deleted.count > 0 };
+};
+
 // Return a list of suggested users (those the requester does not follow and excluding themself)
 export const getSuggestedUsers = async (userId: number, limit = 8) => {
   const followingRows = await prisma.user_follows.findMany({

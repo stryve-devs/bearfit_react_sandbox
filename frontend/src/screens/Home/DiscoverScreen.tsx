@@ -9,6 +9,7 @@ import { router } from 'expo-router';
 import { useIsFocused } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import { AppColors } from '@/constants/colors';
+import { authService } from '@/api/services/auth.service';
 import { fetchPostService } from '@/api/services/fetchpost.service';
 import { DiscoverComment } from '@/types/fetchpost.types';
 import useDiscoverFeed from '@/components/Discover/useDiscoverFeed';
@@ -136,7 +137,31 @@ export default function DiscoverScreen() {
     sendComment,
     setSavedIds,
     setFollowedIds,
+    toggleFollowUser,
   } = useDiscoverFeed();
+
+  // Initialize followedIds from server-side profile data so follow buttons reflect real state
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      if (!currentUser) return;
+      try {
+        const profile = await authService.getMeProfile();
+        if (!mounted) return;
+        const following = profile?.following || [];
+        const usernames = new Set<string>(following.map((f: any) => f.username).filter(Boolean));
+        setFollowedIds((prev) => {
+          // merge with any existing followedIds
+          const next = new Set(prev);
+          for (const u of usernames) next.add(u);
+          return next;
+        });
+      } catch (err) {
+        console.warn('[DiscoverScreen] Failed to initialize followedIds', err);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [currentUser]);
 
   const viewabilityConfigRef = useRef({ itemVisiblePercentThreshold: 60, minimumViewTime: 120 });
 
@@ -286,9 +311,7 @@ export default function DiscoverScreen() {
     if (!posts) return posts;
     return posts.map((p: Post) => {
       const resolved = avatarUriByPostId[p.id];
-      if (resolved) {
-        return { ...p, athlete: { ...p.athlete, avatarUrl: resolved } };
-      }
+      if (resolved) return { ...p, athlete: { ...p.athlete, avatarUrl: resolved } };
       return p;
     });
   }, [posts, avatarUriByPostId]);
@@ -331,6 +354,7 @@ export default function DiscoverScreen() {
           toggleLike={toggleLike}
           setSavedIds={setSavedIds}
           setFollowedIds={setFollowedIds}
+          toggleFollowUser={toggleFollowUser}
           setActiveMediaByPost={setActiveMediaByPost}
           router={router}
           currentUserId={currentUserId}

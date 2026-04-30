@@ -61,6 +61,11 @@ export const userService = {
     const response = await api.delete(`/auth/follow/${Number(targetUserId)}`);
     return response.data;
   },
+
+  async removeFollower(followerId: number | string): Promise<{ removed: boolean }> {
+    const response = await api.delete(`/auth/follower/${Number(followerId)}`);
+    return response.data;
+  },
 };
 
 export default userService;

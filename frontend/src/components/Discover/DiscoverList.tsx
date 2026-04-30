@@ -25,6 +25,7 @@ export default function DiscoverList({
   currentUserId,
   onViewableItemsChanged,
   viewabilityConfig,
+  toggleFollowUser,
 }: any) {
   const defaultViewConfig = { itemVisiblePercentThreshold: 60, minimumViewTime: 120 };
 
@@ -90,13 +91,23 @@ export default function DiscoverList({
               return n;
             })
           }
-          onFollow={() =>
+          onFollow={async () => {
+            if (typeof (toggleFollowUser as any) === 'function') {
+              try {
+                await (toggleFollowUser as any)(item.userId ?? item.athlete?.user_id, item.athlete?.username);
+                return;
+              } catch (e) {
+                console.error('toggleFollowUser failed from DiscoverList', e);
+              }
+            }
+
+            // Fallback: local toggle
             setFollowedIds((prev: Set<string>) => {
               const n = new Set(prev);
               n.has(item.athlete.username) ? n.delete(item.athlete.username) : n.add(item.athlete.username);
               return n;
-            })
-          }
+            });
+          }}
           onComment={() => openComments(item.id)}
           onMediaPress={(mediaIndex: number) => {
             const media = item.media[mediaIndex];

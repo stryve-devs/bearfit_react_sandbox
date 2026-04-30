@@ -195,11 +195,45 @@ export default function useDiscoverFeed() {
     }
   };
 
+  const toggleFollowUser = async (targetUserId: number | string, username?: string) => {
+    const key = username ?? String(targetUserId);
+    const currentlyFollowing = followedIds.has(key);
+
+    // Optimistic update
+    setFollowedIds((prev) => {
+      const next = new Set(prev);
+      currentlyFollowing ? next.delete(key) : next.add(key);
+      return next;
+    });
+
+    try {
+      const res = currentlyFollowing ? await userService.unfollowUser(targetUserId) : await userService.followUser(targetUserId);
+      const isFollowing = res?.isFollowing ?? !currentlyFollowing;
+      // Ensure final state matches server
+      setFollowedIds((prev) => {
+        const next = new Set(prev);
+        if (isFollowing) next.add(key); else next.delete(key);
+        return next;
+      });
+      return isFollowing;
+    } catch (err) {
+      // Rollback optimistic
+      setFollowedIds((prev) => {
+        const next = new Set(prev);
+        currentlyFollowing ? next.add(key) : next.delete(key);
+        return next;
+      });
+      console.error('toggleFollowUser failed', err);
+      throw err;
+    }
+  };
+
   return {
     posts,
     likedIds,
     savedIds,
     followedIds,
+    toggleFollowUser,
     likeCounts,
     commentsByPost,
     commentDraft,

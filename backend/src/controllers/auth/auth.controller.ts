@@ -9,6 +9,7 @@ import {
   unfollowUser,
   revokeRefreshToken,
   getSuggestedUsers,
+  removeFollower,
 } from "../../services/auth/auth.service";
 import {
   generateAccessToken,
@@ -426,5 +427,22 @@ export const suggestedUsers = async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('[authController] suggestedUsers error', error);
     return res.status(500).json({ message: error?.message || 'Failed to fetch suggestions' });
+  }
+};
+
+export const removeFollowerController = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+
+    const followerId = Number(req.params.followerId);
+    if (!followerId) return res.status(400).json({ message: 'Invalid follower id' });
+
+    const result = await removeFollower(userId, followerId);
+    return res.status(200).json({ removed: result.removed });
+  } catch (error: any) {
+    console.error('[authController] removeFollower error', error);
+    if (error?.message === 'User not found') return res.status(404).json({ message: 'User not found' });
+    return res.status(500).json({ message: error?.message || 'Failed to remove follower' });
   }
 };

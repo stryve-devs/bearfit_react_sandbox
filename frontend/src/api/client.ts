@@ -26,6 +26,13 @@ api.interceptors.request.use(
             fullUrl: `${config.baseURL}${config.url}`,
         });
 
+        // If caller added a cache-busting param (e.g., ?_t=...), ensure we bypass intermediary caches
+        if (config.url && config.url.includes('_t=')) {
+            config.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+            config.headers.Pragma = 'no-cache';
+            config.headers.Expires = '0';
+        }
+
         const token = await AsyncStorage.getItem('accessToken');
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;
