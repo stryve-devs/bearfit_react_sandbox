@@ -48,6 +48,7 @@ import { fetchPostService } from '@/api/services/fetchpost.service';
 import { DiscoverPost } from '@/types/fetchpost.types';
 import discoverUtils from '@/components/Discover/utils';
 import { VideoView, useVideoPlayer } from 'expo-video';
+import CommentsSheet from '@/components/Discover/CommentsSheet';
 
 const { width, height } = Dimensions.get('window');
 const HEADER_HEIGHT = 260;
@@ -396,469 +397,26 @@ const CommentLike = ({ liked, count, onPress }: any) => {
     );
 };
 
-// ─── COMMENTS MODAL (SWIPE TO DISMISS) ───────────────────────
-const CommentsModal = ({ visible, onClose, post, onUpdatePost }: any) => {
-    const [comments, setComments]     = useState<any[]>([]);
-    const [draft, setDraft]           = useState('');
-    const [replyingTo, setReplyingTo] = useState<{ id: string; user: string } | null>(null);
-    const inputRef = useRef<TextInput>(null);
-
-    useEffect(() => { if (post) setComments(post.comments || []); }, [post?.id]);
-
-    const SHEET_H = height * 0.87;
-    const sheetY = useSharedValue<number>(SHEET_H);
-    const dragY  = useSharedValue<number>(0);
-
-    const sheetStyle = useAnimatedStyle(() => ({
-        transform: [{ translateY: sheetY.value + dragY.value }] as { translateY: number }[],
-    }));
-
-    useEffect(() => {
-        sheetY.value = visible
-            ? withTiming(0,       { duration: 320, easing: Easing.out(Easing.cubic) })
-            : withTiming(SHEET_H, { duration: 280, easing: Easing.in(Easing.cubic)  });
-    }, [visible]);
-
-    // Swipe handler on handle bar
-    const onHandleMove = (dy: number) => {
-        if (dy > 0) dragY.value = dy;
-    };
-    const onHandleRelease = (dy: number) => {
-        if (dy > 80) {
-            dragY.value = withTiming(0, { duration: 0 });
-            onClose();
-        } else {
-            dragY.value = withSpring(0);
-        }
-    };
-
-    const likeComment = (id: string) =>
-        setComments(prev => prev.map((c: any) =>
-            c.id === id ? { ...c, liked: !c.liked, likes: c.liked ? c.likes - 1 : c.likes + 1 } : c
-        ));
-
-    const likeReply = (cId: string, rId: string) =>
-        setComments(prev => prev.map((c: any) =>
-            c.id === cId ? { ...c, replies: c.replies.map((r: any) =>
-                    r.id === rId ? { ...r, liked: !r.liked, likes: r.liked ? r.likes - 1 : r.likes + 1 } : r
-                )} : c
-        ));
-
-    const toggleReplies = (cId: string) =>
-        setComments(prev => prev.map((c: any) =>
-            c.id === cId ? { ...c, showReplies: !c.showReplies } : c
-        ));
-
-    const startReply = (comment: any) => {
-        setReplyingTo({ id: comment.id, user: comment.user });
-        setDraft(`@${comment.user} `);
-        setTimeout(() => inputRef.current?.focus(), 100);
-    };
-
-    const sendComment = () => {
-        if (!draft.trim()) return;
-        let updated: any[];
-        if (replyingTo) {
-            updated = comments.map((c: any) =>
-                c.id === replyingTo.id
-                    ? { ...c, showReplies: true, replies: [...(c.replies || []), { id: `r${Date.now()}`, user: 'you', avatar: 'https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?w=80', text: draft.trim(), time: 'just now', likes: 0, liked: false }] }
-                    : c
-            );
-        } else {
-            updated = [{ id: `c${Date.now()}`, user: 'you', avatar: 'https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?w=80', text: draft.trim(), time: 'just now', likes: 0, liked: false, showReplies: false, replies: [] }, ...comments];
-        }
-        setComments(updated);
-        onUpdatePost({ ...post, comments: updated });
-        setDraft('');
-        setReplyingTo(null);
-    };
-
-    if (!post) return null;
-
-    return (
-        <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
-            <View style={styles.modalOverlay}>
-                <Pressable style={{ flex: 1 }} onPress={onClose} />
-                <KeyboardAvoidingView behavior={IS_ANDROID ? 'height' : 'padding'} style={styles.sheetKav}>
-                    <Animated.View style={[styles.commentsSheet, sheetStyle]}>
-                        {/* Draggable Handle */}
-                        <TouchableOpacity
-                            activeOpacity={1}
-                            onStartShouldSetResponder={() => true}
-                            onResponderMove={(e) => onHandleMove(e.nativeEvent.pageY - e.nativeEvent.locationY)}
-                            onResponderRelease={(e) => onHandleRelease(e.nativeEvent.pageY - e.nativeEvent.locationY)}
-                            style={styles.handleArea}
-                        >
-                            <View style={styles.sheetHandle} />
-                        </TouchableOpacity>
-                        <Text style={styles.sheetTitle}>Comments</Text>
-
-                        {/* Comments list */}
-                        <ScrollView
-                            style={styles.commentsList}
-                            showsVerticalScrollIndicator={false}
-                            keyboardShouldPersistTaps="handled"
-                        >
-                            {comments.length === 0 ? (
-                                <View style={styles.emptyComments}>
-                                    <Ionicons name="chatbubble-outline" size={32} color={C.grayD} />
-                                    <Text style={styles.emptyCommentsText}>No comments yet. Be first!</Text>
-                                </View>
-                            ) : (
-                                comments.map((comment: any, idx: number) => (
-                                    <Animated.View key={comment.id} entering={FadeInDown.delay(idx * 30).duration(260).easing(Easing.out(Easing.cubic))}>
-                                        <View style={styles.commentItem}>
-                                            <Image source={{ uri: comment.avatar }} style={styles.commentAvatar} />
-                                            <View style={{ flex: 1 }}>
-                                                <View style={styles.commentTopRow}>
-                                                    <Text style={styles.commentUser}>{comment.user}</Text>
-                                                    <Text style={styles.commentTime}>{comment.time}</Text>
-                                                </View>
-                                                <Text style={styles.commentBody}>{comment.text}</Text>
-                                                <View style={styles.commentActions}>
-                                                    <TouchableOpacity onPress={() => startReply(comment)} style={styles.replyTapBtn}>
-                                                        <Text style={styles.replyBtnText}>Reply</Text>
-                                                    </TouchableOpacity>
-                                                    {comment.replies?.length > 0 && (
-                                                        <TouchableOpacity onPress={() => toggleReplies(comment.id)} style={styles.viewRepliesBtn}>
-                                                            <Ionicons name={comment.showReplies ? 'chevron-up' : 'chevron-down'} size={11} color={C.orange} />
-                                                            <Text style={styles.viewRepliesText}>
-                                                                {comment.showReplies ? 'Hide' : `${comment.replies.length}`} {comment.replies.length === 1 ? 'reply' : 'replies'}
-                                                            </Text>
-                                                        </TouchableOpacity>
-                                                    )}
-                                                </View>
-                                                {comment.showReplies && comment.replies?.map((reply: any) => (
-                                                    <View key={reply.id} style={styles.replyItem}>
-                                                        <Image source={{ uri: reply.avatar }} style={styles.replyAvatar} />
-                                                        <View style={{ flex: 1 }}>
-                                                            <View style={styles.commentTopRow}>
-                                                                <Text style={styles.commentUser}>{reply.user}</Text>
-                                                                <Text style={styles.commentTime}>{reply.time}</Text>
-                                                            </View>
-                                                            <Text style={styles.commentBody}>{reply.text}</Text>
-                                                        </View>
-                                                        <CommentLike liked={reply.liked} count={reply.likes} onPress={() => likeReply(comment.id, reply.id)} />
-                                                    </View>
-                                                ))}
-                                            </View>
-                                            <CommentLike liked={comment.liked} count={comment.likes} onPress={() => likeComment(comment.id)} />
-                                        </View>
-                                        {idx < comments.length - 1 && <View style={styles.commentDivider} />}
-                                    </Animated.View>
-                                ))
-                            )}
-                            <View style={{ height: 16 }} />
-                        </ScrollView>
-
-                        {/* Quick Emojis */}
-                        <View style={styles.emojiRow}>
-                            {QUICK_EMOJIS.map(emoji => (
-                                <TouchableOpacity key={emoji} onPress={() => setDraft(prev => `${prev}${emoji}`)} style={styles.emojiBtn}>
-                                    <Text style={styles.emojiText}>{emoji}</Text>
-                                </TouchableOpacity>
-                            ))}
-                        </View>
-
-                        {/* Reply banner */}
-                        {replyingTo && (
-                            <Animated.View entering={FadeIn.duration(200)} style={styles.replyBanner}>
-                                <Ionicons name="return-down-forward" size={13} color={C.orange} />
-                                <Text style={styles.replyBannerText}>
-                                    Replying to <Text style={{ color: C.orange, fontWeight: '700' }}>@{replyingTo.user}</Text>
-                                </Text>
-                                <TouchableOpacity onPress={() => { setReplyingTo(null); setDraft(''); }}>
-                                    <Ionicons name="close" size={14} color={C.gray} />
-                                </TouchableOpacity>
-                            </Animated.View>
-                        )}
-
-                        {/* Input bar */}
-                        <View style={styles.commentInputBar}>
-                            <LinearGradient
-                                colors={['rgba(255,255,255,0.07)', 'rgba(255,255,255,0.03)']}
-                                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-                                style={styles.commentInputGrad}
-                            >
-                                <TextInput
-                                    ref={inputRef}
-                                    value={draft}
-                                    onChangeText={setDraft}
-                                    placeholder={replyingTo ? `Reply to @${replyingTo.user}...` : 'Add a comment...'}
-                                    placeholderTextColor={C.grayD}
-                                    style={styles.commentInput}
-                                    multiline
-                                    selectionColor={C.orange}
-                                />
-                            </LinearGradient>
-                            <TouchableOpacity
-                                onPress={sendComment}
-                                disabled={!draft.trim()}
-                                style={[styles.sendBtn, !draft.trim() && { opacity: 0.35 }]}
-                                activeOpacity={0.8}
-                            >
-                                <LinearGradient colors={[C.orangeL, C.orange, C.orangeD]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
-                                <Ionicons name="arrow-up" size={IS_ANDROID ? 18 : 20} color={C.bg} />
-                            </TouchableOpacity>
-                        </View>
-                    </Animated.View>
-                </KeyboardAvoidingView>
-            </View>
-        </Modal>
-    );
-};
-
-// ─── PEOPLE MODAL ─────────────────────────────────────────────
-const PeopleModal = ({ visible, onClose, title, targetUserId }: any) => {
-     const SHEET_H = height * 0.62;
-     const sheetY = useSharedValue<number>(SHEET_H);
-     const dragY  = useSharedValue<number>(0);
-
-     const { user: authUser } = useAuth();
-     const [list, setList] = useState<any[]>([]);
-     const [loadingList, setLoadingList] = useState(false);
-     const [pendingMap, setPendingMap] = useState<Record<number, boolean>>({});
-     const [myFollowingSet, setMyFollowingSet] = useState<Set<number>>(new Set());
-
-     const sheetStyle = useAnimatedStyle(() => ({
-        transform: [{ translateY: sheetY.value + dragY.value }] as { translateY: number }[],
-    }));
-
-    useEffect(() => {
-        sheetY.value = visible
-            ? withTiming(0,       { duration: 320, easing: Easing.out(Easing.cubic) })
-            : withTiming(SHEET_H, { duration: 280, easing: Easing.in(Easing.cubic)  });
-        if (!visible) dragY.value = 0;
-    }, [visible]);
-
-    // Fetch list when modal opens or when targetUserId/title changes
-    useEffect(() => {
-        let mounted = true;
-        if (!visible) return;
-        if (!targetUserId) return;
-
-        (async () => {
-            try {
-                setLoadingList(true);
-
-                // Fetch the list of people (followers or following for the target user)
-                const users = title === 'Followers'
-                    ? await userService.getFollowers(targetUserId)
-                    : await userService.getFollowing(targetUserId);
-
-                // If authenticated, fetch the current user's following so we can mark which of these users the current user already follows
-                let myFollowingIds: number[] = [];
-                if (authUser?.user_id) {
-                    try {
-                        const myFollowing = await userService.getFollowing(authUser.user_id);
-                        myFollowingIds = myFollowing.map((u: any) => Number(u.user_id));
-                    } catch (err) {
-                        // ignore - we can still show the list without follow state
-                        console.warn('[UserScreen.PeopleModal] failed to fetch my following list', err);
-                    }
-                }
-
-                if (!mounted) return;
-
-                const mySet = new Set(myFollowingIds);
-                setMyFollowingSet(mySet);
-
-                // Annotate each user with isFollowing (whether current user follows them) and removed flag
-                const annotated = users.map((u: any) => ({
-                    ...u,
-                    isFollowing: mySet.has(Number(u.user_id)),
-                    removed: false,
-                }));
-
-                setList(annotated);
-            } catch (err) {
-                console.warn('[UserScreen.PeopleModal] failed to fetch people', err);
-                setList([]);
-            } finally {
-                if (mounted) setLoadingList(false);
-            }
-        })();
-
-        return () => { mounted = false; };
-    }, [visible, targetUserId, title, authUser?.user_id]);
-
-    const onHandleRelease = (dy: number) => {
-        if (dy > 60) {
-            dragY.value = withTiming(0, { duration: 0 });
-            onClose();
-        } else {
-            dragY.value = withSpring(0);
-        }
-    };
-
-    const handleFollow = async (userId: number) => {
-        if (pendingMap[userId]) return;
-        setPendingMap(p => ({ ...p, [userId]: true }));
-        try {
-            await userService.followUser(userId);
-            setList(prev => prev.map(p => p.user_id === userId ? { ...p, isFollowing: true } : p));
-        } catch (err) {
-            console.warn('follow failed', err);
-        } finally {
-            setPendingMap(p => { const n = { ...p }; delete n[userId]; return n; });
-        }
-    };
-
-    const handleUnfollow = async (userId: number) => {
-        if (pendingMap[userId]) return;
-        setPendingMap(p => ({ ...p, [userId]: true }));
-        try {
-            await userService.unfollowUser(userId);
-            setList(prev => prev.map(p => p.user_id === userId ? { ...p, isFollowing: false } : p));
-        } catch (err) {
-            console.warn('unfollow failed', err);
-        } finally {
-            setPendingMap(p => { const n = { ...p }; delete n[userId]; return n; });
-        }
-    };
-
-    const handleRemoveFollower = async (userId: number) => {
-        if (pendingMap[userId]) return;
-        setPendingMap(p => ({ ...p, [userId]: true }));
-        try {
-            await userService.removeFollower(userId);
-            setList(prev => prev.map(p => p.user_id === userId ? { ...p, removed: true } : p));
-        } catch (err) {
-            console.warn('remove follower failed', err);
-        } finally {
-            setPendingMap(p => { const n = { ...p }; delete n[userId]; return n; });
-        }
-    };
-
-    return (
-        <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
-            <View style={styles.modalOverlay}>
-                <Pressable style={{ flex: 1 }} onPress={onClose} />
-                <Animated.View style={[styles.commentsSheet, { height: SHEET_H }, sheetStyle]}>
-                    <TouchableOpacity
-                        activeOpacity={1}
-                        onStartShouldSetResponder={() => true}
-                        onResponderMove={(e) => { const dy = e.nativeEvent.pageY - e.nativeEvent.locationY; if (dy > 0) dragY.value = dy; }}
-                        onResponderRelease={(e) => onHandleRelease(e.nativeEvent.pageY - e.nativeEvent.locationY)}
-                        style={styles.handleArea}
-                    >
-                        <View style={styles.sheetHandle} />
-                    </TouchableOpacity>
-                    <Text style={styles.sheetTitle}>{title}</Text>
-
-                    {loadingList ? (
-                        <View style={{ padding: 24, alignItems: 'center' }}>
-                            <ActivityIndicator size="small" color={C.orange} />
-                        </View>
-                    ) : (
-                        <FlatList
-                            data={list}
-                            keyExtractor={(item: any) => String(item.user_id)}
-                            contentContainerStyle={{ padding: 16 }}
-                            showsVerticalScrollIndicator={false}
-                            renderItem={({ item, index }: any) => (
-                                <Animated.View entering={FadeInDown.delay(index * 50).springify()} style={styles.peopleItem}>
-                                    <View style={styles.peopleAvatarWrap}>
-                                        <Image source={{ uri: item.profile_pic_url || `https://i.pravatar.cc/150?u=${item.user_id}` }} style={styles.peopleAvatar} />
-                                    </View>
-                                    <View style={{ flex: 1, marginLeft: 12 }}>
-                                        <Text style={styles.peopleName}>{item.name}</Text>
-                                        <Text style={styles.peopleHandle}>@{item.username}</Text>
-                                    </View>
-                                    {/* Don't show follow/unfollow/remove controls for the current signed-in user */}
-                                    {(() => {
-                                        const isSelf = !!(authUser && Number(item.user_id) === Number(authUser.user_id));
-                                        return (
-                                            <>
-                                                {title === 'Following' && !isSelf && (
-                                                    <TouchableOpacity
-                                                        onPress={() => item.isFollowing ? handleUnfollow(item.user_id) : handleFollow(item.user_id)}
-                                                        activeOpacity={0.8}
-                                                    >
-                                                        <LinearGradient
-                                                            colors={item.isFollowing ? ['rgba(255,120,37,0.12)', 'rgba(255,120,37,0.06)'] : [C.orangeL, C.orange]}
-                                                            style={styles.peopleBtn}
-                                                        >
-                                                            {item.isFollowing && <Ionicons name="checkmark" size={11} color={C.orange} style={{ marginRight: 3 }} />}
-                                                            <Text style={[styles.peopleBtnText, item.isFollowing && { color: C.orange }]}>
-                                                                {pendingMap[item.user_id] ? (item.isFollowing ? 'Unfollowing...' : 'Following...') : (item.isFollowing ? 'Following' : 'Follow')}
-                                                            </Text>
-                                                        </LinearGradient>
-                                                    </TouchableOpacity>
-                                                )}
-
-                                                {title === 'Followers' && !isSelf && (
-                                                    authUser && Number(targetUserId) === Number(authUser.user_id) ? (
-                                                        // owner view: allow removing followers
-                                                        <TouchableOpacity
-                                                            onPress={() => handleRemoveFollower(item.user_id)}
-                                                            activeOpacity={0.8}
-                                                        >
-                                                            <LinearGradient
-                                                                colors={[C.orangeL, C.orange]}
-                                                                style={styles.peopleBtn}
-                                                            >
-                                                                <Text style={[styles.peopleBtnText, { color: '#111' }]}>
-                                                                    {pendingMap[item.user_id] ? 'Removing...' : 'Remove'}
-                                                                </Text>
-                                                            </LinearGradient>
-                                                        </TouchableOpacity>
-                                                    ) : (
-                                                        // public view: show follow/unfollow state
-                                                        <TouchableOpacity
-                                                            onPress={() => item.isFollowing ? handleUnfollow(item.user_id) : handleFollow(item.user_id)}
-                                                            activeOpacity={0.8}
-                                                        >
-                                                            <LinearGradient
-                                                                colors={item.isFollowing ? ['rgba(255,120,37,0.12)', 'rgba(255,120,37,0.06)'] : [C.orangeL, C.orange]}
-                                                                style={styles.peopleBtn}
-                                                            >
-                                                                {item.isFollowing && <Ionicons name="checkmark" size={11} color={C.orange} style={{ marginRight: 3 }} />}
-                                                                <Text style={[styles.peopleBtnText, item.isFollowing && { color: C.orange }]}>
-                                                                    {pendingMap[item.user_id] ? (item.isFollowing ? 'Unfollowing...' : 'Following...') : (item.isFollowing ? 'Following' : 'Follow')}
-                                                                </Text>
-                                                            </LinearGradient>
-                                                        </TouchableOpacity>
-                                                    )
-                                                )}
-                                            </>
-                                        );
-                                    })()}
-                                 </Animated.View>
-                             )}
-                         />
-                     )}
-                 </Animated.View>
-             </View>
-         </Modal>
-     );
- };
-
 // ─── POST CARD ────────────────────────────────────────────────
-const PostCard = ({ post, index, onOpenComments, onUpdatePost }: any) => {
+function PostCard({ post, index, onOpenComments, onUpdatePost }: any) {
     const [imgIndex, setImgIndex] = useState(0);
-    const [liked, setLiked]       = useState(post.liked);
-    const [likes, setLikes]       = useState(post.likes);
+    const [liked, setLiked] = useState(post.liked ?? false);
+    const [likes, setLikes] = useState(post.likes ?? 0);
     const [mediaWidth, setMediaWidth] = useState(0);
-    const mediaCount = Array.isArray(post.media) ? post.media.length : 0;
-    const totalSlides = mediaCount + 1;
-    const slideWidth = mediaWidth || (width - 28);
 
     useEffect(() => {
-        setLiked(post.liked);
-        setLikes(post.likes);
+        setLiked(post.liked ?? false);
+        setLikes(post.likes ?? 0);
     }, [post.id, post.liked, post.likes]);
 
     const heartScale = useSharedValue<number>(1);
-    const heartStyle = useAnimatedStyle(() => ({
-        transform: [{ scale: heartScale.value }] as { scale: number }[],
-    }));
+    const heartStyle = useAnimatedStyle(() => ({ transform: [{ scale: heartScale.value }] }));
 
     const toggleLike = async () => {
         heartScale.value = withSequence(
-            withTiming(0.7,  { duration: 80  }),
+            withTiming(0.7, { duration: 80 }),
             withTiming(1.25, { duration: 120 }),
-            withTiming(1,    { duration: 100 })
+            withTiming(1, { duration: 100 }),
         );
 
         const prevLiked = liked;
@@ -891,40 +449,33 @@ const PostCard = ({ post, index, onOpenComments, onUpdatePost }: any) => {
         }
     };
 
-    const handleShare = async () => {
-        try { await Share.share({ message: `Check out this workout: "${post.title}" - ${post.desc}`, title: post.title }); } catch {}
+    const onMediaScrollEnd = (event: any) => {
+        const measuredWidth = event.nativeEvent.layoutMeasurement.width || mediaWidth || (width - 28);
+        const nextIndex = Math.round(event.nativeEvent.contentOffset.x / measuredWidth);
+        const totalSlides = (post.media?.length ?? 0) + 1;
+        const clampedIndex = Math.min(Math.max(0, nextIndex), Math.max(0, totalSlides - 1));
+        if (clampedIndex !== imgIndex) setImgIndex(clampedIndex);
     };
 
-    const onMediaScrollEnd = (event: any) => {
-        if (totalSlides <= 1) return;
-        const measuredWidth = event.nativeEvent.layoutMeasurement.width || slideWidth;
-        const nextIndex = Math.round(event.nativeEvent.contentOffset.x / measuredWidth);
-        const clampedIndex = Math.min(Math.max(0, nextIndex), totalSlides - 1);
-        if (clampedIndex !== imgIndex) {
-            setImgIndex(clampedIndex);
-        }
+    const handleShare = async () => {
+        try {
+            await Share.share({ message: `Check out this workout: "${post.title || 'Workout'}" - ${post.desc || ''}`, title: post.title });
+        } catch {}
     };
+
+    const mediaCount = Array.isArray(post.media) ? post.media.length : 0;
+    const totalSlides = mediaCount + 1;
+    const slideWidth = mediaWidth || (width - 28);
 
     return (
         <Animated.View entering={FadeInDown.delay(index * 120).springify()}>
-            <LinearGradient
-                colors={['rgba(255,255,255,0.06)', 'rgba(255,255,255,0.02)']}
-                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-                style={styles.postCard}
-            >
-                <LinearGradient
-                    colors={['transparent', 'rgba(255,255,255,0.07)', 'transparent']}
-                    start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                    style={styles.cardShine} pointerEvents="none"
-                />
+            <LinearGradient colors={['rgba(255,255,255,0.06)', 'rgba(255,255,255,0.02)']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.postCard}>
+                <LinearGradient colors={['transparent', 'rgba(255,255,255,0.07)', 'transparent']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.cardShine} pointerEvents="none" />
                 <LinearGradient colors={[C.orange, C.orangeD]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.cardAccentBar} />
 
                 <View style={styles.postHeader}>
                     <View style={styles.avatarWrap}>
-                        <Image
-                            source={{ uri: post.athlete?.avatarUrl || 'https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?w=80' }}
-                            style={styles.postAvatar}
-                        />
+                        <Image source={{ uri: post.athlete?.avatarUrl || 'https://i.pravatar.cc/80' }} style={styles.postAvatar} />
                         <View style={styles.avatarOnline} />
                     </View>
                     <View style={{ flex: 1, minWidth: 0 }}>
@@ -942,10 +493,7 @@ const PostCard = ({ post, index, onOpenComments, onUpdatePost }: any) => {
                 <View style={{ paddingHorizontal: 14, paddingTop: 10 }}>
                     <Text style={styles.postTitle}>{post.title}</Text>
                     {!!post.routineName && (
-                        <TouchableOpacity
-                            onPress={() => router.push({ pathname: '/home/workout-detail', params: { routineId: post.routineId, title: post.routineName } })}
-                            style={{ alignSelf: 'flex-start', marginBottom: 8 }}
-                        >
+                        <TouchableOpacity onPress={() => router.push({ pathname: '/home/workout-detail', params: { routineId: post.routineId, title: post.routineName } })} style={{ alignSelf: 'flex-start', marginBottom: 8 }}>
                             <LinearGradient colors={['rgba(255,120,37,0.18)', 'rgba(255,120,37,0.06)']} style={styles.routineBadgeGrad}>
                                 <Text style={styles.routineBadgeText}>🏋️  {post.routineName}  →</Text>
                             </LinearGradient>
@@ -954,43 +502,17 @@ const PostCard = ({ post, index, onOpenComments, onUpdatePost }: any) => {
                     <Text style={styles.postDesc}>{post.desc}</Text>
                 </View>
 
-                <View style={styles.postStats}>
-                    {[{ icon: '⏱', val: post.time }, { icon: '🏋️', val: post.volume }, { icon: '🏅', val: `${post.records} PRs` }].map((s, i) => (
-                        <View key={i} style={styles.statChip}>
-                            <Text style={styles.statChipIcon}>{s.icon}</Text>
-                            <Text style={styles.statChipVal}>{s.val}</Text>
-                        </View>
-                    ))}
-                </View>
-
                 {(post.media?.length > 0 || (post.exercises?.length ?? 0) > 0) && (
-                    <View
-                        style={styles.imageWrap}
-                        onLayout={(event) => setMediaWidth(event.nativeEvent.layout.width)}
-                    >
-                        <ScrollView
-                            horizontal
-                            pagingEnabled
-                            showsHorizontalScrollIndicator={false}
-                            onMomentumScrollEnd={onMediaScrollEnd}
-                        >
-                            {(post.media || []).map((media: { url: string; type: 'IMAGE' | 'VIDEO' }, i: number) => (
+                    <View style={styles.imageWrap} onLayout={(e) => setMediaWidth(e.nativeEvent.layout.width)}>
+                        <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} onMomentumScrollEnd={onMediaScrollEnd}>
+                            {(post.media || []).map((media: any, i: number) => (
                                 <View key={i} style={[styles.mediaSlide, { width: slideWidth }]}>
                                     <ProfileMediaSlide media={media} isActive={imgIndex === i} />
                                 </View>
                             ))}
 
-                            <TouchableOpacity
-                                activeOpacity={0.9}
-                                onPress={() => router.push({ pathname: '/(tabs)/home/post-detail', params: { postId: post.id } })}
-                            >
-                                <View
-                                    style={[
-                                        styles.exerciseSlide,
-                                        { width: slideWidth },
-                                        (post.exercises || []).length === 1 && styles.exerciseSlideSingle,
-                                    ]}
-                                >
+                            <TouchableOpacity activeOpacity={0.9} onPress={() => router.push({ pathname: '/(tabs)/home/post-detail', params: { postId: post.id } })}>
+                                <View style={[styles.exerciseSlide, { width: slideWidth }, (post.exercises || []).length === 1 && styles.exerciseSlideSingle]}>
                                     {(post.exercises || []).length === 1 ? (
                                         <View style={styles.singleExerciseContainer}>
                                             <View style={styles.singleExerciseIconWrap}>
@@ -1000,12 +522,8 @@ const PostCard = ({ post, index, onOpenComments, onUpdatePost }: any) => {
                                                     <Ionicons name="barbell-outline" size={48} color={C.orange} />
                                                 )}
                                             </View>
-                                            <Text style={styles.singleExerciseSetsText}>
-                                                {post.exercises[0]?.setsCount || 0} {(post.exercises[0]?.setsCount || 0) === 1 ? 'set' : 'sets'}
-                                            </Text>
-                                            <Text style={styles.singleExerciseNameText}>
-                                                {post.exercises[0]?.name?.split(' ').map((word: string) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ') || 'Exercise'}
-                                            </Text>
+                                            <Text style={styles.singleExerciseSetsText}>{post.exercises[0]?.setsCount || 0} {(post.exercises[0]?.setsCount || 0) === 1 ? 'set' : 'sets'}</Text>
+                                            <Text style={styles.singleExerciseNameText}>{(post.exercises[0]?.name || 'Exercise')}</Text>
                                         </View>
                                     ) : (
                                         <>
@@ -1018,30 +536,18 @@ const PostCard = ({ post, index, onOpenComments, onUpdatePost }: any) => {
                                                             <Ionicons name="barbell-outline" size={16} color={C.orange} />
                                                         )}
                                                     </View>
-                                                    <Text style={styles.exerciseSetsText}>
-                                                        {exercise.setsCount} {exercise.setsCount === 1 ? 'set' : 'sets'}
-                                                    </Text>
-                                                    <Text style={styles.exerciseNameText} numberOfLines={1}>
-                                                        {exercise.name.split(' ').map((word: string) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ')}
-                                                    </Text>
+                                                    <Text style={styles.exerciseSetsText}>{exercise.setsCount} {exercise.setsCount === 1 ? 'set' : 'sets'}</Text>
+                                                    <Text style={styles.exerciseNameText} numberOfLines={1}>{exercise.name}</Text>
                                                 </View>
                                             ))}
 
                                             {(!post.exercises || post.exercises.length === 0) && (
-                                                <Text style={styles.exerciseEmptyText}>
-                                                    No exercise details
-                                                </Text>
+                                                <Text style={styles.exerciseEmptyText}>No exercise details</Text>
                                             )}
 
                                             {(post.exercises && post.exercises.length > 3) && (
-                                                <TouchableOpacity
-                                                    onPress={() => router.push({ pathname: '/(tabs)/home/post-detail', params: { postId: post.id } })}
-                                                    activeOpacity={0.75}
-                                                    style={styles.moreExercisesBtn}
-                                                >
-                                                    <Text style={styles.moreExercisesText}>
-                                                        More exercises
-                                                    </Text>
+                                                <TouchableOpacity onPress={() => router.push({ pathname: '/(tabs)/home/post-detail', params: { postId: post.id } })} activeOpacity={0.75} style={styles.moreExercisesBtn}>
+                                                    <Text style={styles.moreExercisesText}>More exercises</Text>
                                                 </TouchableOpacity>
                                             )}
                                         </>
@@ -1049,6 +555,7 @@ const PostCard = ({ post, index, onOpenComments, onUpdatePost }: any) => {
                                 </View>
                             </TouchableOpacity>
                         </ScrollView>
+
                         <View style={styles.imageOverlay} />
                         {totalSlides > 1 && (
                             <View style={styles.dotRow}>
@@ -1095,7 +602,7 @@ const PostCard = ({ post, index, onOpenComments, onUpdatePost }: any) => {
             </LinearGradient>
         </Animated.View>
     );
-};
+}
 
 // ─── MAIN SCREEN ──────────────────────────────────────────────
 export default function UserScreen() {
@@ -1117,6 +624,9 @@ export default function UserScreen() {
     const [posts,        setPosts]        = useState(INITIAL_POSTS);
     const [commentsPost, setCommentsPost] = useState<any>(null);
     const [commentsOpen, setCommentsOpen] = useState(false);
+    // Comment sheet state reused from Discover logic
+    const [commentDraft, setCommentDraft] = useState('');
+    const [replyingTo, setReplyingTo] = useState<{ commentId: string; user: string } | null>(null);
     const [peopleModal,  setPeopleModal]  = useState<string | null>(null);
     const scrollRef = useRef<any>(null);
     const postsY    = useRef(0);
@@ -1135,7 +645,7 @@ export default function UserScreen() {
         opacity: interpolate(scrollY.value, [HEADER_HEIGHT * 0.5, HEADER_HEIGHT], [0, 1], Extrapolation.CLAMP),
     }));
 
-    const openComments = (post: any) => { setCommentsPost(post); setCommentsOpen(true); };
+    const openComments = (post: any) => { setCommentsPost(post); setCommentDraft(''); setReplyingTo(null); setCommentsOpen(true); };
     const updatePost   = (updated: any) => {
         setPosts(prev => prev.map(p => p.id === updated.id ? updated : p));
         setCommentsPost(updated);
@@ -1226,6 +736,57 @@ export default function UserScreen() {
         } finally {
             setPendingFollow(false);
             setPendingAction(null);
+        }
+    };
+
+    const sendComment = async (activePostId: string | null) => {
+        if (!activePostId || !commentDraft.trim()) return;
+        const text = commentDraft.trim();
+        try {
+            const response = await fetchPostService.createPostComment(activePostId, text, replyingTo?.commentId);
+            const postedComment = mapApiCommentToUiComment(response.comment);
+
+            if (replyingTo) {
+                // attach as a reply to the matching comment
+                setPosts(prev => prev.map(p => p.id === activePostId ? { ...p, comments: (p.comments || []).map((c: any) => c.id === replyingTo.commentId ? { ...c, replies: [...(c.replies || []), postedComment], showReplies: true } : c) } : p));
+                if (commentsPost?.id === activePostId) {
+                    setCommentsPost((cp: any) => ({ ...cp, comments: (cp.comments || []).map((c: any) => c.id === replyingTo.commentId ? { ...c, replies: [...(c.replies || []), postedComment], showReplies: true } : c) }));
+                }
+            } else {
+                // add top-level comment
+                setPosts(prev => prev.map(p => p.id === activePostId ? { ...p, comments: [...(p.comments || []), postedComment] } : p));
+                if (commentsPost?.id === activePostId) {
+                    setCommentsPost((cp: any) => ({ ...cp, comments: [...(cp.comments || []), postedComment] }));
+                }
+            }
+
+            setCommentDraft('');
+            setReplyingTo(null);
+        } catch (e) {
+            console.error('[UserScreen] createPostComment failed', e);
+        }
+    };
+
+    const likeComment = (postId: string, commentId: string) => {
+        // toggle on posts list
+        setPosts(prev => prev.map(p => p.id === postId ? { ...p, comments: (p.comments || []).map((c: any) => c.id === commentId ? { ...c, liked: !c.liked, likes: c.liked ? Math.max(0, c.likes - 1) : (c.likes || 0) + 1 } : c) } : p));
+        // toggle on open comments sheet
+        if (commentsPost?.id === postId) {
+            setCommentsPost((cp: any) => ({ ...cp, comments: (cp.comments || []).map((c: any) => c.id === commentId ? { ...c, liked: !c.liked, likes: c.liked ? Math.max(0, c.likes - 1) : (c.likes || 0) + 1 } : c) }));
+        }
+    };
+
+    const likeReply = (postId: string, commentId: string, replyId: string) => {
+        setPosts(prev => prev.map(p => p.id === postId ? { ...p, comments: (p.comments || []).map((c: any) => c.id === commentId ? { ...c, replies: (c.replies || []).map((r: any) => r.id === replyId ? { ...r, liked: !r.liked, likes: r.liked ? Math.max(0, r.likes - 1) : (r.likes || 0) + 1 } : r) } : c) } : p));
+        if (commentsPost?.id === postId) {
+            setCommentsPost((cp: any) => ({ ...cp, comments: (cp.comments || []).map((c: any) => c.id === commentId ? { ...c, replies: (c.replies || []).map((r: any) => r.id === replyId ? { ...r, liked: !r.liked, likes: r.liked ? Math.max(0, r.likes - 1) : (r.likes || 0) + 1 } : r) } : c) }));
+        }
+    };
+
+    const toggleReplies = (postId: string, commentId: string) => {
+        setPosts(prev => prev.map(p => p.id === postId ? { ...p, comments: (p.comments || []).map((c: any) => c.id === commentId ? { ...c, showReplies: !c.showReplies } : c) } : p));
+        if (commentsPost?.id === postId) {
+            setCommentsPost((cp: any) => ({ ...cp, comments: (cp.comments || []).map((c: any) => c.id === commentId ? { ...c, showReplies: !c.showReplies } : c) }));
         }
     };
 
@@ -1381,11 +942,25 @@ export default function UserScreen() {
                 </View>
             </Animated.ScrollView>
 
-            <CommentsModal visible={commentsOpen} onClose={() => setCommentsOpen(false)} post={commentsPost} onUpdatePost={updatePost} />
-            <PeopleModal   visible={!!peopleModal} onClose={() => setPeopleModal(null)} title={peopleModal || ''} targetUserId={userData.user_id} />
-        </View>
-    );
-}
+            <CommentsSheet
+                visible={commentsOpen}
+                activeComments={commentsPost?.comments || []}
+                commentDraft={commentDraft}
+                setCommentDraft={setCommentDraft}
+                replyingTo={replyingTo}
+                setReplyingTo={setReplyingTo}
+                sendComment={() => sendComment(commentsPost?.id || null)}
+                likeComment={(postId: string, commentId: string) => likeComment(postId, commentId)}
+                likeReply={(postId: string, commentId: string, replyId: string) => likeReply(postId, commentId, replyId)}
+                toggleReplies={(postId: string, commentId: string) => toggleReplies(postId, commentId)}
+                close={() => setCommentsOpen(false)}
+                activePostId={commentsPost?.id || null}
+                quickEmojis={QUICK_EMOJIS}
+            />
+             <PeopleModal   visible={!!peopleModal} onClose={() => setPeopleModal(null)} title={peopleModal || ''} targetUserId={userData.user_id} />
+         </View>
+     );
+ }
 
 // ─── STYLES ───────────────────────────────────────────────────
 const styles = StyleSheet.create({

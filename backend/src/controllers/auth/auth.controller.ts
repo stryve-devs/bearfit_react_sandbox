@@ -4,13 +4,10 @@ import {
   loginUser,
   refreshAccessToken,
   googleSignIn,
-  getCurrentUserProfile,
-  followUser,
-  unfollowUser,
   revokeRefreshToken,
-  getSuggestedUsers,
-  removeFollower,
 } from "../../services/auth/auth.service";
+import { getCurrentUserProfile } from '../../services/user/user.service';
+import { followUser, unfollowUser, getSuggestedUsers, removeFollower } from '../../services/follow/follow.service';
 import {
   generateAccessToken,
   generateRefreshToken,
