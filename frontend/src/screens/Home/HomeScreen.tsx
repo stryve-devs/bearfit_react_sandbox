@@ -14,7 +14,8 @@ import {
     StatusBar,
     TouchableOpacity,
 } from "react-native";
-import Animated, {
+import Animated,
+{
     useSharedValue,
     useAnimatedStyle,
     withTiming,
@@ -56,16 +57,16 @@ const HINT       = "rgba(240,237,232,0.18)";
 const IS_ANDROID = Platform.OS === "android";
 
 const ALL_ATHLETES: Athlete[] = [
-    { name: "Alex",   username: "alexfit",     avatarUrl: "https://i.pravatar.cc/150?img=12", sport: "Sprinter" },
-    { name: "Maya",   username: "mayalifts",   avatarUrl: "https://i.pravatar.cc/150?img=32", sport: "Lifter"   },
-    { name: "Noah",   username: "noahrun",     avatarUrl: "https://i.pravatar.cc/150?img=56", sport: "Runner"   },
-    { name: "Sara",   username: "sarahit",     avatarUrl: "https://i.pravatar.cc/150?img=3",  sport: "Cyclist"  },
-    { name: "Hamza",  username: "hamzafit",    avatarUrl: "https://i.pravatar.cc/150?img=20", sport: "Fighter"  },
-    { name: "Liya",   username: "liyamove",    avatarUrl: "https://i.pravatar.cc/150?img=24", sport: "Dancer"   },
-    { name: "Rayan",  username: "rayanrun",    avatarUrl: "https://i.pravatar.cc/150?img=45", sport: "Swimmer"  },
-    { name: "Zara",   username: "zaraflex",    avatarUrl: "https://i.pravatar.cc/150?img=18", sport: "Gymnast"  },
-    { name: "Aisha",  username: "aishastrong", avatarUrl: "https://i.pravatar.cc/150?img=28", sport: "CrossFit" },
-    { name: "Nihal",  username: "nihalfit",    avatarUrl: "https://i.pravatar.cc/150?img=36", sport: "Boxer"    },
+    { name: "Alex",   username: "alexfit",     avatarUrl: null as any, sport: "Sprinter" },
+    { name: "Maya",   username: "mayalifts",   avatarUrl: null as any, sport: "Lifter"   },
+    { name: "Noah",   username: "noahrun",     avatarUrl: null as any, sport: "Runner"   },
+    { name: "Sara",   username: "sarahit",     avatarUrl: null as any, sport: "Cyclist"  },
+    { name: "Hamza",  username: "hamzafit",    avatarUrl: null as any, sport: "Fighter"  },
+    { name: "Liya",   username: "liyamove",    avatarUrl: null as any, sport: "Dancer"   },
+    { name: "Rayan",  username: "rayanrun",    avatarUrl: null as any, sport: "Swimmer"  },
+    { name: "Zara",   username: "zaraflex",    avatarUrl: null as any, sport: "Gymnast"  },
+    { name: "Aisha",  username: "aishastrong", avatarUrl: null as any, sport: "CrossFit" },
+    { name: "Nihal",  username: "nihalfit",    avatarUrl: null as any, sport: "Boxer"    },
 ];
 
 // ─── Pulsing Orb ──────────────────────────────────────────────────────────────
@@ -468,7 +469,7 @@ export default function HomeScreen() {
                         user_id: u.user_id,
                         name: u.name || u.username || `user-${u.user_id}`,
                         username: u.username || `user-${u.user_id}`,
-                        avatarUrl: u.profile_pic_url || `https://i.pravatar.cc/150?u=${encodeURIComponent(String(u.user_id))}`,
+                        avatarUrl: u.profile_pic_url ?? null,
                     } as Athlete));
                     setSuggested(mapped);
                 }

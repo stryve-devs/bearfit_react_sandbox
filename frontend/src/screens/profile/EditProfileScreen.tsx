@@ -106,7 +106,7 @@ export default function EditProfileScreen() {
     const [bio, setBio] = useState("");
     const [link, setLink] = useState("");
     const [sex, setSex] = useState("");
-    const [profilePicUri, setProfilePicUri] = useState("https://i.pravatar.cc/150?img=12");
+    const [profilePicUri, setProfilePicUri] = useState<string | null>(null);
     const [profilePicUrl, setProfilePicUrl] = useState<string | null>(null);
     const [profilePicR2Key, setProfilePicR2Key] = useState<string | null>(null);
     const [showProfilePicModal, setShowProfilePicModal] = useState(false);

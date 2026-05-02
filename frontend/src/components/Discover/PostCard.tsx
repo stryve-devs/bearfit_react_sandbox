@@ -78,8 +78,6 @@ export default function PostCard({
   // Debugging: log resolved uri and validation status for this post's avatar
   console.debug('[PostCard] avatarResolvedUri', item.id, avatarResolvedUri, 'validating:', avatarValidating);
 
-  const PLACEHOLDER = 'https://i.pravatar.cc/150?img=12';
-
   return (
     <Animated.View entering={FadeInDown.delay(index * 60).duration(400)}>
       <Pressable
@@ -283,9 +281,9 @@ export default function PostCard({
 
             {likeCount > 0 && likedByName && (
               <View style={st.likedByRow}>
-                {likedByAvatars.map((avatarUrl: string, idx: number) => (
+                {likedByAvatars.map((avatarUrl: string | null, idx: number) => (
                   <View key={`${item.id}-liked-avatar-${idx}`} style={idx > 0 ? { marginLeft: -8 } : undefined}>
-                    <AvatarImage src={avatarUrl || PLACEHOLDER} style={st.tinyAvatar} skipResolve={false} />
+                    <AvatarImage src={avatarUrl ?? null} style={st.tinyAvatar} skipResolve={false} />
                   </View>
                 ))}
                 <Text allowFontScaling={false} numberOfLines={1} style={st.likedByText}>

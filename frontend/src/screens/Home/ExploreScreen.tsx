@@ -54,11 +54,11 @@ const TRENDING = [
 ];
 
 const ATHLETES = [
-    { id: "a1", name: "Alex",  username: "alexfit",   sport: "Sprinter", avatarUrl: "https://i.pravatar.cc/150?img=12", workouts: 124 },
-    { id: "a2", name: "Maya",  username: "mayalifts", sport: "Lifter",   avatarUrl: "https://i.pravatar.cc/150?img=32", workouts: 98  },
-    { id: "a3", name: "Noah",  username: "noahrun",   sport: "Runner",   avatarUrl: "https://i.pravatar.cc/150?img=56", workouts: 210 },
-    { id: "a4", name: "Sara",  username: "sarahit",   sport: "Cyclist",  avatarUrl: "https://i.pravatar.cc/150?img=3",  workouts: 76  },
-    { id: "a5", name: "Hamza", username: "hamzafit",  sport: "Fighter",  avatarUrl: "https://i.pravatar.cc/150?img=20", workouts: 155 },
+    { id: "a1", name: "Alex",  username: "alexfit",   sport: "Sprinter", avatarUrl: null as any, workouts: 124 },
+    { id: "a2", name: "Maya",  username: "mayalifts", sport: "Lifter",   avatarUrl: null as any, workouts: 98  },
+    { id: "a3", name: "Noah",  username: "noahrun",   sport: "Runner",   avatarUrl: null as any, workouts: 210 },
+    { id: "a4", name: "Sara",  username: "sarahit",   sport: "Cyclist",  avatarUrl: null as any, workouts: 76  },
+    { id: "a5", name: "Hamza", username: "hamzafit",  sport: "Fighter",  avatarUrl: null as any, workouts: 155 },
 ];
 
 const LEVEL_COLORS: Record<string, string> = {

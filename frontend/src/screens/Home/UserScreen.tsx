@@ -475,7 +475,11 @@ function PostCard({ post, index, onOpenComments, onUpdatePost }: any) {
 
                 <View style={styles.postHeader}>
                     <View style={styles.avatarWrap}>
-                        <Image source={{ uri: post.athlete?.avatarUrl || 'https://i.pravatar.cc/80' }} style={styles.postAvatar} />
+                        {post.athlete?.avatarUrl ? (
+                            <Image source={{ uri: post.athlete.avatarUrl }} style={styles.postAvatar} />
+                        ) : (
+                            <View style={styles.postAvatar} />
+                        )}
                         <View style={styles.avatarOnline} />
                     </View>
                     <View style={{ flex: 1, minWidth: 0 }}>
@@ -671,7 +675,11 @@ function PeopleModal({ visible, onClose, title, targetUserId }: any) {
                                     {items.map((u: any) => (
                                         <View key={u.user_id} style={styles.peopleItem}>
                                             <View style={styles.peopleAvatarWrap}>
-                                                <Image source={{ uri: u.profile_pic_url || u.avatar || 'https://i.pravatar.cc/80' }} style={styles.peopleAvatar} />
+                                                {u.profile_pic_url || u.avatar ? (
+                                                    <Image source={{ uri: u.profile_pic_url || u.avatar }} style={styles.peopleAvatar} />
+                                                ) : (
+                                                    <View style={styles.peopleAvatar} />
+                                                )}
                                             </View>
                                             <View style={{ flex: 1, marginLeft: 12 }}>
                                                 <Text style={styles.peopleName}>{u.name || u.username}</Text>
@@ -760,7 +768,59 @@ export default function UserScreen() {
             console.log('🧾 getUserById response:', data);
             setUserData(data);
             const mappedPosts = (postsResponse.posts || []).map(mapApiPostToUiPost);
-            setPosts(mappedPosts);
+            // Hydrate commenter avatars by fetching user profiles for commenters (cached per user)
+            const userCache: Record<string | number, any> = {};
+
+            const hydratedPosts = await Promise.all(mappedPosts.map(async (p: any) => {
+                const comments = Array.isArray(p.comments) ? p.comments : [];
+
+                // collect unique commenter ids/usernames from comments and replies
+                const uids = new Set<string | number>();
+                for (const c of comments) {
+                    if (c.user) uids.add(c.user);
+                    if (c.user_id) uids.add(c.user_id);
+                    if (Array.isArray(c.replies)) {
+                        for (const r of c.replies) {
+                            if (r.user) uids.add(r.user);
+                            if (r.user_id) uids.add(r.user_id);
+                        }
+                    }
+                }
+
+                // fetch profiles for unique uids (username or id) and cache
+                await Promise.all(Array.from(uids).map(async (uid) => {
+                    if (uid == null || userCache[uid]) return;
+                    try {
+                        const fetched = await userService.getUserById(uid);
+                        userCache[uid] = fetched || null;
+                    } catch (err) {
+                        userCache[uid] = null;
+                    }
+                }));
+
+                // attach profile_pic_url where available
+                const updatedComments = comments.map((c: any) => {
+                    const authorKey = c.user ?? c.user_id ?? null;
+                    const user = authorKey != null ? userCache[authorKey] : null;
+                    const avatarUrl = (user && user.profile_pic_url) ? user.profile_pic_url : (c.avatarUrl || c.avatar || null);
+                    const updatedReplies = Array.isArray(c.replies) ? c.replies.map((r: any) => {
+                        const rKey = r.user ?? r.user_id ?? null;
+                        const ru = rKey != null ? userCache[rKey] : null;
+                        const rAvatar = (ru && ru.profile_pic_url) ? ru.profile_pic_url : (r.avatarUrl || r.avatar || null);
+                        return { ...r, avatar: rAvatar, avatarUrl: rAvatar };
+                    }) : [];
+                    return { ...c, avatar: avatarUrl, avatarUrl: avatarUrl, replies: updatedReplies };
+                });
+
+                return { ...p, comments: updatedComments };
+            }));
+
+            setPosts(hydratedPosts);
+            // If comments sheet is open for a particular post, sync its comments to the hydrated version
+            if (commentsPost?.id) {
+                const matched = hydratedPosts.find((hp: any) => hp.id === commentsPost.id);
+                if (matched) setCommentsPost(matched);
+            }
             if (typeof data.is_followed_by_current_user !== 'undefined') {
                 setIsFollowing(!!data.is_followed_by_current_user);
             }
@@ -840,19 +900,77 @@ export default function UserScreen() {
             const response = await fetchPostService.createPostComment(activePostId, text, replyingTo?.commentId);
             const postedComment = mapApiCommentToUiComment(response.comment);
 
-            if (replyingTo) {
-                // attach as a reply to the matching comment
-                setPosts(prev => prev.map(p => p.id === activePostId ? { ...p, comments: (p.comments || []).map((c: any) => c.id === replyingTo.commentId ? { ...c, replies: [...(c.replies || []), postedComment], showReplies: true } : c) } : p));
-                if (commentsPost?.id === activePostId) {
-                    setCommentsPost((cp: any) => ({ ...cp, comments: (cp.comments || []).map((c: any) => c.id === replyingTo.commentId ? { ...c, replies: [...(c.replies || []), postedComment], showReplies: true } : c) }));
+            // Hydrate optimistic comment avatar aggressively from authUser (or fetched profile)
+            // Helper: proxify backend-hosted URLs and ignore pravatar placeholders
+            const proxifyIfNeededLocal = (url?: string | null) => {
+                if (!url) return null;
+                try {
+                    const LOWER = String(url).toLowerCase();
+                    if (LOWER.includes('pravatar.cc') || LOWER.includes('i.pravatar.cc')) return null;
+                    const isR2 = LOWER.includes('.r2.dev') || LOWER.includes('/profile/profile-pic/');
+                    if (isR2 && api?.defaults?.baseURL) {
+                        return `${api.defaults.baseURL.replace(/\/$/, '')}/uploads/proxy?url=${encodeURIComponent(String(url))}`;
+                    }
+                    return url;
+                } catch (e) {
+                    return url;
                 }
-            } else {
-                // add top-level comment
-                setPosts(prev => prev.map(p => p.id === activePostId ? { ...p, comments: [...(p.comments || []), postedComment] } : p));
-                if (commentsPost?.id === activePostId) {
-                    setCommentsPost((cp: any) => ({ ...cp, comments: [...(cp.comments || []), postedComment] }));
-                }
-            }
+            };
+
+            try {
+                const needHydrate = !(postedComment.avatar || postedComment.avatarUrl);
+                if (needHydrate && authUser) {
+                    const cached: any = authUser as any || {};
+                    const candidate = proxifyIfNeededLocal(cached.profile_pic_url ?? cached.profile_picUrl ?? null) || (cached.profile_pic_key ? `${api.defaults.baseURL.replace(/\/$/, '')}/uploads/proxy?key=${encodeURIComponent(String(cached.profile_pic_key))}` : null);
+                    if (candidate) {
+                        postedComment.avatarUrl = candidate;
+                        postedComment.avatar = postedComment.avatar || candidate;
+                        if (Array.isArray(postedComment.replies)) {
+                            postedComment.replies = postedComment.replies.map((r: any) => {
+                                const rcand = proxifyIfNeededLocal(r.avatarUrl || r.avatar) || candidate;
+                                return { ...r, avatarUrl: r.avatarUrl || rcand, avatar: r.avatar || rcand };
+                            });
+                        }
+                        console.debug('[UserScreen] sendComment: hydrated from cached authUser', candidate, postedComment);
+                    } else {
+                        // fallback to fetching user record
+                        try {
+                            // Try to fetch canonical profile for the currently authenticated user.
+                            // Prefer numeric user_id if available — this avoids ambiguity between usernames.
+                            const lookupKey = cached.user_id ?? cached.userId ?? cached.username ?? String(cached);
+                            const me = await userService.getUserById(lookupKey);
+                            console.debug('[UserScreen] sendComment: fetched authUser profile for hydration', { lookupKey, profile_pic_url: me?.profile_pic_url });
+                             const meCand = proxifyIfNeededLocal(me?.profile_pic_url ?? null) || (me?.profile_pic_key ? `${api.defaults.baseURL.replace(/\/$/, '')}/uploads/proxy?key=${encodeURIComponent(String(me.profile_pic_key))}` : null);
+                             if (meCand) {
+                                 postedComment.avatarUrl = meCand;
+                                 postedComment.avatar = postedComment.avatar || meCand;
+                                 if (Array.isArray(postedComment.replies)) {
+                                     postedComment.replies = postedComment.replies.map((r: any) => ({ ...r, avatarUrl: r.avatarUrl || proxifyIfNeededLocal(r.avatar || r.avatarUrl) || meCand, avatar: r.avatar || proxifyIfNeededLocal(r.avatar || r.avatarUrl) || meCand }));
+                                 }
+                                 console.debug('[UserScreen] sendComment: hydrated from fetched user', meCand, postedComment);
+                             }
+                         } catch (err) {
+                             // ignore
+                         }
+                     }
+                 }
+             } catch (err) {
+                 console.warn('[UserScreen] failed to hydrate posted comment avatar', err);
+             }
+
+         if (replyingTo) {
+             // attach as a reply to the matching comment
+             setPosts(prev => prev.map(p => p.id === activePostId ? { ...p, comments: (p.comments || []).map((c: any) => c.id === replyingTo.commentId ? { ...c, replies: [...(c.replies || []), postedComment], showReplies: true } : c) } : p));
+             if (commentsPost?.id === activePostId) {
+                 setCommentsPost((cp: any) => ({ ...cp, comments: (cp.comments || []).map((c: any) => c.id === replyingTo.commentId ? { ...c, replies: [...(c.replies || []), postedComment], showReplies: true } : c) }));
+             }
+         } else {
+             // add top-level comment
+             setPosts(prev => prev.map(p => p.id === activePostId ? { ...p, comments: [...(p.comments || []), postedComment] } : p));
+             if (commentsPost?.id === activePostId) {
+                 setCommentsPost((cp: any) => ({ ...cp, comments: [...(cp.comments || []), postedComment] }));
+             }
+         }
 
             setCommentDraft('');
             setReplyingTo(null);
@@ -1013,19 +1131,23 @@ export default function UserScreen() {
                     <View onLayout={(e) => { postsY.current = e.nativeEvent.layout.y; }}>
                         <Text style={styles.section}>Posts</Text>
                     </View>
-                    {postsLoading ? (
+                    {postsLoading && (
                         <View style={{ paddingVertical: 24, alignItems: 'center' }}>
                             <ActivityIndicator size="small" color={C.orange} />
                         </View>
-                    ) : posts.length === 0 ? (
+                    )}
+
+                    {!postsLoading && posts.length === 0 && (
                         <GlassCard style={styles.emptyPostsCard}>
                             <Text style={styles.emptyPostsTitle}>No posts yet</Text>
                             <Text style={styles.emptyPostsText}>
                                 This profile has not shared any workout posts yet.
                             </Text>
                         </GlassCard>
-                    ) : (
-                        posts.map((p, i) => (
+                    )}
+
+                    {!postsLoading && posts.length > 0 && (
+                        posts.map((p: any, i: number) => (
                             <View key={p.id} style={{ marginBottom: 14 }}>
                                 <PostCard post={p} index={i} onOpenComments={openComments} onUpdatePost={updatePost} />
                             </View>

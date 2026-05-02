@@ -23,6 +23,8 @@ import * as Haptics from 'expo-haptics';
 import st, { ORANGE, MUTED, HINT, IS_ANDROID, BG } from './styles';
 import AvatarImage from '@/components/common/AvatarImage';
 import CommentLike from './CommentLike';
+import { useAuth } from '@/context/AuthContext';
+import api from '@/api/client';
 import type { Dispatch, SetStateAction } from 'react';
 
 type Reply = {
@@ -78,7 +80,13 @@ export default function CommentsSheet({
   activePostId,
   quickEmojis,
 }: Props) {
+  const { user: authUser } = useAuth();
   const sheetY = useSharedValue(700);
+
+  useEffect(() => {
+    // Debug: log activeComments snapshot whenever the sheet mounts or activeComments changes
+    console.debug('[CommentsSheet] activeComments snapshot', activeComments?.map((c: any) => ({ id: c.id, avatarUrl: c.avatarUrl, avatar: (c as any).avatar, text: c.text })));
+  }, [activeComments]);
 
   useEffect(() => {
     sheetY.value = visible
@@ -113,7 +121,29 @@ export default function CommentsSheet({
                   entering={FadeInDown.delay(idx * 30).duration(260).easing(Easing.out(Easing.cubic))}
                 >
                   <View style={st.commentItem}>
-                    <AvatarImage src={c.avatarUrl} style={st.commentAvatar} />
+                    {/* Prefer comment.avatarUrl/avatar, then fall back to current authenticated user's cached profile pic */}
+                    {(() => {
+                      const fallback = (authUser as any)?.profile_pic_url ?? (authUser as any)?.profile_picUrl ?? (authUser as any)?.profile_pic_key ? `${api.defaults.baseURL.replace(/\/$/, '')}/uploads/proxy?key=${encodeURIComponent(String((authUser as any).profile_pic_key))}` : null;
+                      let avatarSrc = c.avatarUrl ?? (c as any).avatar ?? fallback ?? undefined;
+                      // never accept dev placeholder providers (pravatar) as valid avatars
+                      try {
+                        const L = String(avatarSrc || '').toLowerCase();
+                        if (L.includes('pravatar.cc') || L.includes('i.pravatar.cc')) {
+                          avatarSrc = null as any;
+                        }
+                      } catch (err) {}
+                      // If this looks like a backend-hosted (R2) URL, prefer routing it through our proxy
+                      // so the native Image doesn't fail due to CORS or signed URL nuances.
+                      const proxyBase = api.defaults.baseURL ? api.defaults.baseURL.replace(/\/$/, '') + '/uploads/proxy?url=' : null;
+                      let finalSrc = avatarSrc;
+                      if (avatarSrc && proxyBase && (avatarSrc.includes('.r2.dev') || avatarSrc.includes('/profile/profile-pic/'))) {
+                        finalSrc = `${proxyBase}${encodeURIComponent(avatarSrc)}`;
+                        console.debug('[CommentsSheet] proxying avatar for comment', { commentId: c.id, avatarSrc, proxied: finalSrc });
+                      } else {
+                        console.debug('[CommentsSheet] rendering avatar for comment', { commentId: c.id, avatarSrc });
+                      }
+                      return <AvatarImage src={finalSrc} style={st.commentAvatar} />;
+                    })()}
                     <View style={{ flex: 1 }}>
                       <View style={st.commentTopRow}>
                         <Text allowFontScaling={false} style={st.commentUser}>
@@ -152,7 +182,23 @@ export default function CommentsSheet({
                       {c.showReplies &&
                         c.replies.map((r) => (
                           <View key={r.id} style={st.replyItem}>
-                            <AvatarImage src={r.avatarUrl} style={st.replyAvatar} />
+                            {(() => {
+                              const fallback = (authUser as any)?.profile_pic_url ?? (authUser as any)?.profile_picUrl ?? (authUser as any)?.profile_pic_key ? `${api.defaults.baseURL.replace(/\/$/, '')}/uploads/proxy?key=${encodeURIComponent(String((authUser as any).profile_pic_key))}` : null;
+                              let avatarSrc = r.avatarUrl ?? (r as any).avatar ?? fallback ?? undefined;
+                              try {
+                                const L = String(avatarSrc || '').toLowerCase();
+                                if (L.includes('pravatar.cc') || L.includes('i.pravatar.cc')) avatarSrc = null as any;
+                              } catch (err) {}
+                              const proxyBase = api.defaults.baseURL ? api.defaults.baseURL.replace(/\/$/, '') + '/uploads/proxy?url=' : null;
+                              let finalSrc = avatarSrc;
+                              if (avatarSrc && proxyBase && (avatarSrc.includes('.r2.dev') || avatarSrc.includes('/profile/profile-pic/'))) {
+                                finalSrc = `${proxyBase}${encodeURIComponent(avatarSrc)}`;
+                                console.debug('[CommentsSheet] proxying avatar for reply', { replyId: r.id, avatarSrc, proxied: finalSrc });
+                              } else {
+                                console.debug('[CommentsSheet] rendering avatar for reply', { replyId: r.id, avatarSrc });
+                              }
+                              return <AvatarImage src={finalSrc} style={st.replyAvatar} />;
+                            })()}
                             <View style={{ flex: 1 }}>
                               <View style={st.commentTopRow}>
                                 <Text allowFontScaling={false} style={st.commentUser}>
@@ -237,4 +283,3 @@ export default function CommentsSheet({
     </Modal>
   );
 }
-

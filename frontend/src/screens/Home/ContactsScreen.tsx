@@ -61,7 +61,7 @@ function randomContacts(): Contact[] {
             id: `${i}-${Date.now()}`,
             name,
             username,
-            avatarUrl: `https://i.pravatar.cc/150?img=${Math.floor(Math.random() * 70) + 1}`,
+            avatarUrl: null as any,
         };
     });
 }

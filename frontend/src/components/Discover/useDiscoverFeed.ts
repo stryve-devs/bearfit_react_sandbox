@@ -2,12 +2,30 @@ import { useEffect, useState } from 'react';
 import * as Haptics from 'expo-haptics';
 import { fetchPostService } from '@/api/services/fetchpost.service';
 import { userService } from '@/api/services/user.service';
+import { useAuth } from '@/context/AuthContext';
 import utils from './utils';
+import api from '@/api/client';
+
+// Convert known backend-hosted image URLs (R2, profile-pic path) into our backend proxy URL
+const proxifyIfNeeded = (url?: string | null) => {
+  if (!url) return url ?? null;
+  try {
+    const LOWER = String(url).toLowerCase();
+    const isR2 = LOWER.includes('.r2.dev') || LOWER.includes('/profile/profile-pic/');
+    if (isR2 && api?.defaults?.baseURL) {
+      return `${api.defaults.baseURL.replace(/\/$/, '')}/uploads/proxy?url=${encodeURIComponent(String(url))}`;
+    }
+    return url;
+  } catch (e) {
+    return url;
+  }
+};
 
 const toLocalComment = utils.toLocalComment;
 const toLocalPost = utils.toLocalPost;
 
 export default function useDiscoverFeed() {
+  const { user: authUser } = useAuth();
   const [posts, setPosts] = useState<any[]>([]);
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
@@ -178,6 +196,76 @@ export default function useDiscoverFeed() {
     try {
       const response = await fetchPostService.createPostComment(activePostId, text, replyingTo?.commentId);
       const postedComment = toLocalComment(response.comment);
+      // Treat pravatar placeholders as invalid for optimistic UI — force hydration
+      try {
+        const av = String(postedComment.avatarUrl || postedComment.avatar || '') || '';
+        if (av.toLowerCase().includes('pravatar.cc') || av.toLowerCase().includes('i.pravatar.cc')) {
+          console.debug('[useDiscoverFeed] sendComment: backend returned pravatar placeholder, treating as missing', av);
+          postedComment.avatarUrl = null;
+          postedComment.avatar = null;
+        }
+      } catch (e) {}
+
+      // If the API did not include an avatarUrl for the commenter (common),
+      // try to hydrate it from the current user's profile so the new comment
+      // immediately shows the correct profile image without a refresh.
+      // Helper: given a raw URL or profile_pic_key from auth user, return proxied URL or null.
+      const resolveAuthUserAvatar = (cached: any) => {
+        try {
+          const cachedUrl = cached?.profile_pic_url ?? cached?.profile_picUrl ?? null;
+          if (cachedUrl) {
+            const CL = String(cachedUrl).toLowerCase();
+            if (CL.includes('pravatar.cc') || CL.includes('i.pravatar.cc')) return null;
+            return proxifyIfNeeded(cachedUrl);
+          }
+          if (cached?.profile_pic_key) {
+            return `${api.defaults.baseURL.replace(/\/$/, '')}/uploads/proxy?key=${encodeURIComponent(String(cached.profile_pic_key))}`;
+          }
+        } catch (e) {}
+        return null;
+      };
+
+      if ((!postedComment.avatarUrl || postedComment.avatarUrl === null) && authUser) {
+        try {
+          // Prefer cached profile_pic_url present on the stored auth user
+          const cached: any = (authUser as any) || {};
+          const candidate = resolveAuthUserAvatar(cached);
+          if (candidate) {
+            postedComment.avatarUrl = candidate;
+            postedComment.avatar = postedComment.avatar || candidate;
+            if (Array.isArray(postedComment.replies)) {
+              postedComment.replies = postedComment.replies.map((r: any) => {
+                const rCandidate = r.avatarUrl || r.avatar || candidate;
+                return { ...r, avatarUrl: r.avatarUrl || proxifyIfNeeded(rCandidate), avatar: r.avatar || proxifyIfNeeded(rCandidate) };
+              });
+            }
+            console.debug('[useDiscoverFeed] sendComment: hydrated from cachedUrl (or key)', candidate, postedComment);
+          } else {
+            // Fall back to fetching the user record if cached info isn't available
+            try {
+              console.debug('[useDiscoverFeed] sendComment: falling back to userService.getUserById for', cached.user_id ?? cached.username ?? String(cached));
+              const me = await userService.getUserById(cached.user_id ?? cached.username ?? String(cached));
+              const meCandidate = resolveAuthUserAvatar(me);
+              if (meCandidate) {
+                postedComment.avatarUrl = meCandidate;
+                postedComment.avatar = postedComment.avatar || meCandidate;
+                if (Array.isArray(postedComment.replies)) {
+                  postedComment.replies = postedComment.replies.map((r: any) => ({ ...r, avatarUrl: r.avatarUrl || proxifyIfNeeded(r.avatar || r.avatarUrl || meCandidate), avatar: r.avatar || proxifyIfNeeded(r.avatar || r.avatarUrl || meCandidate) }));
+                }
+                console.debug('[useDiscoverFeed] sendComment: hydrated from userService.getUserById', meCandidate, postedComment);
+              }
+            } catch (err) {
+              // ignore
+            }
+          }
+        } catch (err) {
+          // ignore hydration failures — fall back to whatever the API returned
+          console.warn('Failed to hydrate posted comment avatar', err);
+        }
+      }
+
+      // Debug: log final avatar URL before inserting optimistic comment
+      console.debug('[useDiscoverFeed] sendComment: final postedComment.avatarUrl', postedComment.avatarUrl);
       if (replyingTo) {
         setCommentsByPost((prev) => ({
           ...prev,

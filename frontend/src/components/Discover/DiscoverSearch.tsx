@@ -8,7 +8,6 @@ import AvatarImage from '@/components/common/AvatarImage';
 
 export default function DiscoverSearch({ visible, query, setQuery, filteredPosts, onClose, onOpenPost }: any) {
   const Row = ({ item, index }: any) => {
-    const PLACEHOLDER = 'https://i.pravatar.cc/150?img=12';
     return (
       <Animated.View entering={FadeInDown.delay(index * 35).duration(280)}>
         <TouchableOpacity
@@ -17,7 +16,7 @@ export default function DiscoverSearch({ visible, query, setQuery, filteredPosts
           activeOpacity={0.7}
         >
           <View style={st.searchAvatarWrap}>
-            <AvatarImage uri={item?.athlete?.avatarUrl} size={40} />
+            <AvatarImage src={item?.athlete?.avatarUrl ?? null} size={40} />
           </View>
           <View style={{ flex: 1 }}>
             <Text allowFontScaling={false} style={st.searchName}>

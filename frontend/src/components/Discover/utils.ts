@@ -93,7 +93,7 @@ export function makeInitialComments(postId: string) {
     {
       id: `${postId}-c1`,
       user: 'mayalifts',
-      avatarUrl: 'https://i.pravatar.cc/150?img=32',
+      avatarUrl: null,
       text: 'Nice work! Keep grinding',
       time: '2h ago',
       likes: 4,
@@ -104,7 +104,7 @@ export function makeInitialComments(postId: string) {
     {
       id: `${postId}-c2`,
       user: 'noahrun',
-      avatarUrl: 'https://i.pravatar.cc/150?img=56',
+      avatarUrl: null,
       text: 'absolute beast mode',
       time: '1h ago',
       likes: 2,
@@ -113,7 +113,7 @@ export function makeInitialComments(postId: string) {
         {
           id: `${postId}-c2-r1`,
           user: 'sarahit',
-          avatarUrl: 'https://i.pravatar.cc/150?img=3',
+          avatarUrl: null,
           text: 'Agreed! Legend',
           time: '45m ago',
           likes: 1,
@@ -125,7 +125,7 @@ export function makeInitialComments(postId: string) {
     {
       id: `${postId}-c3`,
       user: 'sarahit',
-      avatarUrl: 'https://i.pravatar.cc/150?img=3',
+      avatarUrl: null,
       text: "Great form, what's your PR?",
       time: '30m ago',
       likes: 0,

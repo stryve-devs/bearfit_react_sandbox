@@ -26,12 +26,12 @@ export default function AthleteCard({
 }: AthleteCardProps) {
   const { resolvedUri } = useResolvedImageUri(athlete?.avatarUrl);
   const [fallbackUrl, setFallbackUrl] = React.useState<string | null>(null);
-  const PLACEHOLDER = 'https://i.pravatar.cc/150?img=12';
+
   return (
     <TouchableOpacity style={styles.card} onPress={onPress}>
       {/* Avatar */}
       <TouchableOpacity onPress={onPress}>
-        <AvatarImage src={athlete.avatarUrl} style={styles.avatar} />
+        <AvatarImage src={athlete?.avatarUrl ?? null} style={styles.avatar} />
       </TouchableOpacity>
 
       {/* Name */}

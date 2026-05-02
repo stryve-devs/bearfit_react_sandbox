@@ -2,21 +2,24 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Image, ActivityIndicator, View, StyleProp, ImageStyle } from 'react-native';
 import api from '@/api/client';
 
-// AvatarImage: encapsulates the same image probing/validation logic used in EditProfileScreen
-// Props: src (string | null) - the raw URL from backend; style - Image style; placeholder - optional placeholder URI
-// When true, skip internal probing/validation and use src directly.
+// AvatarImage: encapsulates image probing/validation. We deliberately do NOT use any
+// dummy placeholder images; when no image is available we render an empty View so
+// the caller's styling (e.g. backgroundColor) determines the visible box (black/empty).
+// Props: src or uri (string | null) - the raw URL from backend; style - Image style;
+// skipResolve (boolean) - when true, accept the src/uri as-is and skip probing.
 export default function AvatarImage({
-  src,
+  src, // preferred prop
+  uri: uriProp, // alias
   style,
-  placeholder = 'https://i.pravatar.cc/150?img=12',
   skipResolve = false,
 }: {
   src?: string | null;
+  uri?: string | null;
   style?: StyleProp<ImageStyle>;
-  placeholder?: string;
   skipResolve?: boolean;
 }) {
-  const [uri, setUri] = useState<string | null>(src ?? null);
+  const initial = src ?? uriProp ?? null;
+  const [uri, setUri] = useState<string | null>(initial);
   const [imageLoading, setImageLoading] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -32,16 +35,25 @@ export default function AvatarImage({
 
   useEffect(() => {
     let mounted = true;
-    if (!src) {
+    const incoming = src ?? uriProp ?? null;
+    // Explicitly block known dev/dummy avatar providers — treat them as absent.
+    try {
+      const L = String(incoming || '').toLowerCase();
+      if (L.includes('pravatar.cc') || L.includes('i.pravatar.cc')) {
+        console.debug('[AvatarImage] incoming is pravatar placeholder, treating as null', incoming);
+        setUri(null);
+        return () => { mounted = false; };
+      }
+    } catch (err) {}
+    if (!incoming) {
+      // No URL provided: ensure we render an empty box (no dummy avatar)
       setUri(null);
       return () => { mounted = false; };
     }
 
-    // If caller requests skipping internal resolve/probe (for example the caller
-    // already used `useResolvedImageUri` and has a validated URL), just accept
-    // the src immediately and skip additional probing to avoid flicker.
+    // If caller requests skipping internal resolve/probe, accept incoming as-is
     if (skipResolve) {
-      setUri(src);
+      setUri(incoming);
       return () => { mounted = false; };
     }
 
@@ -56,9 +68,9 @@ export default function AvatarImage({
 
       try {
         const proxyBase = api.defaults.baseURL ? api.defaults.baseURL.replace(/\/$/, '') + '/uploads/proxy' : null;
-        if (proxyBase && src && src.startsWith(proxyBase)) {
+        if (proxyBase && incoming && incoming.startsWith(proxyBase)) {
           setImageLoading(false);
-          setUri(src);
+          setUri(incoming);
           return;
         }
 
@@ -72,17 +84,17 @@ export default function AvatarImage({
         };
 
         // 1) try original
-        if (src && await tryFetch(src)) {
+        if (incoming && await tryFetch(incoming)) {
           if (mounted) {
-            console.debug('[AvatarImage] original OK', src);
-            setUri(src);
+            console.debug('[AvatarImage] original OK', incoming);
+            setUri(incoming);
           }
           return;
         }
 
         // 2) encodeURI
-        const enc1 = encodeURI(src);
-        if (src && enc1 !== src && await tryFetch(enc1)) {
+        const enc1 = encodeURI(incoming);
+        if (incoming && enc1 !== incoming && await tryFetch(enc1)) {
           if (mounted) {
             console.debug('[AvatarImage] encodeURI OK', enc1);
             setUri(enc1);
@@ -91,10 +103,10 @@ export default function AvatarImage({
         }
 
         // 3) per-segment encode
-        const parts = src.split('/');
+        const parts = incoming.split('/');
         const encParts = parts.map((p: string) => encodeURIComponent(p));
         const enc2 = encParts.join('/');
-        if (src && enc2 !== src && await tryFetch(enc2)) {
+        if (incoming && enc2 !== incoming && await tryFetch(enc2)) {
           if (mounted) {
             console.debug('[AvatarImage] encodeURIComponent per-segment OK', enc2);
             setUri(enc2);
@@ -106,7 +118,7 @@ export default function AvatarImage({
         if (!imageProxyTried && proxyBase) {
           try {
             setImageProxyTried(true);
-            const proxyUrl = `${api.defaults.baseURL.replace(/\/$/, '')}/uploads/proxy?url=${encodeURIComponent(src)}`;
+            const proxyUrl = `${api.defaults.baseURL.replace(/\/$/, '')}/uploads/proxy?url=${encodeURIComponent(incoming)}`;
             if (mounted) {
               console.debug('[AvatarImage] using backend proxy', proxyUrl);
               setUri(proxyUrl);
@@ -119,7 +131,9 @@ export default function AvatarImage({
 
         // nothing worked
         if (mounted) {
+          // No resolvable image -- leave uri null so caller will see an empty box
           setImageError('Could not fetch image (network or invalid URL)');
+          setUri(null);
         }
       } catch (err: any) {
         if (mounted) setImageError(String(err?.message || err));
@@ -141,10 +155,15 @@ export default function AvatarImage({
     return () => { mounted = false; if (pendingErrorTimerRef.current) { clearTimeout(pendingErrorTimerRef.current as unknown as number); pendingErrorTimerRef.current = null; } };
   }, [src, skipResolve]);
 
+  // If we don't have any URI to render, show an empty View (so caller's style background shows)
+  if (!uri) {
+    return <View style={style} />;
+  }
+
   return (
     <View>
       <Image
-        source={{ uri: uri || placeholder }}
+        source={{ uri }}
         style={style}
         onLoadStart={() => { setImageLoading(true); setImageError(null); }}
         onLoad={() => {

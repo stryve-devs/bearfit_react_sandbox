@@ -5,7 +5,8 @@ import api from '@/api/client';
 // and optionally return a backend proxy URL if probes fail. Mirrors logic in EditProfileScreen.
 // Important: this hook DOES NOT immediately return the raw URI — it waits for validation
 // so RN Image won't attempt a potentially-broken URL and produce a black/empty image.
-const DEFAULT_PLACEHOLDER = 'https://i.pravatar.cc/150?img=12';
+// When resolution fails, return null so callers render empty box instead of a dummy avatar
+const DEFAULT_PLACEHOLDER: null = null;
 
 export default function useResolvedImageUri(rawUri: string | null | undefined) {
   const [resolvedUri, setResolvedUri] = useState<string | null>(null);
@@ -18,6 +19,18 @@ export default function useResolvedImageUri(rawUri: string | null | undefined) {
       // No image provided — keep null (caller can show placeholder)
       setResolvedUri(null);
       return () => { mounted = false; };
+    }
+
+    // Explicitly block known dev/dummy avatar providers. The product requirement
+    // is: never show pravatar placeholders — either show real backend images or nothing.
+    try {
+      const LOWER = String(rawUri).toLowerCase();
+      if (LOWER.includes('pravatar.cc') || LOWER.includes('i.pravatar.cc')) {
+        if (mounted) setResolvedUri(null);
+        return () => { mounted = false; };
+      }
+    } catch (err) {
+      // ignore and continue
     }
 
     (async () => {
@@ -75,7 +88,7 @@ export default function useResolvedImageUri(rawUri: string | null | undefined) {
           }
         }
 
-        // 5) nothing worked — default to placeholder so UI shows something instead of black
+        // 5) nothing worked — return null so callers render empty box (no dummy avatar)
         if (mounted) setResolvedUri(DEFAULT_PLACEHOLDER);
       } catch (err) {
         if (mounted) setResolvedUri(DEFAULT_PLACEHOLDER);

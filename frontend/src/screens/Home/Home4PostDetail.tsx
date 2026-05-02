@@ -41,6 +41,9 @@ import { useAuth } from '@/context/AuthContext';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import useResolvedImageUri from '@/hooks/useResolvedImageUri';
 import AvatarImage from '@/components/common/AvatarImage';
+import { userService } from '@/api/services/user.service';
+import { authService } from '@/api/services/auth.service';
+import api from '@/api/client';
 
 type Athlete = { name: string; username: string; avatarUrl: string };
 type Post = {
@@ -168,7 +171,7 @@ function makeInitialComments(): Comment[] {
     {
       id: 'c1',
       user: 'mayalifts',
-      avatarUrl: 'https://i.pravatar.cc/150?img=32',
+      avatarUrl: null,
       text: "Incredible session! What's your PR?",
       time: '2h ago',
       likes: 5,
@@ -177,7 +180,7 @@ function makeInitialComments(): Comment[] {
         {
           id: 'c1-r1',
           user: 'noahrun',
-          avatarUrl: 'https://i.pravatar.cc/150?img=56',
+          avatarUrl: null,
           text: 'Right?! Absolute beast mode',
           time: '1h ago',
           likes: 2,
@@ -189,7 +192,7 @@ function makeInitialComments(): Comment[] {
     {
       id: 'c2',
       user: 'sarahit',
-      avatarUrl: 'https://i.pravatar.cc/150?img=3',
+      avatarUrl: null,
       text: 'Great form on those reps!',
       time: '1h ago',
       likes: 3,
@@ -401,6 +404,21 @@ function MediaSlide({
   return <Image source={{ uri: media.url }} style={styles.postImage} />;
 }
 
+// Helper: turn backend-hosted image URLs into app proxy URLs when appropriate
+const proxifyIfNeeded = (url?: string | null) => {
+  if (!url) return url ?? null;
+  try {
+    const LOWER = String(url).toLowerCase();
+    const isR2 = LOWER.includes('.r2.dev') || LOWER.includes('/profile/profile-pic/');
+    if (isR2 && api?.defaults?.baseURL) {
+      return `${api.defaults.baseURL.replace(/\/$/, '')}/uploads/proxy?url=${encodeURIComponent(String(url))}`;
+    }
+    return url;
+  } catch (e) {
+    return url;
+  }
+};
+
 export default function FetchPostDetailScreen() {
   const params = useLocalSearchParams<{ postId?: string }>();
   const { user: currentUser } = useAuth();
@@ -437,6 +455,19 @@ export default function FetchPostDetailScreen() {
         // Load comments
         if (Array.isArray(localPost.comments)) {
           setComments(localPost.comments.map(toLocalComment));
+        }
+
+        // Initialize follow state for the post's author by fetching current user's profile
+        try {
+          const profile = await authService.getMeProfile();
+          const following = Array.isArray(profile?.following) ? profile.following : [];
+          // Normalize to username keys if available, fallback to user_id
+          const followedUsernames = new Set(following.map((f: any) => f.username ?? String(f.user_id ?? '')));
+          const authorKey = localPost.athlete?.username ?? String(localPost.userId ?? '');
+          setIsFollowed(followedUsernames.has(authorKey));
+        } catch (err) {
+          // Ignore follow init failures — keep default false
+          console.warn('Failed to initialize follow state for post detail', err);
         }
       } catch (error) {
         console.error('Failed to load post:', error);
@@ -522,6 +553,60 @@ export default function FetchPostDetailScreen() {
     alignItems: 'center' as const,
   }));
 
+  // Pending follow/unfollow request state
+  const [pendingFollow, setPendingFollow] = useState(false);
+  const [pendingAction, setPendingAction] = useState<'follow' | 'unfollow' | null>(null);
+
+  // Toggle follow with optimistic UI, matching useDiscoverFeed.toggleFollowUser
+  const handleToggleFollow = async () => {
+    if (!post) return;
+    if (pendingFollow) return;
+
+    // Prefer numeric userId; if missing try to resolve username -> numeric id
+    let targetUserId: number | string | null = post.userId ?? null;
+    const potentialUsername = post.athlete?.username ?? null;
+    if (targetUserId == null && potentialUsername) {
+      try {
+        const fetchedUser = await userService.getUserById(potentialUsername);
+        if (fetchedUser && (fetchedUser.user_id || fetchedUser.userId)) {
+          targetUserId = fetchedUser.user_id ?? fetchedUser.userId;
+        } else {
+          // still fallback to username (may not be supported by backend)
+          targetUserId = potentialUsername;
+        }
+      } catch (e) {
+        console.warn('Failed to resolve username to user id, falling back to username', potentialUsername, e);
+        targetUserId = potentialUsername;
+      }
+    }
+
+    if (targetUserId == null) {
+      console.warn('No target user id available to follow/unfollow');
+      return;
+    }
+
+    const prev = isFollowed;
+    const action = prev ? 'unfollow' : 'follow';
+    // Optimistic UI
+    setIsFollowed(!prev);
+    setPendingFollow(true);
+    setPendingAction(action);
+
+    try {
+      const res = prev ? await userService.unfollowUser(targetUserId) : await userService.followUser(targetUserId);
+      const serverIsFollowing = res?.isFollowing ?? !prev;
+      setIsFollowed(Boolean(serverIsFollowing));
+    } catch (err) {
+      console.error('Failed to toggle follow for user', err);
+      // rollback
+      setIsFollowed(prev);
+      Alert.alert('Failed', 'Unable to update follow status. Please try again.');
+    } finally {
+      setPendingFollow(false);
+      setPendingAction(null);
+    }
+  };
+
   const likeComment = (commentId: string) => {
     setComments((prev) =>
       prev.map((c) =>
@@ -562,16 +647,75 @@ export default function FetchPostDetailScreen() {
 
       const postedComment = toLocalComment(response.comment);
 
+      // Ensure any avatar URLs coming from the backend are proxied if they point to internal/private storage (R2)
+      if (postedComment.avatarUrl) {
+        const proxied = proxifyIfNeeded(postedComment.avatarUrl);
+        postedComment.avatarUrl = proxied;
+        (postedComment as any).avatar = (postedComment as any).avatar || proxied;
+      }
+      if (Array.isArray(postedComment.replies)) {
+        postedComment.replies = postedComment.replies.map((r) => {
+          const prox = proxifyIfNeeded(r.avatarUrl || (r as any).avatar);
+          return { ...r, avatarUrl: prox, avatar: (r as any).avatar || prox };
+        });
+      }
+
+      // If backend didn't include avatarUrl for the newly posted comment, try hydrating from cached auth user
+      try {
+        const { user: authUser } = (await import('@/context/AuthContext')).useAuth?.() ?? { user: null };
+        if ((!postedComment.avatar && !postedComment.avatarUrl) && authUser) {
+          const cached: any = authUser as any;
+          const cachedUrl = cached.profile_pic_url ?? cached.profile_picUrl ?? null;
+          if (cachedUrl) {
+            const LOWER = String(cachedUrl).toLowerCase();
+            if (!LOWER.includes('pravatar.cc') && !LOWER.includes('i.pravatar.cc')) {
+              const proxied = proxifyIfNeeded(cachedUrl);
+              postedComment.avatarUrl = postedComment.avatarUrl || proxied;
+              (postedComment as any).avatar = (postedComment as any).avatar || proxied;
+            }
+          } else if (cached.profile_pic_key) {
+            const proxyUrl = `${api.defaults.baseURL.replace(/\/$/, '')}/uploads/proxy?key=${encodeURIComponent(String(cached.profile_pic_key))}`;
+            postedComment.avatarUrl = postedComment.avatarUrl || proxyUrl;
+            (postedComment as any).avatar = (postedComment as any).avatar || proxyUrl;
+          } else {
+            try {
+              const { userService } = await import('@/api/services/user.service');
+              const me = await userService.getUserById(cached.user_id ?? cached.username ?? String(cached));
+              if (me && me.profile_pic_url) {
+                const ML = String(me.profile_pic_url || '').toLowerCase();
+                if (!ML.includes('pravatar.cc') && !ML.includes('i.pravatar.cc')) {
+                  const proxied = proxifyIfNeeded(me.profile_pic_url);
+                  postedComment.avatarUrl = postedComment.avatarUrl || proxied;
+                  (postedComment as any).avatar = (postedComment as any).avatar || proxied;
+                }
+              }
+            } catch (err) {
+              // ignore
+            }
+          }
+        }
+      } catch (err) {
+        // ignore
+      }
+
+      console.debug('[PostDetail] sendComment: final postedComment.avatarUrl', postedComment.avatarUrl);
+
       if (replyingTo) {
-        setComments((prev) =>
-          prev.map((c) =>
+        setComments((prev) => {
+          const next = prev.map((c) => (
             c.id === replyingTo.commentId
               ? { ...c, replies: [...c.replies, postedComment as any], showReplies: true }
               : c
-          )
-        );
+          ));
+          console.debug('[PostDetail] setComments (reply) new state snapshot', next.map((c) => ({ id: c.id, replies: c.replies.map((r: any) => ({ id: r.id, avatarUrl: r.avatarUrl, avatar: (r as any).avatar })) })));
+          return next;
+        });
       } else {
-        setComments((prev) => [...prev, postedComment]);
+        setComments((prev) => {
+          const next = [...prev, postedComment];
+          console.debug('[PostDetail] setComments (top-level) new state snapshot', next.map((c) => ({ id: c.id, avatarUrl: c.avatarUrl, avatar: (c as any).avatar })));
+          return next;
+        });
       }
 
       setCommentDraft('');
@@ -689,20 +833,22 @@ export default function FetchPostDetailScreen() {
             <TouchableOpacity
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setIsFollowed((v) => !v);
+                handleToggleFollow();
               }}
               activeOpacity={1}
             >
               {/* Only render follow UI when the post is not owned by the current user */}
               {!(currentUserId != null && post?.userId === currentUserId) && (
                 <Animated.View style={followStyle}>
-                  {isFollowed ? (
+                  {pendingFollow ? (
+                    <ActivityIndicator size="small" color={ORANGE} style={{ marginRight: 6 }} />
+                  ) : isFollowed ? (
                     <Ionicons name="checkmark" size={11} color={ORANGE} style={{ marginRight: 4 }} />
                   ) : (
                     <Ionicons name="add" size={11} color={ORANGE} style={{ marginRight: 4 }} />
                   )}
                   <Text allowFontScaling={false} style={styles.followText}>
-                    {isFollowed ? 'Following' : 'Follow'}
+                    {pendingFollow ? (pendingAction === 'unfollow' ? 'Unfollowing...' : 'Following...') : (isFollowed ? 'Following' : 'Follow')}
                   </Text>
                 </Animated.View>
               )}

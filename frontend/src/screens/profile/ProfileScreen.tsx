@@ -340,7 +340,8 @@ function PeopleModal({
                         }
                         renderItem={({ item }: { item: PublicProfileUser }) => {
                             const resolved = avatarMap[item.user_id];
-                            const avatarUri = resolved ?? `https://i.pravatar.cc/150?u=${encodeURIComponent(String(item.user_id))}`;
+                            // Do not use dummy fallback images; show empty when no resolved avatar
+                            const avatarUri = resolved ?? null;
                             const isFollowingList = title === 'Following';
                             const isFollowersList = title === 'Followers';
                             const isPending = !!pendingUnfollow[item.user_id];
@@ -449,8 +450,8 @@ export default function ProfileScreen() {
     const workoutsCount = profile?._count.workouts ?? 0;
     const followersCount = profile?._count.followers ?? 0;
     const followingCount = profile?._count.following ?? 0;
-    const avatarSeed = authUser?.user_id || username || "profile";
-    const avatarUri = `https://i.pravatar.cc/150?u=${encodeURIComponent(String(avatarSeed))}`;
+    // Do not provide a dummy/pravatar fallback — prefer null so AvatarImage renders empty box when no image exists
+    const avatarUri: null = null;
 
     return (
         <LinearGradient
@@ -507,10 +508,7 @@ export default function ProfileScreen() {
                     <View style={st.avatarWrap}>
                         <AvatarRing />
                         {/* Use AvatarImage which normalizes/probes profile URLs and handles fallbacks */}
-                        <AvatarImage
-                            src={profile?.profile_pic_url ?? avatarUri}
-                            style={st.avatarImg}
-                        />
+                        <AvatarImage src={profile?.profile_pic_url ?? null} style={st.avatarImg} />
                         <View style={st.onlineDot} />
                     </View>
                     <View style={st.userInfo}>

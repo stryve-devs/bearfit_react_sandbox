@@ -81,10 +81,10 @@ const IS_ANDROID = Platform.OS === 'android';
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
 const ATHLETES: Athlete[] = [
-  { name: 'Alex', username: 'alexfit', avatarUrl: 'https://i.pravatar.cc/150?img=12' },
-  { name: 'Maya', username: 'mayalifts', avatarUrl: 'https://i.pravatar.cc/150?img=32' },
-  { name: 'Noah', username: 'noahrun', avatarUrl: 'https://i.pravatar.cc/150?img=56' },
-  { name: 'Sara', username: 'sarahit', avatarUrl: 'https://i.pravatar.cc/150?img=3' },
+  { name: 'Alex', username: 'alexfit', avatarUrl: null as any },
+  { name: 'Maya', username: 'mayalifts', avatarUrl: null as any },
+  { name: 'Noah', username: 'noahrun', avatarUrl: null as any },
+  { name: 'Sara', username: 'sarahit', avatarUrl: null as any },
 ];
 
 const QUICK_EMOJIS = ['💪', '🔥', '👏', '🏋️', '👊', '🥵', '🏆'];
