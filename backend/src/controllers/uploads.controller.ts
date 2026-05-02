@@ -110,6 +110,85 @@ export const getUploadUrlDebug = async (req: Request, res: Response) => {
     }
 };
 
+// New: presign specifically for Measurement entry photos under profile/Measurements/
+export const getMeasurementUploadUrl = async (req: Request, res: Response) => {
+    try {
+        const userId = (req as any).user?.userId;
+        if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+
+        const { filename = 'measurement.jpg', contentType = 'image/jpeg' } = req.body;
+        const ext = (filename.split('.').pop() || 'jpg').replace(/[^a-z0-9]/gi, '').toLowerCase();
+        const base = sanitizeFilename(filename);
+        const key = `profile/Measurements/${base}-${uuidv4()}.${ext}`;
+
+        const command = new PutObjectCommand({
+            Bucket: R2_BUCKET_NAME,
+            Key: key,
+            ContentType: contentType,
+        });
+
+        const url = await getSignedUrl(s3Client, command, { expiresIn: 60 * 5 }); // 5 minutes
+
+        let publicUrl: string;
+        if (R2_PUBLIC_URL) {
+            publicUrl = `${R2_PUBLIC_URL.replace(/\/$/, '')}/${encodeKeyForUrl(key)}`;
+        } else if (R2_ENDPOINT) {
+            publicUrl = `${R2_ENDPOINT.replace(/\/$/, '')}/${encodeKeyForUrl(key)}`;
+        } else {
+            publicUrl = `https://${R2_BUCKET_NAME}.s3.auto.amazonaws.com/${encodeKeyForUrl(key)}`;
+        }
+
+        console.log('[uploads.controller] generated measurement publicUrl', publicUrl);
+
+        return res.status(200).json({ uploadUrl: url, publicUrl, key });
+    } catch (error) {
+        console.error('[uploads.controller] getMeasurementUploadUrl error', error);
+        return res.status(500).json({ message: 'Failed to get measurement upload URL' });
+    }
+};
+
+// New: server-side proxy upload for measurement photos. Accepts raw image body (express.raw) and uploads to R2.
+export const uploadMeasurementProxy = async (req: Request, res: Response) => {
+    try {
+        const userId = (req as any).user?.userId;
+        if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+
+        // Raw body expected (Buffer)
+        const bodyBuffer = req.body as Buffer | undefined;
+        if (!bodyBuffer || bodyBuffer.length === 0) return res.status(400).json({ message: 'Empty body' });
+
+        const contentType = String(req.headers['content-type'] || 'image/jpeg');
+        const filenameHeader = String(req.headers['x-filename'] || 'measurement.jpg');
+        const ext = (filenameHeader.split('.').pop() || 'jpg').replace(/[^a-z0-9]/gi, '').toLowerCase();
+        const base = sanitizeFilename(filenameHeader || `measurement`);
+        const key = `profile/Measurements/${base}-${uuidv4()}.${ext}`;
+
+        const command = new PutObjectCommand({
+            Bucket: R2_BUCKET_NAME,
+            Key: key,
+            ContentType: contentType,
+            Body: bodyBuffer,
+        });
+
+        await s3Client.send(command);
+
+        let publicUrl: string;
+        if (R2_PUBLIC_URL) {
+            publicUrl = `${R2_PUBLIC_URL.replace(/\/$/, '')}/${encodeKeyForUrl(key)}`;
+        } else if (R2_ENDPOINT) {
+            publicUrl = `${R2_ENDPOINT.replace(/\/$/, '')}/${encodeKeyForUrl(key)}`;
+        } else {
+            publicUrl = `https://${R2_BUCKET_NAME}.s3.auto.amazonaws.com/${encodeKeyForUrl(key)}`;
+        }
+
+        console.log('[uploads.controller] uploaded measurement via proxy, publicUrl:', publicUrl);
+        return res.status(200).json({ publicUrl, key });
+    } catch (error) {
+        console.error('[uploads.controller] uploadMeasurementProxy error', error);
+        return res.status(500).json({ message: 'Failed to upload measurement' });
+    }
+};
+
 export const proxyImage = async (req: Request, res: Response) => {
     try {
         const key = String(req.query.key || '').trim();

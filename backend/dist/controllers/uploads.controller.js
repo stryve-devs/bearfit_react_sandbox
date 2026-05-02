@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.proxyImage = exports.getUploadUrlDebug = exports.getUploadUrl = void 0;
+exports.proxyImage = exports.getMeasurementUploadUrl = exports.getUploadUrlDebug = exports.getUploadUrl = void 0;
 const client_s3_1 = require("@aws-sdk/client-s3");
 const s3_request_presigner_1 = require("@aws-sdk/s3-request-presigner");
 const uuid_1 = require("uuid");
@@ -105,6 +105,41 @@ const getUploadUrlDebug = async (req, res) => {
     }
 };
 exports.getUploadUrlDebug = getUploadUrlDebug;
+// New: presign specifically for Measurement entry photos under profile/Measurements/
+const getMeasurementUploadUrl = async (req, res) => {
+    try {
+        const userId = req.user?.userId;
+        if (!userId)
+            return res.status(401).json({ message: 'Unauthorized' });
+        const { filename = 'measurement.jpg', contentType = 'image/jpeg' } = req.body;
+        const ext = (filename.split('.').pop() || 'jpg').replace(/[^a-z0-9]/gi, '').toLowerCase();
+        const base = sanitizeFilename(filename);
+        const key = `profile/Measurements/${base}-${(0, uuid_1.v4)()}.${ext}`;
+        const command = new client_s3_1.PutObjectCommand({
+            Bucket: R2_BUCKET_NAME,
+            Key: key,
+            ContentType: contentType,
+        });
+        const url = await (0, s3_request_presigner_1.getSignedUrl)(s3Client, command, { expiresIn: 60 * 5 }); // 5 minutes
+        let publicUrl;
+        if (R2_PUBLIC_URL) {
+            publicUrl = `${R2_PUBLIC_URL.replace(/\/$/, '')}/${encodeKeyForUrl(key)}`;
+        }
+        else if (R2_ENDPOINT) {
+            publicUrl = `${R2_ENDPOINT.replace(/\/$/, '')}/${encodeKeyForUrl(key)}`;
+        }
+        else {
+            publicUrl = `https://${R2_BUCKET_NAME}.s3.auto.amazonaws.com/${encodeKeyForUrl(key)}`;
+        }
+        console.log('[uploads.controller] generated measurement publicUrl', publicUrl);
+        return res.status(200).json({ uploadUrl: url, publicUrl, key });
+    }
+    catch (error) {
+        console.error('[uploads.controller] getMeasurementUploadUrl error', error);
+        return res.status(500).json({ message: 'Failed to get measurement upload URL' });
+    }
+};
+exports.getMeasurementUploadUrl = getMeasurementUploadUrl;
 const proxyImage = async (req, res) => {
     try {
         const key = String(req.query.key || '').trim();

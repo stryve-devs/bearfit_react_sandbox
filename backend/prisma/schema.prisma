@@ -34,6 +34,7 @@ model users {
   Food            Food[]
   Like            Like[]
   Meal            Meal[]
+  Measurement     Measurement[]
   PersonalRecord  PersonalRecord[]
   Post            Post[]
   Routine         Routine[]
@@ -299,6 +300,35 @@ model user_follows {
 
   @@id([follower_id, following_id])
   @@index([following_id])
+}
+
+model Measurement {
+  measurement_id   Int      @id @default(autoincrement())
+  user_id          Int
+  measurement_date DateTime @db.Date
+  body_weight      Decimal? @db.Decimal(5, 2)
+  waist            Decimal? @db.Decimal(5, 2)
+  body_fat         Decimal? @db.Decimal(5, 2)
+  lean_body_mass   Decimal? @db.Decimal(5, 2)
+  neck             Decimal? @db.Decimal(5, 2)
+  shoulder         Decimal? @db.Decimal(5, 2)
+  chest            Decimal? @db.Decimal(5, 2)
+  left_bicep       Decimal? @db.Decimal(5, 2)
+  right_bicep      Decimal? @db.Decimal(5, 2)
+  left_forearm     Decimal? @db.Decimal(5, 2)
+  right_forearm    Decimal? @db.Decimal(5, 2)
+  abdomen          Decimal? @db.Decimal(5, 2)
+  left_thigh       Decimal? @db.Decimal(5, 2)
+  right_thigh      Decimal? @db.Decimal(5, 2)
+  left_calf        Decimal? @db.Decimal(5, 2)
+  right_calf       Decimal? @db.Decimal(5, 2)
+  created_at       DateTime @default(now())
+  updated_at       DateTime
+  entry_image_url  String?  @db.VarChar(500)
+  users            users    @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+  @@index([measurement_date])
+  @@index([user_id])
 }
 
 enum Role {

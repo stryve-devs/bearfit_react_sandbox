@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createPostComment = exports.togglePostLike = exports.getDiscoverPostById = exports.getDiscoverPosts = exports.saveWorkoutPost = void 0;
+exports.createPostComment = exports.togglePostLike = exports.getDiscoverPostById = exports.getUserProfilePosts = exports.getDiscoverPosts = exports.saveWorkoutPost = void 0;
 const client_1 = require("@prisma/client");
 const prismaClient_1 = __importDefault(require("../../config/prismaClient"));
 const avatarFromUserId = (userId) => {
@@ -214,10 +214,52 @@ const mapPrismaPostToDiscoverPost = (post, userId) => {
         comments: (post.Comment || []).map((comment) => mapCommentTree(comment)),
     };
 };
-const getDiscoverPosts = async (userId, limit, cursor) => {
+const discoverPostInclude = {
+    users: { select: { user_id: true, username: true, name: true, profile_pic_url: true } },
+    workouts: {
+        include: {
+            workout_exercises: {
+                include: {
+                    WorkoutSet: true,
+                    exercises: {
+                        select: {
+                            name: true,
+                            image: true,
+                        },
+                    },
+                },
+            },
+        },
+    },
+    PostMedia: {
+        orderBy: { order: 'asc' },
+        select: { url: true, type: true },
+    },
+    Like: {
+        orderBy: { created_at: 'asc' },
+        select: {
+            user_id: true,
+            users: { select: { username: true, name: true, profile_pic_url: true } },
+        },
+    },
+    Comment: {
+        where: { parent_id: null },
+        include: {
+            users: { select: { username: true, name: true, profile_pic_url: true } },
+            other_Comment: {
+                include: {
+                    users: { select: { username: true, name: true, profile_pic_url: true } },
+                },
+                orderBy: { created_at: 'asc' },
+            },
+        },
+        orderBy: { created_at: 'asc' },
+    },
+};
+const getPostFeed = async (userId, options) => {
+    const { limit, cursor, where, orderBy } = options;
     const rows = await prismaClient_1.default.post.findMany({
-        // Exclude the requesting user's own posts so Discover shows content from others
-        where: { visibility: 'PUBLIC', user_id: { not: userId } },
+        where,
         ...(cursor
             ? {
                 skip: 1,
@@ -225,55 +267,11 @@ const getDiscoverPosts = async (userId, limit, cursor) => {
             }
             : {}),
         take: limit + 1,
-        orderBy: [
-            { likes_count: 'desc' },
+        orderBy: orderBy || [
             { created_at: 'desc' },
             { post_id: 'desc' },
         ],
-        include: {
-            // Include profile_pic_url so we can return the user's stored public avatar URL
-            users: { select: { user_id: true, username: true, name: true, profile_pic_url: true } },
-            workouts: {
-                include: {
-                    workout_exercises: {
-                        include: {
-                            WorkoutSet: true,
-                            exercises: {
-                                select: {
-                                    name: true,
-                                    image: true,
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-            PostMedia: {
-                orderBy: { order: 'asc' },
-                select: { url: true, type: true },
-            },
-            Like: {
-                orderBy: { created_at: 'asc' },
-                select: {
-                    user_id: true,
-                    // Include profile_pic_url so likedByAvatarUrls can use user's real avatar when available
-                    users: { select: { username: true, name: true, profile_pic_url: true } },
-                },
-            },
-            Comment: {
-                where: { parent_id: null },
-                include: {
-                    users: { select: { username: true, name: true, profile_pic_url: true } },
-                    other_Comment: {
-                        include: {
-                            users: { select: { username: true, name: true, profile_pic_url: true } },
-                        },
-                        orderBy: { created_at: 'asc' },
-                    },
-                },
-                orderBy: { created_at: 'asc' },
-            },
-        },
+        include: discoverPostInclude,
     });
     const hasMore = rows.length > limit;
     const pageRows = hasMore ? rows.slice(0, limit) : rows;
@@ -283,7 +281,32 @@ const getDiscoverPosts = async (userId, limit, cursor) => {
         : null;
     return { posts, nextCursor };
 };
+const getDiscoverPosts = async (userId, limit, cursor) => {
+    return getPostFeed(userId, {
+        limit,
+        cursor,
+        // Exclude the requesting user's own posts so Discover shows content from others
+        where: { visibility: 'PUBLIC', user_id: { not: userId } },
+        orderBy: [
+            { likes_count: 'desc' },
+            { created_at: 'desc' },
+            { post_id: 'desc' },
+        ],
+    });
+};
 exports.getDiscoverPosts = getDiscoverPosts;
+const getUserProfilePosts = async (viewerUserId, targetUserId, limit, cursor) => {
+    const where = {
+        user_id: targetUserId,
+        ...(viewerUserId === targetUserId ? {} : { visibility: 'PUBLIC' }),
+    };
+    return getPostFeed(viewerUserId, {
+        limit,
+        cursor,
+        where,
+    });
+};
+exports.getUserProfilePosts = getUserProfilePosts;
 const getDiscoverPostById = async (userId, postId) => {
     const post = await prismaClient_1.default.post.findFirst({
         where: {

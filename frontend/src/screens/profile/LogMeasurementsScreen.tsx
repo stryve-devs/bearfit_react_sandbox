@@ -11,6 +11,9 @@ import {
     Dimensions,
     Platform,
     KeyboardAvoidingView,
+    Image,
+    ActivityIndicator,
+    Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
@@ -21,6 +24,11 @@ import Animated, {
     FadeInDown,
     ScaleInDown,
 } from "react-native-reanimated";
+
+import * as ImagePicker from "expo-image-picker";
+import * as FileSystem from 'expo-file-system';
+import * as FileSystemLegacy from 'expo-file-system/legacy';
+import { measurementsService } from '@/api/services/measurements.service';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const ORANGE = "#FF7825";
@@ -40,6 +48,11 @@ export default function LogMeasurementsScreen() {
     const [selectedDate, setSelectedDate] = useState(new Date());
     const [viewDate, setViewDate] = useState(new Date());
     const [activeInput, setActiveInput] = useState<string | null>(null);
+
+    // Image state for entry photo
+    const [entryImageUri, setEntryImageUri] = useState<string | null>(null);
+    const [entryUploading, setEntryUploading] = useState(false);
+    const [imageError, setImageError] = useState<string | null>(null);
 
     const [measurements, setMeasurements] = useState({
         "Body Weight (kg)": "",
@@ -61,9 +74,88 @@ export default function LogMeasurementsScreen() {
     });
 
     // --- LOGIC: SAVE BUTTON VALIDATION ---
-    const filledCount = Object.values(measurements).filter(v => v.trim() !== "").length;
+    const filledCount = Object.values(measurements).filter(v => (v as string).trim() !== "").length;
     const canSave = filledCount > 0;
     const progressWidth = (filledCount / Object.keys(measurements).length) * 100;
+
+    async function handlePickEntryPhoto(source: "camera" | "library") {
+        try {
+            setImageError(null);
+            // Request appropriate permission
+            if (source === "camera") {
+                const permission = await ImagePicker.requestCameraPermissionsAsync();
+                if (permission.status !== "granted") {
+                    Alert.alert('Permission Denied', 'Camera permission is required');
+                    return;
+                }
+                const result = await ImagePicker.launchCameraAsync({
+                    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                    allowsEditing: true,
+                    quality: 0.8,
+                });
+                if (!result.canceled && result.assets?.length > 0) {
+                    const uri = result.assets[0].uri;
+                    setEntryImageUri(uri);
+                }
+            } else {
+                const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                if (permission.status !== "granted") {
+                    Alert.alert('Permission Denied', 'Gallery permission is required');
+                    return;
+                }
+                const result = await ImagePicker.launchImageLibraryAsync({
+                    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                    allowsEditing: true,
+                    quality: 0.8,
+                });
+                if (!result.canceled && result.assets?.length > 0) {
+                    const uri = result.assets[0].uri;
+                    setEntryImageUri(uri);
+                }
+            }
+        } catch (err) {
+            console.error('Failed to pick image', err);
+            setImageError('Failed to pick image');
+            Alert.alert('Error', 'Failed to pick image');
+        } finally {
+            setShowPicker(false);
+        }
+    }
+
+    async function uploadBlobToUrl(uploadUrl: string, blob: Blob, contentType: string) {
+        console.log('[uploadBlobToUrl] uploadUrl:', uploadUrl);
+        try {
+            const res = await fetch(uploadUrl, {
+                method: 'PUT',
+                headers: { 'Content-Type': contentType },
+                body: blob,
+            });
+            if (!res.ok) throw new Error('Upload failed status ' + res.status);
+            return;
+        } catch (err) {
+            console.warn('[uploadBlobToUrl] fetch PUT failed, attempting XHR fallback', err);
+            // XHR fallback (works more reliably on some RN setups)
+            return await new Promise<void>((resolve, reject) => {
+                try {
+                    const xhr = new XMLHttpRequest();
+                    xhr.open('PUT', uploadUrl);
+                    xhr.setRequestHeader('Content-Type', contentType);
+                    xhr.onload = () => {
+                        if (xhr.status >= 200 && xhr.status < 300) {
+                            resolve();
+                        } else {
+                            reject(new Error('XHR upload failed status ' + xhr.status));
+                        }
+                    };
+                    xhr.onerror = () => reject(new Error('XHR upload network error'));
+                    // Some environments require responseType; not needed for PUT
+                    xhr.send(blob as any);
+                } catch (e) {
+                    reject(e);
+                }
+            });
+        }
+    }
 
     function generateCalendar(date: Date) {
         const year = date.getFullYear();
@@ -100,15 +192,121 @@ export default function LogMeasurementsScreen() {
                     <TouchableOpacity
                         disabled={!canSave}
                         style={[styles.saveBtn, { opacity: canSave ? 1 : 0.4 }]}
-                        onPress={() => {
-                            GLOBAL_HISTORY.push({ date: selectedDate.toISOString(), measurements });
-                            router.replace("/(tabs)/Profile/log-measurements");
+                        onPress={async () => {
+                            // Save flow: if there's an entryImageUri (local file), presign then upload, then persist measurement
+                            let publicUrl: string | null = entryImageUri;
+                            try {
+                                const localUriPattern = /^(file:|content:|blob:|data:)/i;
+                                let entryImageKey: string | null = null;
+                                if (entryImageUri && localUriPattern.test(entryImageUri)) {
+                                     setEntryUploading(true);
+                                     const filename = entryImageUri.split('/').pop() || `measurement.jpg`;
+                                     const contentType = 'image/jpeg';
+
+                                     // Get presigned URL from backend
+                                     const presign = await measurementsService.presignMeasurementPhoto(filename, contentType);
+
+                                     // Try Expo FileSystem PUT (more reliable on RN/Expo)
+                                     try {
+                                        console.log('[Save] attempting FileSystem.uploadAsync to', presign.uploadUrl);
+                                        const fsRes = await FileSystemLegacy.uploadAsync(presign.uploadUrl, entryImageUri, {
+                                            httpMethod: 'PUT',
+                                            headers: { 'Content-Type': contentType },
+                                        });
+                                         if (fsRes.status && fsRes.status >= 200 && fsRes.status < 300) {
+                                            console.log('[Save] FileSystem.uploadAsync succeeded', fsRes.status);
+                                            // Use the presigned publicUrl when presigned upload succeeded
+                                            publicUrl = presign.publicUrl;
+                                            entryImageKey = presign.key;
+                                         } else {
+                                            throw new Error('FileSystem.uploadAsync status ' + fsRes.status);
+                                         }
+                                    } catch (fsErr) {
+                                        console.warn('[Save] FileSystem.uploadAsync to presigned URL failed', fsErr);
+                                        // Try backend proxy as a fallback: upload directly to our backend which will PUT to R2
+                                        try {
+                                            console.log('[Save] attempting proxy upload to backend');
+                                            const backendUploadUrl = `${process.env.EXPO_PUBLIC_API_URL || 'http://192.168.1.215:3001'}/api/uploads/proxy-measurement`;
+                                            const proxyRes = await FileSystemLegacy.uploadAsync(backendUploadUrl, entryImageUri, {
+                                                httpMethod: 'POST',
+                                                headers: { 'Content-Type': contentType, 'x-filename': filename },
+                                            });
+                                            if (proxyRes.status && proxyRes.status >= 200 && proxyRes.status < 300) {
+                                                // backend returns { publicUrl, key }
+                                                try {
+                                                    const parsed = JSON.parse(proxyRes.body || '{}');
+                                                    if (parsed.publicUrl) {
+                                                        publicUrl = parsed.publicUrl;
+                                                        entryImageKey = parsed.key || null;
+                                                        console.log('[Save] proxy upload succeeded, publicUrl:', publicUrl, 'key:', entryImageKey);
+                                                    }
+                                                } catch (e) {
+                                                    console.warn('[Save] failed to parse proxy response', e);
+                                                }
+                                            } else {
+                                                throw new Error('Proxy upload failed status ' + proxyRes.status);
+                                            }
+                                        } catch (proxyErr) {
+                                            console.error('[Save] proxy upload also failed', proxyErr);
+                                            throw proxyErr;
+                                        }
+                                    }
+                                 }
+
+                                 // Create measurement record in backend
+                                const parseNum = (v: any) => {
+                                    if (v == null) return null;
+                                    const s = String(v).trim();
+                                    if (s === '') return null;
+                                    const n = parseFloat(s.replace(/,/g, ''));
+                                    return Number.isFinite(n) ? n : null;
+                                };
+
+                                const payload = {
+                                    measurement_date: selectedDate.toISOString(),
+                                    body_weight: parseNum(measurements['Body Weight (kg)']),
+                                    waist: parseNum(measurements['Waist (cm)']),
+                                    body_fat: parseNum(measurements['Body Fat (%)']),
+                                    lean_body_mass: parseNum(measurements['Lean Body Mass (kg)']),
+                                    neck: parseNum(measurements['Neck (cm)']),
+                                    shoulder: parseNum(measurements['Shoulder (cm)']),
+                                    chest: parseNum(measurements['Chest (cm)']),
+                                    left_bicep: parseNum(measurements['Left Bicep (cm)']),
+                                    right_bicep: parseNum(measurements['Right Bicep (cm)']),
+                                    left_forearm: parseNum(measurements['Left Forearm (cm)']),
+                                    right_forearm: parseNum(measurements['Right Forearm (cm)']),
+                                    abdomen: parseNum(measurements['Abdomen (cm)']),
+                                    left_thigh: parseNum(measurements['Left Thigh (cm)']),
+                                    right_thigh: parseNum(measurements['Right Thigh (cm)']),
+                                    left_calf: parseNum(measurements['Left Calf (cm)']),
+                                    right_calf: parseNum(measurements['Right Calf (cm)']),
+                                    entry_image_url: publicUrl,
+                                    entry_image_key: entryImageKey,
+                                };
+
+                                try {
+                                    await measurementsService.createMeasurement(payload);
+                                } catch (err) {
+                                    console.warn('Failed to persist measurement to backend', err);
+                                }
+                            } catch (err) {
+                                console.error('Save flow error', err);
+                                Alert.alert('Save failed', 'Could not upload photo or save measurement.');
+                            } finally {
+                                setEntryUploading(false);
+                                GLOBAL_HISTORY.push({
+                                    date: selectedDate.toISOString(),
+                                    measurements,
+                                    entry_image_url: publicUrl,
+                                });
+                                router.replace("/(tabs)/Profile/log-measurements");
+                            }
                         }}
-                    >
-                        <LinearGradient colors={[ORANGE, "#FF4D00"]} style={styles.saveGradient}>
-                            <Text style={styles.saveText}>Save</Text>
-                        </LinearGradient>
-                    </TouchableOpacity>
+                     >
+                         <LinearGradient colors={[ORANGE, "#FF4D00"]} style={styles.saveGradient}>
+                             <Text style={styles.saveText}>Save</Text>
+                         </LinearGradient>
+                     </TouchableOpacity>
                 </View>
 
                 {/* NEON PROGRESS BAR */}
@@ -137,10 +335,14 @@ export default function LogMeasurementsScreen() {
                         </View>
 
                         <TouchableOpacity style={styles.photoBox} onPress={() => setShowPicker(true)}>
-                            <LinearGradient colors={["rgba(255,120,37,0.05)", "transparent"]} style={styles.photoGradient}>
-                                <Feather name="camera" size={28} color={ORANGE} />
-                                <Text style={styles.addPic}>Add Entry Photo</Text>
-                            </LinearGradient>
+                            {entryImageUri ? (
+                                <Image source={{ uri: entryImageUri }} style={styles.photoPreview} resizeMode="cover" />
+                            ) : (
+                                <LinearGradient colors={["rgba(255,120,37,0.05)", "transparent"]} style={styles.photoGradient}>
+                                    <Feather name="camera" size={28} color={ORANGE} />
+                                    <Text style={styles.addPic}>Add Entry Photo</Text>
+                                </LinearGradient>
+                            )}
                         </TouchableOpacity>
 
                         <Text style={styles.sectionTitle}>Detailed Measurements</Text>
@@ -158,7 +360,7 @@ export default function LogMeasurementsScreen() {
                                         value={measurements[item as keyof typeof measurements]}
                                         onFocus={() => setActiveInput(item)}
                                         onBlur={() => setActiveInput(null)}
-                                        onChangeText={(text) => setMeasurements({...measurements, [item]: text})}
+                                        onChangeText={(text: string) => setMeasurements({...measurements, [item]: text})}
                                         placeholder="0.0"
                                         placeholderTextColor="#222"
                                         keyboardType="decimal-pad"
@@ -195,15 +397,16 @@ export default function LogMeasurementsScreen() {
                         <View style={styles.handle} />
                         <Text style={styles.sheetTitle}>Upload Photo</Text>
                         <View style={styles.optionRow}>
-                            <TouchableOpacity style={styles.optionItem} onPress={() => setShowPicker(false)}>
+                            <TouchableOpacity style={styles.optionItem} onPress={() => handlePickEntryPhoto("camera")}>
                                 <View style={styles.optionIcon}><Feather name="camera" size={24} color="#fff" /></View>
                                 <Text style={styles.optionText}>Camera</Text>
                             </TouchableOpacity>
-                            <TouchableOpacity style={styles.optionItem} onPress={() => setShowPicker(false)}>
+                            <TouchableOpacity style={styles.optionItem} onPress={() => handlePickEntryPhoto("library")}>
                                 <View style={[styles.optionIcon, { backgroundColor: '#111' }]}><Feather name="image" size={24} color="#fff" /></View>
                                 <Text style={styles.optionText}>Library</Text>
                             </TouchableOpacity>
                         </View>
+                        {entryUploading && <ActivityIndicator style={{ marginTop: 20 }} color={ORANGE} />}
                     </View>
                 </View>
             </Modal>
@@ -296,6 +499,7 @@ const styles = StyleSheet.create({
     sectionTitle: { color: "#333", fontWeight: "800", textTransform: 'uppercase', fontSize: 10, letterSpacing: 1.5, marginVertical: 10 },
     photoBox: { borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: '#111', borderStyle: 'dashed' },
     photoGradient: { paddingVertical: 35, alignItems: 'center', justifyContent: 'center' },
+    photoPreview: { width: '100%', height: 180, borderRadius: 24, backgroundColor: '#000' },
     addPic: { color: ORANGE, marginTop: 10, fontWeight: "800", fontSize: 13 },
     inputCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#0A0A0A', borderRadius: 20, padding: 16, marginBottom: 8, borderWidth: 1, borderColor: '#0F0F0F' },
     activeInputCard: { borderColor: 'rgba(255,120,37,0.3)', backgroundColor: '#0F0F0F' },
@@ -338,3 +542,4 @@ const styles = StyleSheet.create({
     optionIcon: { width: 70, height: 70, backgroundColor: ORANGE, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
     optionText: { color: '#fff', fontSize: 14, fontWeight: '600' },
 });
+

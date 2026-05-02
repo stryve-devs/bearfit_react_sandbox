@@ -3,6 +3,7 @@ import authRoutes from './auth/auth.routes';
 import usersRoutes from './users.routes';
 import uploadsRoutes from './uploads.routes';
 import workoutRoutes from './workout/workout.routes';
+import measurementsRoutes from './measurements.routes';
 
 const router = Router();
 
@@ -10,6 +11,7 @@ router.use('/auth', authRoutes);
 router.use('/users', usersRoutes);
 router.use('/uploads', uploadsRoutes);
 router.use('/workouts', workoutRoutes);
+router.use('/measurements', measurementsRoutes);
 
 // Health check (can also be in server.ts)
 router.get('/health', (req: Request, res: Response) => {

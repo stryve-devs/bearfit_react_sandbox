@@ -5,6 +5,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.removeFollowerController = exports.suggestedUsers = exports.updateProfile = exports.unfollow = exports.follow = exports.me = exports.verifyOtp = exports.sendOtp = exports.checkEmailExists = exports.registerGoogle = exports.googleAuth = exports.logout = exports.refresh = exports.login = exports.register = exports.checkUsernameExists = void 0;
 const auth_service_1 = require("../../services/auth/auth.service");
+const user_service_1 = require("../../services/user/user.service");
+const follow_service_1 = require("../../services/follow/follow.service");
 const jwtUtils_1 = require("../../utils/jwtUtils");
 const prismaClient_1 = __importDefault(require("../../config/prismaClient"));
 const otp_service_1 = __importDefault(require("../../services/auth/otp.service"));
@@ -266,7 +268,7 @@ const me = async (req, res) => {
         if (!userId) {
             return res.status(401).json({ message: "Unauthorized" });
         }
-        const profile = await (0, auth_service_1.getCurrentUserProfile)(userId);
+        const profile = await (0, user_service_1.getCurrentUserProfile)(userId);
         console.log('[auth.controller] me profile:', profile);
         return res.status(200).json(profile);
     }
@@ -285,7 +287,7 @@ const follow = async (req, res) => {
             return res.status(401).json({ message: 'Unauthorized' });
         }
         const params = validationSchemas_1.targetUserIdParamsSchema.parse(req.params);
-        const result = await (0, auth_service_1.followUser)(userId, params.targetUserId);
+        const result = await (0, follow_service_1.followUser)(userId, params.targetUserId);
         return res.status(200).json(result);
     }
     catch (error) {
@@ -306,7 +308,7 @@ const unfollow = async (req, res) => {
             return res.status(401).json({ message: 'Unauthorized' });
         }
         const params = validationSchemas_1.targetUserIdParamsSchema.parse(req.params);
-        const result = await (0, auth_service_1.unfollowUser)(userId, params.targetUserId);
+        const result = await (0, follow_service_1.unfollowUser)(userId, params.targetUserId);
         return res.status(200).json(result);
     }
     catch (error) {
@@ -410,7 +412,7 @@ const suggestedUsers = async (req, res) => {
         if (!userId)
             return res.status(401).json({ message: 'Unauthorized' });
         const limit = Number(req.query.limit || 8);
-        const users = await (0, auth_service_1.getSuggestedUsers)(userId, limit);
+        const users = await (0, follow_service_1.getSuggestedUsers)(userId, limit);
         return res.status(200).json({ users });
     }
     catch (error) {
@@ -427,7 +429,7 @@ const removeFollowerController = async (req, res) => {
         const followerId = Number(req.params.followerId);
         if (!followerId)
             return res.status(400).json({ message: 'Invalid follower id' });
-        const result = await (0, auth_service_1.removeFollower)(userId, followerId);
+        const result = await (0, follow_service_1.removeFollower)(userId, followerId);
         return res.status(200).json({ removed: result.removed });
     }
     catch (error) {
