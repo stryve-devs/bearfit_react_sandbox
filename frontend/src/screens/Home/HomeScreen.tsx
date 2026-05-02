@@ -580,7 +580,15 @@ export default function HomeScreen() {
                                     cardWidth={cardWidth}
                                     isFollowed={followed.has(item.username)}
                                     onToggle={() => toggleFollow(item)}
-                                    onPress={() => router.push(`/Profile/${item.username}`)}
+                                    // Navigate to the user profile route and pass the user's details
+                                    onPress={() => router.push({
+                                        pathname: "/(tabs)/home/userid",
+                                        params: {
+                                            userId: item.username,
+                                            name: item.name,
+                                            image: item.avatarUrl,
+                                        },
+                                    })}
                                 />
                             )}
                         />

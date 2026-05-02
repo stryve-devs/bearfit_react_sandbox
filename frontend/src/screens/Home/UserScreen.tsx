@@ -604,6 +604,100 @@ function PostCard({ post, index, onOpenComments, onUpdatePost }: any) {
     );
 }
 
+// ─── PEOPLE MODAL ─────────────────────────────────────────────
+function PeopleModal({ visible, onClose, title, targetUserId }: any) {
+    const [loading, setLoading] = useState(false);
+    const [items, setItems] = useState<any[]>([]);
+    const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        let mounted = true;
+        const load = async () => {
+            if (!visible) return;
+            if (!targetUserId) {
+                setItems([]);
+                return;
+            }
+            setLoading(true);
+            setError(null);
+            try {
+                const mode = String(title || '').toLowerCase();
+                let result: any[] = [];
+                if (mode.includes('follower')) {
+                    result = await userService.getFollowers(targetUserId);
+                } else {
+                    // default to following if title is 'Following' or any other
+                    result = await userService.getFollowing(targetUserId);
+                }
+                if (mounted) setItems(result || []);
+            } catch (e: any) {
+                console.error('[PeopleModal] failed to load', e);
+                if (mounted) setError(e?.message || 'Failed to load');
+            } finally {
+                if (mounted) setLoading(false);
+            }
+        };
+        load();
+        return () => { mounted = false; };
+    }, [visible, targetUserId, title]);
+
+    return (
+        <Modal visible={!!visible} animationType="slide" transparent onRequestClose={onClose}>
+            <View style={styles.modalOverlay}>
+                <KeyboardAvoidingView behavior={IS_ANDROID ? 'height' : 'padding'} style={styles.sheetKav}>
+                    <View style={styles.commentsSheet}>
+                        <View style={styles.handleArea}>
+                            <View style={styles.sheetHandle} />
+                        </View>
+
+                        <Text style={styles.sheetTitle}>{title || 'People'}</Text>
+
+                        <View style={{ paddingHorizontal: 16, paddingVertical: 10 }}>
+                            {loading ? (
+                                <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                                    <ActivityIndicator size="small" color={C.orange} />
+                                </View>
+                            ) : error ? (
+                                <View style={styles.emptyComments}>
+                                    <Text style={styles.emptyCommentsText}>Error: {error}</Text>
+                                </View>
+                            ) : items.length === 0 ? (
+                                <View style={styles.emptyComments}>
+                                    <Text style={styles.emptyCommentsText}>No users to show.</Text>
+                                    <Text style={[styles.emptyCommentsText, { fontSize: 12, color: C.gray }]}>This list is empty.</Text>
+                                </View>
+                            ) : (
+                                <ScrollView style={{ maxHeight: 340 }} showsVerticalScrollIndicator={false}>
+                                    {items.map((u: any) => (
+                                        <View key={u.user_id} style={styles.peopleItem}>
+                                            <View style={styles.peopleAvatarWrap}>
+                                                <Image source={{ uri: u.profile_pic_url || u.avatar || 'https://i.pravatar.cc/80' }} style={styles.peopleAvatar} />
+                                            </View>
+                                            <View style={{ flex: 1, marginLeft: 12 }}>
+                                                <Text style={styles.peopleName}>{u.name || u.username}</Text>
+                                                <Text style={styles.peopleHandle}>@{u.username}</Text>
+                                            </View>
+                                            <TouchableOpacity onPress={() => { /* could implement follow/unfollow */ }} style={styles.peopleBtn}>
+                                                <Text style={styles.peopleBtnText}>View</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    ))}
+                                </ScrollView>
+                            )}
+                        </View>
+
+                        <View style={{ paddingHorizontal: 16 }}>
+                            <TouchableOpacity onPress={onClose} style={[styles.peopleBtn, { alignSelf: 'center', marginTop: 8 }]}>
+                                <Text style={styles.peopleBtnText}>Close</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </KeyboardAvoidingView>
+            </View>
+        </Modal>
+    );
+}
+
 // ─── MAIN SCREEN ──────────────────────────────────────────────
 export default function UserScreen() {
     const params = useLocalSearchParams();

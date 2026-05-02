@@ -410,6 +410,9 @@ const st = StyleSheet.create({
     justifyContent: 'center',
     overflow: 'hidden',
     position: 'relative',
+    backgroundColor: ORANGE,              // make send button visible
+    borderWidth: 0.5,
+    borderColor: 'rgba(255,255,255,0.06)',
   },
   mediaDotsRow: {
     flexDirection: 'row',

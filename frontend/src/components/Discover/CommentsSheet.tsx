@@ -20,7 +20,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import st, { ORANGE, MUTED, HINT, IS_ANDROID } from './styles';
+import st, { ORANGE, MUTED, HINT, IS_ANDROID, BG } from './styles';
 import AvatarImage from '@/components/common/AvatarImage';
 import CommentLike from './CommentLike';
 import type { Dispatch, SetStateAction } from 'react';
@@ -228,8 +228,8 @@ export default function CommentsSheet({
               style={[st.sendBtn, !commentDraft.trim() && { opacity: 0.4 }]}
               disabled={!commentDraft.trim()}
             >
-              <Animated.View style={st.sendBtn} />
-              <Ionicons name="arrow-up" size={IS_ANDROID ? 18 : 20} color={"#080808"} />
+              {/* icon sits on the orange circular button; use BG color so it contrasts */}
+              <Ionicons name="arrow-up" size={IS_ANDROID ? 18 : 20} color={BG} />
             </TouchableOpacity>
           </View>
         </Animated.View>
