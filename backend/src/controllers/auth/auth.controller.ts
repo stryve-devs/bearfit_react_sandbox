@@ -354,7 +354,7 @@ export const updateProfile = async (req: Request, res: Response) => {
     if (!userId) return res.status(401).json({ message: 'Unauthorized' });
 
     // Accept additional fields for profile updates
-    const { name, username, email, bio, link_url, sex, birthday, profile_pic_url, profile_pic_key } = req.body;
+    const { name, username, email, bio, link_url, sex, birthday, profile_pic_url, profile_pic_key, banner_url } = req.body;
 
     if (
       typeof name === 'undefined' &&
@@ -365,7 +365,8 @@ export const updateProfile = async (req: Request, res: Response) => {
       typeof sex === 'undefined' &&
       typeof birthday === 'undefined' &&
       typeof profile_pic_url === 'undefined' &&
-      typeof profile_pic_key === 'undefined'
+      typeof profile_pic_key === 'undefined' &&
+      typeof banner_url === 'undefined'
     ) {
       return res.status(400).json({ message: 'At least one updatable profile field is required' });
     }
@@ -483,6 +484,7 @@ export const updateProfile = async (req: Request, res: Response) => {
 
     // If client provided a full profile_pic_url, allow it
     if (typeof profile_pic_url !== 'undefined') updateData.profile_pic_url = profile_pic_url === null ? null : String(profile_pic_url).trim();
+    if (typeof banner_url !== 'undefined') updateData.banner_url = banner_url === null ? null : String(banner_url).trim();
 
     const updated = await prisma.users.update({
       where: { user_id: userId },
@@ -497,6 +499,7 @@ export const updateProfile = async (req: Request, res: Response) => {
         gender: true,
         date_of_birth: true,
         profile_pic_url: true,
+        banner_url: true,
       }
     });
 

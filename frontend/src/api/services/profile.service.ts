@@ -98,9 +98,48 @@ export interface ProfileUpdatePayload {
     sex?: string | null;
     birthday?: string | null;
     profile_pic_url?: string;
+    banner_url?: string | null;
 }
 
 export const profileService = {
+    async uploadBannerPicture(imageUri: string, onProgress?: (progress: number) => void): Promise<{ url: string; key: string }> {
+        ensureR2Config();
+
+        const { blob, bytes } = await toFileData(imageUri);
+        const extension = getImageExtension(imageUri);
+        const contentType = (blob && (blob as any).type) || 'image/jpeg';
+        const key = `profile/banner/${generateUuid()}${extension}`;
+
+        if (onProgress) onProgress(0.2);
+
+        await s3Client.send(new PutObjectCommand({
+            Bucket: R2_BUCKET_NAME,
+            Key: key,
+            Body: bytes,
+            ContentType: contentType,
+        }));
+
+        if (onProgress) onProgress(1);
+
+        const normalizeUrl = (u: string) => {
+            if (!u) return u;
+            try {
+                const urlObj = new URL(u);
+                urlObj.pathname = urlObj.pathname
+                    .split('/')
+                    .map((seg) => encodeURIComponent(decodeURIComponent(seg)))
+                    .join('/');
+                return urlObj.toString();
+            } catch (e) {
+                return encodeURI(u);
+            }
+        };
+
+        const rawUrl = R2_PUBLIC_URL ? `${R2_PUBLIC_URL.replace(/\/$/, '')}/${key.replace(/^\//, '')}` : key;
+        const url = normalizeUrl(rawUrl);
+        return { url, key };
+    },
+
     /**
      * Upload profile picture directly to R2 and return public URL + key
      */

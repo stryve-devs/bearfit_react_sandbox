@@ -760,7 +760,7 @@ export default function UserScreen() {
                 if (Array.isArray(arr)) {
                     return arr
                         .map((x: any) => ({ name: String(x?.name || '').trim(), url: String(x?.url || '').trim() }))
-                        .filter((x: { name: string; url: string }) => x.name && x.url)
+                        .filter((x: { name: string; url: string }) => x.name && x.url && x.name !== '__banner__')
                         .slice(0, 3);
                 }
             }
@@ -776,6 +776,7 @@ export default function UserScreen() {
         return urls.map((url) => ({ name: labelFromUrl(url), url }));
     };
     const profileLinks = parseProfileLinks(userData?.link_url);
+    const profileBannerUrl = (userData?.banner_url || '').trim();
     const normalizeExternalUrl = (value: string) => {
         if (!value) return '';
         if (/^https?:\/\//i.test(value)) return value;
@@ -1138,9 +1139,13 @@ export default function UserScreen() {
 
                 {/* PHOTO GRID */}
                 <Animated.View style={[{ height: HEADER_HEIGHT }, headerStyle]}>
-                    <View style={styles.grid}>
-                        {PHOTO_GRID.map((img, i) => <Image key={i} source={{ uri: img }} style={styles.gridImg} />)}
-                    </View>
+                    {profileBannerUrl ? (
+                        <Image source={{ uri: profileBannerUrl }} style={styles.gridImg} />
+                    ) : (
+                        <View style={styles.grid}>
+                            {PHOTO_GRID.map((img, i) => <Image key={i} source={{ uri: img }} style={styles.gridImg} />)}
+                        </View>
+                    )}
                     <LinearGradient colors={['transparent', C.bg]} style={styles.gridFade} />
                 </Animated.View>
 

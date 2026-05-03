@@ -3,6 +3,7 @@ export interface User {
     name?: string;     // 👈 Changed to optional to match DB (String?)
     username?: string;
     profile_pic_url?: string;
+    banner_url?: string;
     email: string;
     role: 'USER' | 'ADMIN';
 }
@@ -39,6 +40,7 @@ export interface MeProfileResponse {
     sex?: string | null;
     birthday?: string | null;
     profile_pic_url?: string | null;
+    banner_url?: string | null;
     followers: PublicProfileUser[];
     following: PublicProfileUser[];
     _count: {

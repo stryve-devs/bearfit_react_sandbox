@@ -468,17 +468,31 @@ export default function ProfileScreen() {
             return value.replace(/^https?:\/\//i, "");
         }
     };
-    const parseProfileLinks = (raw: string | null | undefined): Array<{ name: string; url: string }> => {
-        if (!raw) return [];
+    const parseProfileMeta = (raw: string | null | undefined): { links: Array<{ name: string; url: string }>; bannerUrl: string } => {
+        if (!raw) return { links: [], bannerUrl: "" };
         try {
             if (String(raw).trim().startsWith("[")) {
                 const arr = JSON.parse(String(raw));
                 if (Array.isArray(arr)) {
-                    return arr
+                    const normalized = arr
+                        .map((x: any) => ({ name: String(x?.name || "").trim(), url: String(x?.url || "").trim() }))
+                        .filter((x: { name: string; url: string }) => x.name && x.url);
+                    return {
+                        links: normalized.slice(0, 3),
+                        bannerUrl: "",
+                    };
+                }
+            }
+            if (String(raw).trim().startsWith("{")) {
+                const parsed = JSON.parse(String(raw));
+                const links = Array.isArray(parsed?.links)
+                    ? parsed.links
                         .map((x: any) => ({ name: String(x?.name || "").trim(), url: String(x?.url || "").trim() }))
                         .filter((x: { name: string; url: string }) => x.name && x.url)
-                        .slice(0, 3);
-                }
+                        .slice(0, 3)
+                    : [];
+                const bannerUrl = String(parsed?.banner_url || "").trim();
+                return { links, bannerUrl };
             }
         } catch {
             // fallback to legacy plain URL format
@@ -489,9 +503,10 @@ export default function ProfileScreen() {
                 .map((s) => s.trim())
                 .filter(Boolean)
         )).slice(0, 3);
-        return urls.map((url) => ({ name: labelFromUrl(url), url }));
+        return { links: urls.map((url) => ({ name: labelFromUrl(url), url })), bannerUrl: "" };
     };
-    const profileLinks = parseProfileLinks(profile?.link_url);
+    const { links: profileLinks, bannerUrl: legacyBannerUrl } = parseProfileMeta(profile?.link_url);
+    const profileBannerUrl = (profile as any)?.banner_url || legacyBannerUrl;
     const workoutsCount = profile?._count.workouts ?? 0;
     const followersCount = profile?._count.followers ?? 0;
     const followingCount = profile?._count.following ?? 0;
@@ -604,11 +619,15 @@ export default function ProfileScreen() {
                 >
                     <Animated.View style={[st.bannerWrap, { height: bannerHeight, opacity: bannerOpacity }]}>
                         <View style={st.bannerCard}>
-                            <View style={st.bannerGrid}>
-                                {PROFILE_BANNER_GRID.map((img, i) => (
-                                    <Image key={i} source={{ uri: img }} style={st.bannerGridImg} />
-                                ))}
-                            </View>
+                            {profileBannerUrl ? (
+                                <Image source={{ uri: profileBannerUrl }} style={st.bannerGridImg} />
+                            ) : (
+                                <View style={st.bannerGrid}>
+                                    {PROFILE_BANNER_GRID.map((img, i) => (
+                                        <Image key={i} source={{ uri: img }} style={st.bannerGridImg} />
+                                    ))}
+                                </View>
+                            )}
                             <LinearGradient colors={['transparent', BG]} style={st.bannerGridFade} />
                         </View>
                     </Animated.View>

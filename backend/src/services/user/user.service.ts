@@ -14,6 +14,7 @@ export interface MeProfileResponse {
   sex: string | null;
   birthday: string | null;
   profile_pic_url?: string | null;
+  banner_url?: string | null;
   followers: PublicUserProfile[];
   following: PublicUserProfile[];
   _count: {
@@ -34,6 +35,7 @@ export const getCurrentUserProfile = async (userId: number): Promise<MeProfileRe
       gender: true,
       date_of_birth: true,
       profile_pic_url: true,
+      banner_url: true,
       following_links: {
         select: {
           following: {
@@ -78,6 +80,7 @@ export const getCurrentUserProfile = async (userId: number): Promise<MeProfileRe
     sex: user.gender,
     birthday: user.date_of_birth ? user.date_of_birth.toISOString().slice(0, 10) : null,
     profile_pic_url: user.profile_pic_url,
+    banner_url: user.banner_url,
     followers: user.follower_links.map((link) => ({
       user_id: link.follower.user_id,
       username: link.follower.username,

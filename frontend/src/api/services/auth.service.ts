@@ -69,6 +69,7 @@ export const authService = {
             name: profile.name ?? current.name,
             username: profile.username ?? current.username,
             ...(profile.profile_pic_url ? { profile_pic_url: profile.profile_pic_url } : {}),
+            ...(typeof profile.banner_url !== 'undefined' ? { banner_url: profile.banner_url || undefined } : {}),
         } as User;
 
         await AsyncStorage.setItem('user', JSON.stringify(next));

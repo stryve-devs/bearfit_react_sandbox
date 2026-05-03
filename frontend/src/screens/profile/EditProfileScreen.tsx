@@ -111,6 +111,8 @@ export default function EditProfileScreen() {
     const [name, setName] = useState("Alex Rivera");
     const [username, setUsername] = useState("");
     const [bio, setBio] = useState("");
+    const [bannerUrl, setBannerUrl] = useState("");
+    const [bannerUri, setBannerUri] = useState<string | null>(null);
     const [links, setLinks] = useState<Array<{ name: string; url: string }>>([]);
     const [showLinkModal, setShowLinkModal] = useState(false);
     const [linkNameDraft, setLinkNameDraft] = useState("");
@@ -120,7 +122,10 @@ export default function EditProfileScreen() {
     const [profilePicUrl, setProfilePicUrl] = useState<string | null>(null);
     const [profilePicR2Key, setProfilePicR2Key] = useState<string | null>(null);
     const [showProfilePicModal, setShowProfilePicModal] = useState(false);
+    const [showBannerModal, setShowBannerModal] = useState(false);
     const [uploadingProfilePic, setUploadingProfilePic] = useState(false);
+    const [uploadingBannerPic, setUploadingBannerPic] = useState(false);
+    const [uploadingBannerProgressPercent, setUploadingBannerProgressPercent] = useState(0);
     const [uploadProgressPercent, setUploadProgressPercent] = useState(0);
     const [toastVisible, setToastVisible] = useState(false);
     const [toastMessage, setToastMessage] = useState("");
@@ -164,22 +169,39 @@ export default function EditProfileScreen() {
             return url.replace(/^https?:\/\//i, "");
         }
     };
-    const parseStoredLinks = (raw: string): Array<{ name: string; url: string }> => {
-        if (!raw) return [];
+    const parseStoredProfileMeta = (raw: string): { links: Array<{ name: string; url: string }>; bannerUrl: string } => {
+        if (!raw) return { links: [], bannerUrl: "" };
         try {
             if (raw.trim().startsWith("[")) {
                 const arr = JSON.parse(raw);
                 if (Array.isArray(arr)) {
-                    return arr
+                    const normalized = arr
+                        .map((x: any) => ({ name: String(x?.name || "").trim(), url: String(x?.url || "").trim() }))
+                        .filter((x: { name: string; url: string }) => x.name && x.url);
+                    return {
+                        links: normalized.slice(0, 3),
+                        bannerUrl: "",
+                    };
+                }
+            }
+            if (raw.trim().startsWith("{")) {
+                const parsed = JSON.parse(raw);
+                const links = Array.isArray(parsed?.links)
+                    ? parsed.links
                         .map((x: any) => ({ name: String(x?.name || "").trim(), url: String(x?.url || "").trim() }))
                         .filter((x: { name: string; url: string }) => x.name && x.url)
-                        .slice(0, 3);
-                }
+                        .slice(0, 3)
+                    : [];
+                const parsedBanner = String(parsed?.banner_url || "").trim();
+                return { links, bannerUrl: parsedBanner };
             }
         } catch {
             // fallback to legacy format
         }
-        return parseLegacyUrls(raw).map((url) => ({ name: hostFromUrl(url), url }));
+        return {
+            links: parseLegacyUrls(raw).map((url) => ({ name: hostFromUrl(url), url })),
+            bannerUrl: "",
+        };
     };
     const sanitizeUsername = (value: string) => {
         // Remove common emoji ranges while keeping regular username characters.
@@ -308,7 +330,16 @@ export default function EditProfileScreen() {
                 if (profile.name) setName(profile.name);
                 if (profile.username) setUsername(profile.username);
                 if (profile.bio) setBio(profile.bio);
-                if (profile.link_url) setLinks(parseStoredLinks(profile.link_url));
+                if (profile.link_url) {
+                    const profileMeta = parseStoredProfileMeta(profile.link_url);
+                    setLinks(profileMeta.links);
+                    setBannerUrl((profile as any).banner_url || profileMeta.bannerUrl);
+                    setBannerUri(profileMeta.bannerUrl || null);
+                }
+                if ((profile as any).banner_url) {
+                    setBannerUrl((profile as any).banner_url);
+                    setBannerUri((profile as any).banner_url);
+                }
                 if (profile.sex) setSex(profile.sex);
                 if (profile.birthday) {
                     const parsed = new Date(profile.birthday);
@@ -444,6 +475,78 @@ export default function EditProfileScreen() {
         }
     };
 
+    const handlePickBannerImage = async (source: 'camera' | 'gallery') => {
+        try {
+            if (source === 'camera') {
+                const permission = await ImagePicker.requestCameraPermissionsAsync();
+                if (permission.status !== 'granted') {
+                    Alert.alert('Permission Denied', 'Camera permission is required');
+                    return;
+                }
+
+                const result = await ImagePicker.launchCameraAsync({
+                    mediaTypes: ['images'],
+                    allowsEditing: true,
+                    aspect: [16, 9],
+                    quality: 0.85,
+                });
+
+                if (!result.canceled && result.assets?.length > 0) {
+                    const uri = result.assets[0].uri;
+                    setBannerUri(uri);
+                    await uploadBannerPic(uri);
+                }
+            } else {
+                const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                if (permission.status !== 'granted') {
+                    Alert.alert('Permission Denied', 'Gallery permission is required');
+                    return;
+                }
+
+                const result = await ImagePicker.launchImageLibraryAsync({
+                    mediaTypes: ['images'],
+                    allowsEditing: true,
+                    aspect: [16, 9],
+                    quality: 0.85,
+                });
+
+                if (!result.canceled && result.assets?.length > 0) {
+                    const uri = result.assets[0].uri;
+                    setBannerUri(uri);
+                    await uploadBannerPic(uri);
+                }
+            }
+            setShowBannerModal(false);
+        } catch (error) {
+            Alert.alert('Error', 'Failed to pick banner image');
+            console.error(error);
+        }
+    };
+
+    const uploadBannerPic = async (uri: string) => {
+        try {
+            setUploadingBannerPic(true);
+            setUploadingBannerProgressPercent(0);
+
+            const onProgress = (p: number) => {
+                const percent = Math.round(Math.max(0, Math.min(1, p)) * 100);
+                setUploadingBannerProgressPercent(percent);
+            };
+
+            const { url } = await profileService.uploadBannerPicture(uri, onProgress);
+            setBannerUrl(url);
+            setBannerUri(url);
+            setUploadingBannerProgressPercent(100);
+        } catch (error) {
+            console.error('Banner upload failed', error);
+            Alert.alert('Upload failed', 'Could not upload banner image. Please try again.');
+        } finally {
+            setTimeout(() => {
+                setUploadingBannerPic(false);
+            }, 400);
+        }
+    };
+
     const confirmBirthday = () => {
         setHasBirthday(true);
         setShowBirthday(false);
@@ -463,6 +566,7 @@ export default function EditProfileScreen() {
                 username: sanitizeUsername(username).trim() || null,
                 bio,
                 link_url: links.length ? JSON.stringify(links) : null,
+                banner_url: bannerUrl.trim() || null,
                 sex: sex || null,
                 birthday: hasBirthday ? selectedDate.toISOString().slice(0, 10) : null,
             };
@@ -696,6 +800,29 @@ export default function EditProfileScreen() {
                         />
                         <InputRow label="Name" placeholder="Your full name" value={name} onChangeText={setName} />
                         <InputRow label="Bio" placeholder="Describe yourself" value={bio} onChangeText={setBio} multiline />
+                        <View style={st.bannerEditorWrap}>
+                            <View style={st.bannerEditorTop}>
+                                <Text style={inSt.label}>Banner</Text>
+                                <TouchableOpacity
+                                    onPress={() => setShowBannerModal(true)}
+                                    activeOpacity={0.8}
+                                    style={st.addLinkBtn}
+                                >
+                                    <Feather name="image" size={13} color={ORANGE} />
+                                    <Text style={st.addLinkBtnText}>Edit Banner</Text>
+                                </TouchableOpacity>
+                            </View>
+                            <View style={st.bannerPreviewCard}>
+                                {bannerUri ? (
+                                    <Image source={{ uri: bannerUri }} style={st.bannerPreviewImg} resizeMode="cover" />
+                                ) : (
+                                    <View style={st.bannerPlaceholder}>
+                                        <Feather name="image" size={18} color="rgba(240,237,232,0.35)" />
+                                        <Text style={st.linksHint}>No banner selected</Text>
+                                    </View>
+                                )}
+                            </View>
+                        </View>
                         <View style={[inSt.row, { borderBottomWidth: 0, flexDirection: "column", gap: 10 }]}>
                             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
                                 <Text style={[inSt.label, { width: "auto", paddingTop: 0 }]}>Links</Text>
@@ -895,6 +1022,54 @@ export default function EditProfileScreen() {
                     </View>
                 </Modal>
 
+                <Modal visible={showBannerModal} transparent animationType="slide">
+                    <View style={sh.overlay}>
+                        <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowBannerModal(false)}>
+                            <View style={sh.backdrop} />
+                        </Pressable>
+                        <LinearGradient colors={["rgba(22,22,26,0.98)", "rgba(14,14,16,0.99)"]} style={sh.sheet}>
+                            <View style={sh.shine} pointerEvents="none" />
+                            <View style={sh.handle} />
+                            <Text style={sh.title}>Select Banner</Text>
+
+                            <TouchableOpacity
+                                style={sh.photoRow}
+                                onPress={() => handlePickBannerImage('camera')}
+                                activeOpacity={0.7}
+                            >
+                                <Ionicons name="camera-outline" size={20} color={ORANGE} />
+                                <Text style={sh.photoText}>Take Photo</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={sh.photoRow}
+                                onPress={() => handlePickBannerImage('gallery')}
+                                activeOpacity={0.7}
+                            >
+                                <Ionicons name="image-outline" size={20} color={ORANGE} />
+                                <Text style={sh.photoText}>Choose from Gallery</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={sh.photoRow}
+                                onPress={() => {
+                                    setBannerUrl("");
+                                    setBannerUri(null);
+                                    setShowBannerModal(false);
+                                }}
+                                activeOpacity={0.7}
+                            >
+                                <Ionicons name="trash-outline" size={20} color="#ff6b6b" />
+                                <Text style={[sh.photoText, { color: "#ff6b6b" }]}>Remove Banner</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity style={sh.cancelBtn} onPress={() => setShowBannerModal(false)} activeOpacity={0.7}>
+                                <Text style={sh.cancelTxt}>Cancel</Text>
+                            </TouchableOpacity>
+                        </LinearGradient>
+                    </View>
+                </Modal>
+
                 <Modal visible={showLinkModal} transparent animationType="slide">
                     <KeyboardAvoidingView
                         style={sh.overlay}
@@ -996,6 +1171,16 @@ export default function EditProfileScreen() {
                             <Text style={progressSt.title}>Uploading</Text>
                             <ActivityIndicator size="large" color={ORANGE} style={{ marginVertical: 12 }} />
                             <Text style={progressSt.percent}>{uploadProgressPercent}%</Text>
+                        </View>
+                    </View>
+                </Modal>
+
+                <Modal visible={uploadingBannerPic} transparent animationType="fade">
+                    <View style={progressSt.overlay}>
+                        <View style={progressSt.box}>
+                            <Text style={progressSt.title}>Uploading Banner</Text>
+                            <ActivityIndicator size="large" color={ORANGE} style={{ marginVertical: 12 }} />
+                            <Text style={progressSt.percent}>{uploadingBannerProgressPercent}%</Text>
                         </View>
                     </View>
                 </Modal>
@@ -1121,6 +1306,36 @@ const st = StyleSheet.create({
     linksHint: {
         color: "rgba(240,237,232,0.38)",
         fontSize: 12,
+    },
+    bannerEditorWrap: {
+        borderBottomWidth: 0.5,
+        borderBottomColor: "rgba(255,255,255,0.04)",
+        paddingHorizontal: 18,
+        paddingVertical: 14,
+        gap: 10,
+    },
+    bannerEditorTop: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+    },
+    bannerPreviewCard: {
+        borderRadius: 10,
+        overflow: "hidden",
+        borderWidth: 0.5,
+        borderColor: "rgba(255,255,255,0.12)",
+        backgroundColor: "rgba(255,255,255,0.02)",
+        height: 96,
+    },
+    bannerPreviewImg: {
+        width: "100%",
+        height: "100%",
+    },
+    bannerPlaceholder: {
+        flex: 1,
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 8,
     },
     linkRow: {
         flexDirection: "row",

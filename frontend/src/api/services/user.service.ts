@@ -29,6 +29,8 @@ const normalizeProfilePicUrl = (raw?: string | null): string | null => {
   }
 };
 
+const normalizeAssetUrl = (raw?: string | null): string | null => normalizeProfilePicUrl(raw);
+
 export const userService = {
   async getUserById(userId: number | string): Promise<any> {
     const response = await api.get(`/users/${userId}`);
@@ -38,6 +40,9 @@ export const userService = {
     } else if (u && !u.profile_pic_url && u.profile_pic_key) {
       // fallback to proxy by key if backend provides key
       u.profile_pic_url = `${api.defaults.baseURL.replace(/\/$/, '')}/uploads/proxy?key=${encodeURIComponent(String(u.profile_pic_key))}`;
+    }
+    if (u && u.banner_url && typeof u.banner_url === 'string') {
+      u.banner_url = normalizeAssetUrl(u.banner_url);
     }
     return u;
   },

@@ -30,6 +30,7 @@ model users {
   bio             String?
   link_url        String?          @db.VarChar(500)
   profile_pic_url String?          @db.VarChar(500)
+  banner_url      String?          @db.VarChar(500)
   Comment         Comment[]
   Food            Food[]
   Like            Like[]
