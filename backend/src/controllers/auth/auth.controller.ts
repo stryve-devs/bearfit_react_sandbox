@@ -354,10 +354,20 @@ export const updateProfile = async (req: Request, res: Response) => {
     if (!userId) return res.status(401).json({ message: 'Unauthorized' });
 
     // Accept additional fields for profile updates
-    const { name, username, email, bio, link_url, profile_pic_url, profile_pic_key } = req.body;
+    const { name, username, email, bio, link_url, sex, birthday, profile_pic_url, profile_pic_key } = req.body;
 
-    if (!name && !username && !email && !bio && !link_url && !profile_pic_url && !profile_pic_key) {
-      return res.status(400).json({ message: 'At least one field (name, username, email, bio, link_url, profile_pic_url, profile_pic_key) is required' });
+    if (
+      typeof name === 'undefined' &&
+      typeof username === 'undefined' &&
+      typeof email === 'undefined' &&
+      typeof bio === 'undefined' &&
+      typeof link_url === 'undefined' &&
+      typeof sex === 'undefined' &&
+      typeof birthday === 'undefined' &&
+      typeof profile_pic_url === 'undefined' &&
+      typeof profile_pic_key === 'undefined'
+    ) {
+      return res.status(400).json({ message: 'At least one updatable profile field is required' });
     }
 
     // Validate username if provided
@@ -395,7 +405,62 @@ export const updateProfile = async (req: Request, res: Response) => {
 
     // Accept optional profile fields
     if (typeof bio !== 'undefined') updateData.bio = bio === null ? null : String(bio).trim();
-    if (typeof link_url !== 'undefined') updateData.link_url = link_url === null ? null : String(link_url).trim();
+    if (typeof link_url !== 'undefined') {
+      if (link_url === null) {
+        updateData.link_url = null;
+      } else {
+        const raw = String(link_url).trim();
+        if (raw.startsWith('[')) {
+          try {
+            const parsed = JSON.parse(raw);
+            if (!Array.isArray(parsed)) {
+              return res.status(400).json({ message: 'Invalid links format.' });
+            }
+            const cleaned = parsed
+              .map((item: any) => ({
+                name: String(item?.name || '').trim(),
+                url: String(item?.url || '').trim(),
+              }))
+              .filter((item: { name: string; url: string }) => item.name && item.url);
+
+            if (cleaned.length > 3) {
+              return res.status(400).json({ message: 'You can add up to 3 links only.' });
+            }
+            updateData.link_url = JSON.stringify(cleaned);
+            // skip legacy parser path
+            const sentinel = '__LINKS_JSON_HANDLED__';
+            (updateData as any)[sentinel] = true;
+          } catch {
+            return res.status(400).json({ message: 'Invalid links format.' });
+          }
+        }
+        if ((updateData as any).__LINKS_JSON_HANDLED__) {
+          delete (updateData as any).__LINKS_JSON_HANDLED__;
+        } else {
+        const parts = raw
+          .split(/[\s,\n]+/)
+          .map((s) => s.trim())
+          .filter(Boolean);
+        const unique = Array.from(new Set(parts));
+        if (unique.length > 3) {
+          return res.status(400).json({ message: 'You can add up to 3 links only.' });
+        }
+        updateData.link_url = unique.join('\n');
+        }
+      }
+    }
+    if (typeof sex !== 'undefined') updateData.gender = sex === null ? null : String(sex).trim();
+    if (typeof birthday !== 'undefined') {
+      if (birthday === null || birthday === '') {
+        updateData.date_of_birth = null;
+      } else {
+        const parsed = new Date(String(birthday));
+        if (Number.isNaN(parsed.getTime())) {
+          return res.status(400).json({ message: 'Invalid birthday. Use YYYY-MM-DD format.' });
+        }
+        updateData.date_of_birth = parsed;
+      }
+    }
 
     // If client provided a profile_pic_key, convert to a public URL using R2 config
     if (typeof profile_pic_key !== 'undefined' && profile_pic_key !== null) {
@@ -422,7 +487,17 @@ export const updateProfile = async (req: Request, res: Response) => {
     const updated = await prisma.users.update({
       where: { user_id: userId },
       data: updateData,
-      select: { user_id: true, username: true, email: true, name: true, profile_pic_url: true }
+      select: {
+        user_id: true,
+        username: true,
+        email: true,
+        name: true,
+        bio: true,
+        link_url: true,
+        gender: true,
+        date_of_birth: true,
+        profile_pic_url: true,
+      }
     });
 
     return res.status(200).json({ message: 'Profile updated', user: updated });

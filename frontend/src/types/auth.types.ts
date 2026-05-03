@@ -34,6 +34,10 @@ export interface MeProfileResponse {
     username: string | null;
     name: string;
     bio: string | null;
+    link_url?: string | null;
+    sex?: string | null;
+    birthday?: string | null;
+    profile_pic_url?: string | null;
     followers: PublicProfileUser[];
     following: PublicProfileUser[];
     _count: {

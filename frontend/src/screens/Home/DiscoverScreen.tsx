@@ -356,17 +356,20 @@ export default function DiscoverScreen() {
 
         {isInitialLoading && derivedPosts.length === 0 ? (
           <View style={loadingStyles.wrap}>
-            <BlurView intensity={35} tint="dark" style={loadingStyles.card}>
-              <LinearGradient
-                colors={['rgba(255,122,0,0.18)', 'rgba(255,122,0,0.04)']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={loadingStyles.glow}
-              />
-              <ActivityIndicator size="large" color={ORANGE} />
-              <Text allowFontScaling={false} style={loadingStyles.title}>Discover Feed</Text>
-              <Text allowFontScaling={false} style={loadingStyles.subtitle}>{LOADING_LINES[loadingLineIndex]}</Text>
-            </BlurView>
+            <View style={loadingStyles.cardShell}>
+              <BlurView intensity={35} tint="dark" style={loadingStyles.card}>
+                <LinearGradient
+                  colors={['rgba(255,122,0,0.16)', 'rgba(255,122,0,0.03)']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={loadingStyles.glow}
+                />
+                <View style={loadingStyles.innerStroke} pointerEvents="none" />
+                <ActivityIndicator size="large" color={ORANGE} />
+                <Text allowFontScaling={false} style={loadingStyles.title}>Discover Feed</Text>
+                <Text allowFontScaling={false} style={loadingStyles.subtitle}>{LOADING_LINES[loadingLineIndex]}</Text>
+              </BlurView>
+            </View>
           </View>
         ) : (
           <DiscoverList
@@ -395,7 +398,15 @@ export default function DiscoverScreen() {
           />
         )}
 
-        <DiscoverMenu visible={menuOpen} onClose={() => setMenuOpen(false)} />
+        <DiscoverMenu
+          visible={menuOpen}
+          onClose={() => setMenuOpen(false)}
+          onGoHome={() => {
+            setMenuOpen(false);
+            router.push('/(tabs)/home');
+          }}
+          onGoDiscover={() => setMenuOpen(false)}
+        />
 
         <DiscoverSearch visible={searchOpen} query={query} setQuery={setQuery} filteredPosts={derivedFilteredPosts} onClose={() => setSearchOpen(false)} onOpenPost={(id: string) => { setSearchOpen(false); setQuery(''); setActivePlaybackPostId(null); router.push({ pathname: '/(tabs)/home/post-detail', params: { postId: id } }); }} />
 
@@ -426,20 +437,40 @@ const loadingStyles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 24,
   },
+  cardShell: {
+    width: '100%',
+    borderRadius: 24,
+    borderWidth: 0,
+    backgroundColor: 'rgba(12,12,12,0.46)',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOpacity: 0.24,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 6,
+  },
   card: {
     width: '100%',
-    borderRadius: 22,
+    borderRadius: 24,
     paddingVertical: 28,
     paddingHorizontal: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
     overflow: 'hidden',
-    backgroundColor: 'rgba(10,10,10,0.72)',
+    backgroundColor: 'rgba(12,12,12,0.52)',
   },
   glow: {
     ...StyleSheet.absoluteFillObject,
+  },
+  innerStroke: {
+    position: 'absolute',
+    top: 1,
+    right: 1,
+    bottom: 1,
+    left: 1,
+    borderRadius: 23,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.028)',
   },
   title: {
     marginTop: 14,

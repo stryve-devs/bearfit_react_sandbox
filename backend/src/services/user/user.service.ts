@@ -10,6 +10,9 @@ export interface MeProfileResponse {
   username: string | null;
   name: string;
   bio: string | null;
+  link_url: string | null;
+  sex: string | null;
+  birthday: string | null;
   profile_pic_url?: string | null;
   followers: PublicUserProfile[];
   following: PublicUserProfile[];
@@ -27,6 +30,9 @@ export const getCurrentUserProfile = async (userId: number): Promise<MeProfileRe
       username: true,
       name: true,
       bio: true,
+      link_url: true,
+      gender: true,
+      date_of_birth: true,
       profile_pic_url: true,
       following_links: {
         select: {
@@ -68,6 +74,9 @@ export const getCurrentUserProfile = async (userId: number): Promise<MeProfileRe
     username: user.username,
     name: user.name,
     bio: user.bio,
+    link_url: user.link_url,
+    sex: user.gender,
+    birthday: user.date_of_birth ? user.date_of_birth.toISOString().slice(0, 10) : null,
     profile_pic_url: user.profile_pic_url,
     followers: user.follower_links.map((link) => ({
       user_id: link.follower.user_id,

@@ -13,6 +13,7 @@ import {
     Alert,
     Platform,
     ActivityIndicator,
+    KeyboardAvoidingView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -107,7 +108,10 @@ export default function EditProfileScreen() {
     };
     const [name, setName] = useState("Alex Rivera");
     const [bio, setBio] = useState("");
-    const [link, setLink] = useState("");
+    const [links, setLinks] = useState<Array<{ name: string; url: string }>>([]);
+    const [showLinkModal, setShowLinkModal] = useState(false);
+    const [linkNameDraft, setLinkNameDraft] = useState("");
+    const [linkUrlDraft, setLinkUrlDraft] = useState("");
     const [sex, setSex] = useState("");
     const [profilePicUri, setProfilePicUri] = useState<string | null>(null);
     const [profilePicUrl, setProfilePicUrl] = useState<string | null>(null);
@@ -135,6 +139,45 @@ export default function EditProfileScreen() {
     const imageRequestIdRef = React.useRef(0);
     // Track whether the Image actually loaded successfully (to ignore stale onError events)
     const imageLoadedRef = React.useRef(false);
+    const parseLegacyUrls = (raw: string): string[] => {
+        if (!raw) return [];
+        return Array.from(new Set(
+            raw
+                .split(/[\s,\n]+/)
+                .map((s) => s.trim())
+                .filter(Boolean)
+        )).slice(0, 3);
+    };
+    const normalizeUrl = (raw: string) => {
+        const t = raw.trim();
+        if (!t) return "";
+        return /^https?:\/\//i.test(t) ? t : `https://${t}`;
+    };
+    const hostFromUrl = (url: string) => {
+        try {
+            const u = new URL(normalizeUrl(url));
+            return u.host.replace(/^www\./i, "");
+        } catch {
+            return url.replace(/^https?:\/\//i, "");
+        }
+    };
+    const parseStoredLinks = (raw: string): Array<{ name: string; url: string }> => {
+        if (!raw) return [];
+        try {
+            if (raw.trim().startsWith("[")) {
+                const arr = JSON.parse(raw);
+                if (Array.isArray(arr)) {
+                    return arr
+                        .map((x: any) => ({ name: String(x?.name || "").trim(), url: String(x?.url || "").trim() }))
+                        .filter((x: { name: string; url: string }) => x.name && x.url)
+                        .slice(0, 3);
+                }
+            }
+        } catch {
+            // fallback to legacy format
+        }
+        return parseLegacyUrls(raw).map((url) => ({ name: hostFromUrl(url), url }));
+    };
 
     // Validate image URL when it changes and attempt encoded fallbacks automatically
     useEffect(() => {
@@ -157,6 +200,7 @@ export default function EditProfileScreen() {
                 if (proxyBase && profilePicUri && profilePicUri.startsWith(proxyBase)) {
                     // Ensure it's well-formed and let RN Image attempt to load it
                     setImageLoading(false);
+                    setValidatingImage(false);
                     return;
                 }
             } catch (e) {
@@ -253,8 +297,16 @@ export default function EditProfileScreen() {
 
                 if (profile.name) setName(profile.name);
                 if (profile.bio) setBio(profile.bio);
-                if (profile.link_url) setLink(profile.link_url);
+                if (profile.link_url) setLinks(parseStoredLinks(profile.link_url));
                 if (profile.sex) setSex(profile.sex);
+                if (profile.birthday) {
+                    const parsed = new Date(profile.birthday);
+                    if (!Number.isNaN(parsed.getTime())) {
+                        setSelectedDate(parsed);
+                        setViewDate(new Date(parsed));
+                        setHasBirthday(true);
+                    }
+                }
 
                 // If profile_pic_url is stored in DB, use it as the displayed avatar
                 if (profile.profile_pic_url) {
@@ -388,11 +440,19 @@ export default function EditProfileScreen() {
 
     const handleDone = async () => {
         try {
+            if (links.length > 3) {
+                setToastMessage("You can add up to 3 links only.");
+                setToastVisible(true);
+                return;
+            }
+
             // Only save profile picture URL if it was uploaded
             const updatePayload: any = {
                 name,
                 bio,
-                link_url: link,
+                link_url: links.length ? JSON.stringify(links) : null,
+                sex: sex || null,
+                birthday: hasBirthday ? selectedDate.toISOString().slice(0, 10) : null,
             };
 
             // Only include profile_pic_url if it has been uploaded to R2
@@ -612,22 +672,46 @@ export default function EditProfileScreen() {
                         </TouchableOpacity>
                     </View>
 
-                    {/* ── Stats pills ── */}
-                    <View style={st.statsRow}>
-                        {[["284", "Workouts"], ["12.4k", "Following"], ["3.1k", "Followers"]].map(([num, lbl]) => (
-                            <GlassCard key={lbl} style={st.statPill}>
-                                <Text style={st.statNum}>{num}</Text>
-                                <Text style={st.statLbl}>{lbl}</Text>
-                            </GlassCard>
-                        ))}
-                    </View>
-
                     {/* ── Public profile ── */}
                     <Text style={st.sectionLabel}>Public Profile</Text>
                     <GlassCard style={{ marginBottom: 24 }}>
                         <InputRow label="Name" placeholder="Your full name" value={name} onChangeText={setName} />
                         <InputRow label="Bio" placeholder="Describe yourself" value={bio} onChangeText={setBio} multiline />
-                        <InputRow label="Link" placeholder="https://example.com" value={link} onChangeText={setLink} autoCapitalize="none" keyboardType="url" last />
+                        <View style={[inSt.row, { borderBottomWidth: 0, flexDirection: "column", gap: 10 }]}>
+                            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                                <Text style={[inSt.label, { width: "auto", paddingTop: 0 }]}>Links</Text>
+                                <TouchableOpacity
+                                    disabled={links.length >= 3}
+                                    onPress={() => setShowLinkModal(true)}
+                                    activeOpacity={0.8}
+                                    style={[st.addLinkBtn, links.length >= 3 && st.addLinkBtnDisabled]}
+                                >
+                                    <Feather name="plus" size={13} color={links.length >= 3 ? "rgba(240,237,232,0.35)" : ORANGE} />
+                                    <Text style={[st.addLinkBtnText, links.length >= 3 && st.addLinkBtnTextDisabled]}>Add Link</Text>
+                                </TouchableOpacity>
+                            </View>
+                            {links.length === 0 ? (
+                                <Text style={st.linksHint}>Add up to 3 links</Text>
+                            ) : (
+                                <View style={{ gap: 8 }}>
+                                    {links.map((item, idx) => (
+                                        <View key={`${item.name}-${idx}`} style={st.linkRow}>
+                                            <View style={{ flex: 1 }}>
+                                                <Text style={st.linkName}>{item.name}</Text>
+                                                <Text style={st.linkUrl} numberOfLines={1}>{item.url}</Text>
+                                            </View>
+                                            <TouchableOpacity
+                                                onPress={() => setLinks((prev) => prev.filter((_, i) => i !== idx))}
+                                                style={st.linkDeleteBtn}
+                                                activeOpacity={0.8}
+                                            >
+                                                <Feather name="trash-2" size={12} color="#ff6b6b" />
+                                            </TouchableOpacity>
+                                        </View>
+                                    ))}
+                                </View>
+                            )}
+                        </View>
                     </GlassCard>
 
                     {/* ── Private data ── */}
@@ -792,6 +876,64 @@ export default function EditProfileScreen() {
                     </View>
                 </Modal>
 
+                <Modal visible={showLinkModal} transparent animationType="slide">
+                    <KeyboardAvoidingView
+                        style={sh.overlay}
+                        behavior={Platform.OS === "ios" ? "padding" : "height"}
+                        keyboardVerticalOffset={Platform.OS === "ios" ? 12 : 0}
+                    >
+                        <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowLinkModal(false)}>
+                            <View style={sh.backdrop} />
+                        </Pressable>
+                        <LinearGradient colors={["rgba(22,22,26,0.98)", "rgba(14,14,16,0.99)"]} style={sh.sheet}>
+                            <View style={sh.shine} pointerEvents="none" />
+                            <View style={sh.handle} />
+                            <Text style={sh.title}>Add Link</Text>
+                            <TextInput
+                                style={st.linkInput}
+                                placeholder="Display name (e.g. Instagram)"
+                                placeholderTextColor="rgba(240,237,232,0.3)"
+                                value={linkNameDraft}
+                                onChangeText={setLinkNameDraft}
+                            />
+                            <TextInput
+                                style={st.linkInput}
+                                placeholder="URL (e.g. instagram.com/yourname)"
+                                placeholderTextColor="rgba(240,237,232,0.3)"
+                                autoCapitalize="none"
+                                keyboardType="url"
+                                value={linkUrlDraft}
+                                onChangeText={setLinkUrlDraft}
+                            />
+                            <TouchableOpacity
+                                activeOpacity={0.85}
+                                onPress={() => {
+                                    const nameTrim = linkNameDraft.trim();
+                                    const urlTrim = normalizeUrl(linkUrlDraft);
+                                    if (!nameTrim || !urlTrim) {
+                                        setToastMessage("Please add both link name and URL.");
+                                        setToastVisible(true);
+                                        return;
+                                    }
+                                    if (links.length >= 3) {
+                                        setToastMessage("You can add up to 3 links only.");
+                                        setToastVisible(true);
+                                        return;
+                                    }
+                                    setLinks((prev) => [...prev, { name: nameTrim, url: urlTrim }].slice(0, 3));
+                                    setLinkNameDraft("");
+                                    setLinkUrlDraft("");
+                                    setShowLinkModal(false);
+                                }}
+                            >
+                                <LinearGradient colors={["#ff7a00", "#ff5500"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={sh.confirmBtn}>
+                                    <Text style={sh.confirmTxt}>Save Link</Text>
+                                </LinearGradient>
+                            </TouchableOpacity>
+                        </LinearGradient>
+                    </KeyboardAvoidingView>
+                </Modal>
+
                 {/* Profile Picture Selection Modal */}
                 <Modal visible={showProfilePicModal} transparent animationType="slide">
                     <View style={sh.overlay}>
@@ -911,11 +1053,6 @@ const st = StyleSheet.create({
     handle: { fontSize: 13, color: "rgba(240,237,232,0.4)", marginTop: 2 },
     changePic: { fontSize: 13, fontWeight: "500", color: ORANGE, marginTop: 12 },
 
-    statsRow: { flexDirection: "row", gap: 8, marginBottom: 24 },
-    statPill: { flex: 1, alignItems: "center", paddingVertical: 12, borderRadius: 14 },
-    statNum: { fontSize: 18, fontWeight: "600", color: "#f0ede8", letterSpacing: -0.5 },
-    statLbl: { fontSize: 10, color: "rgba(240,237,232,0.4)", marginTop: 2, letterSpacing: 0.3 },
-
     sectionLabel: {
         fontSize: 10, fontWeight: "600",
         color: "rgba(240,237,232,0.4)", letterSpacing: 1,
@@ -939,6 +1076,76 @@ const st = StyleSheet.create({
     selectRight: { flexDirection: "row", alignItems: "center", gap: 6 },
     selectValue: { fontSize: 14, fontWeight: "500", color: ORANGE },
     selectPlaceholder: { color: "rgba(240,237,232,0.2)", fontWeight: "400" },
+    addLinkBtn: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6,
+        paddingVertical: 6,
+        paddingHorizontal: 10,
+        borderRadius: 999,
+        backgroundColor: "rgba(255,122,0,0.12)",
+        borderWidth: 0.5,
+        borderColor: "rgba(255,122,0,0.36)",
+    },
+    addLinkBtnDisabled: {
+        backgroundColor: "rgba(255,255,255,0.04)",
+        borderColor: "rgba(255,255,255,0.10)",
+    },
+    addLinkBtnText: {
+        color: ORANGE,
+        fontSize: 12,
+        fontWeight: "600",
+    },
+    addLinkBtnTextDisabled: {
+        color: "rgba(240,237,232,0.35)",
+    },
+    linksHint: {
+        color: "rgba(240,237,232,0.38)",
+        fontSize: 12,
+    },
+    linkRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 10,
+        borderWidth: 0.5,
+        borderColor: "rgba(255,255,255,0.1)",
+        borderRadius: 12,
+        backgroundColor: "rgba(255,255,255,0.03)",
+        paddingHorizontal: 10,
+        paddingVertical: 9,
+    },
+    linkName: {
+        color: "#f0ede8",
+        fontSize: 13,
+        fontWeight: "600",
+    },
+    linkUrl: {
+        color: "rgba(240,237,232,0.55)",
+        fontSize: 11,
+        marginTop: 1,
+    },
+    linkDeleteBtn: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: "rgba(255,107,107,0.08)",
+        borderWidth: 0.5,
+        borderColor: "rgba(255,107,107,0.24)",
+    },
+    linkInput: {
+        width: "100%",
+        borderWidth: 0.5,
+        borderColor: "rgba(255,255,255,0.12)",
+        borderRadius: 12,
+        backgroundColor: "rgba(255,255,255,0.04)",
+        color: "#f0ede8",
+        fontSize: 14,
+        paddingHorizontal: 12,
+        paddingVertical: 11,
+        marginBottom: 10,
+    },
 });
 
 const cardSt = StyleSheet.create({

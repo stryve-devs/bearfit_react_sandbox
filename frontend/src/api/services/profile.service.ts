@@ -95,6 +95,8 @@ export interface ProfileUpdatePayload {
     name?: string;
     bio?: string;
     link_url?: string;
+    sex?: string | null;
+    birthday?: string | null;
     profile_pic_url?: string;
 }
 

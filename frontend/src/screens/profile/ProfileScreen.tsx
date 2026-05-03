@@ -14,6 +14,7 @@ import {
     Modal,
     Pressable,
     FlatList,
+    Linking,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -407,6 +408,7 @@ export default function ProfileScreen() {
     const [profileLoading, setProfileLoading] = useState(true);
     const [profileError, setProfileError] = useState<string | null>(null);
     const [peopleModal, setPeopleModal] = useState<"Followers" | "Following" | null>(null);
+    const [linksModalOpen, setLinksModalOpen] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
 
     const fetchProfile = useCallback(async (force = false) => {
@@ -447,11 +449,70 @@ export default function ProfileScreen() {
 
     const username = profile?.username || authUser?.username || "";
     const name = profile?.name || authUser?.name || username;
+    const bio = (profile?.bio || "").trim();
+    const labelFromUrl = (value: string) => {
+        const normalized = /^https?:\/\//i.test(value) ? value : `https://${value}`;
+        try {
+            const parsed = new URL(normalized);
+            return parsed.host.replace(/^www\./i, "");
+        } catch {
+            return value.replace(/^https?:\/\//i, "");
+        }
+    };
+    const parseProfileLinks = (raw: string | null | undefined): Array<{ name: string; url: string }> => {
+        if (!raw) return [];
+        try {
+            if (String(raw).trim().startsWith("[")) {
+                const arr = JSON.parse(String(raw));
+                if (Array.isArray(arr)) {
+                    return arr
+                        .map((x: any) => ({ name: String(x?.name || "").trim(), url: String(x?.url || "").trim() }))
+                        .filter((x: { name: string; url: string }) => x.name && x.url)
+                        .slice(0, 3);
+                }
+            }
+        } catch {
+            // fallback to legacy plain URL format
+        }
+        const urls = Array.from(new Set(
+            String(raw)
+                .split(/[\s,\n]+/)
+                .map((s) => s.trim())
+                .filter(Boolean)
+        )).slice(0, 3);
+        return urls.map((url) => ({ name: labelFromUrl(url), url }));
+    };
+    const profileLinks = parseProfileLinks(profile?.link_url);
     const workoutsCount = profile?._count.workouts ?? 0;
     const followersCount = profile?._count.followers ?? 0;
     const followingCount = profile?._count.following ?? 0;
     // Do not provide a dummy/pravatar fallback — prefer null so AvatarImage renders empty box when no image exists
     const avatarUri: null = null;
+    const normalizeExternalUrl = (value: string) => {
+        if (!value) return "";
+        if (/^https?:\/\//i.test(value)) return value;
+        return `https://${value}`;
+    };
+    const getHostLabel = (value: string) => {
+        try {
+            const parsed = new URL(normalizeExternalUrl(value));
+            return parsed.host.replace(/^www\./i, "");
+        } catch {
+            return value.replace(/^https?:\/\//i, "");
+        }
+    };
+    const openProfileLink = async (value: string) => {
+        const url = normalizeExternalUrl(value);
+        if (!url) return;
+        try {
+            const supported = await Linking.canOpenURL(url);
+            if (supported) {
+                await Linking.openURL(url);
+            }
+        } catch (err) {
+            console.warn("[ProfileScreen] Failed opening profile link", err);
+        }
+    };
 
     return (
         <LinearGradient
@@ -540,6 +601,23 @@ export default function ProfileScreen() {
                         </View>
                     </View>
                 </View>
+                {(bio.length > 0 || profileLinks.length > 0) && (
+                    <View style={st.bioLinkWrap}>
+                        {bio.length > 0 && (
+                            <Text style={st.bioText}>{bio}</Text>
+                        )}
+                        {profileLinks.length > 0 && (
+                            <TouchableOpacity style={st.linkChip} activeOpacity={0.8} onPress={() => setLinksModalOpen(true)}>
+                                <Feather name="link-2" size={13} color={ORANGE} />
+                                <Text style={st.linkText} numberOfLines={1}>
+                                    {profileLinks.length === 1
+                                        ? profileLinks[0].name
+                                        : `${profileLinks[0].name} and ${profileLinks.length - 1} more`}
+                                </Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
+                )}
 
                 {/* Scroll */}
                 <ScrollView
@@ -647,6 +725,39 @@ export default function ProfileScreen() {
                     onClose={() => setPeopleModal(null)}
                     onUnfollow={fetchProfile}
                 />
+                <Modal visible={linksModalOpen} transparent animationType="fade" onRequestClose={() => setLinksModalOpen(false)}>
+                    <View style={peopleSt.overlay}>
+                        <Pressable style={peopleSt.backdrop} onPress={() => setLinksModalOpen(false)} />
+                        <View style={peopleSt.sheet}>
+                            <View style={peopleSt.handle} />
+                            <Text style={peopleSt.title}>Links</Text>
+                            <View style={peopleSt.listContent}>
+                                {profileLinks.map((item, idx) => (
+                                    <TouchableOpacity
+                                        key={`${item.url}-${idx}`}
+                                        style={st.linkOptionRow}
+                                        activeOpacity={0.85}
+                                        onPress={() => {
+                                            setLinksModalOpen(false);
+                                            openProfileLink(item.url);
+                                        }}
+                                    >
+                                        <Feather name="link-2" size={15} color={ORANGE} />
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={st.linkOptionText} numberOfLines={1}>
+                                                {item.name}
+                                            </Text>
+                                            <Text style={st.linkOptionSubText} numberOfLines={1}>
+                                                {getHostLabel(item.url)}
+                                            </Text>
+                                        </View>
+                                        <Feather name="chevron-right" size={14} color={MUTED} />
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        </View>
+                    </View>
+                </Modal>
             </SafeAreaView>
         </LinearGradient>
     );
@@ -702,6 +813,59 @@ const st = StyleSheet.create({
     statNum: { fontSize: 17, fontWeight: "700", color: ORANGE, letterSpacing: -0.3 },
     statLbl: { fontSize: 10, color: MUTED, marginTop: 2, letterSpacing: 0.3 },
     statDivider: { width: 0.5, height: 28, backgroundColor: "rgba(255,255,255,0.07)" },
+    bioLinkWrap: {
+        marginTop: 12,
+        marginBottom: 2,
+        paddingHorizontal: 22,
+        gap: 10,
+    },
+    bioText: {
+        color: "rgba(240,237,232,0.88)",
+        fontSize: 13,
+        lineHeight: 19,
+        letterSpacing: -0.1,
+    },
+    linkChip: {
+        alignSelf: "flex-start",
+        maxWidth: "100%",
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 7,
+        paddingVertical: 7,
+        paddingHorizontal: 11,
+        borderRadius: 999,
+        backgroundColor: "rgba(255,122,0,0.10)",
+        borderWidth: 0.5,
+        borderColor: "rgba(255,122,0,0.34)",
+    },
+    linkText: {
+        color: ORANGE,
+        fontSize: 12,
+        fontWeight: "600",
+        maxWidth: 260,
+    },
+    linkOptionRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 10,
+        borderWidth: 0.5,
+        borderColor: "rgba(255,255,255,0.12)",
+        backgroundColor: "rgba(255,255,255,0.04)",
+        borderRadius: 14,
+        paddingHorizontal: 12,
+        paddingVertical: 11,
+        marginBottom: 10,
+    },
+    linkOptionText: {
+        color: TEXT,
+        fontSize: 13,
+        fontWeight: "600",
+    },
+    linkOptionSubText: {
+        color: MUTED,
+        fontSize: 11,
+        marginTop: 1,
+    },
 
     scroll: { flex: 1 },
     scrollContent: { paddingHorizontal: 16, paddingBottom: 100 },
