@@ -3,6 +3,7 @@ import {
     View,
     Text,
     StyleSheet,
+    Image,
     TouchableOpacity,
     ScrollView,
     Animated,
@@ -35,6 +36,7 @@ const HINT    = "rgba(240,237,232,0.18)";
 const GLASS_B = "rgba(255,255,255,0.07)";
 const BG      = "#080808";
 const { width: SW } = Dimensions.get("window");
+const BANNER_HEIGHT = 145;
 
 const CARD_W   = (SW - 32 - 12) / 2;
 const BORDER_R = 18;
@@ -46,6 +48,12 @@ const BAR_DATA: Record<string, number[]> = {
     Reps:     [40, 65, 30, 55, 80, 45, 60],
 };
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const PROFILE_BANNER_GRID = [
+    'https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?w=400',
+    'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=400',
+    'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400',
+    'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=400',
+];
 
 type DashItem = {
     label: string;
@@ -410,6 +418,7 @@ export default function ProfileScreen() {
     const [peopleModal, setPeopleModal] = useState<"Followers" | "Following" | null>(null);
     const [linksModalOpen, setLinksModalOpen] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
+    const bannerScrollY = useRef(new Animated.Value(0)).current;
 
     const fetchProfile = useCallback(async (force = false) => {
         setProfileLoading(true);
@@ -513,6 +522,16 @@ export default function ProfileScreen() {
             console.warn("[ProfileScreen] Failed opening profile link", err);
         }
     };
+    const bannerHeight = bannerScrollY.interpolate({
+        inputRange: [0, 140],
+        outputRange: [BANNER_HEIGHT, 64],
+        extrapolate: "clamp",
+    });
+    const bannerOpacity = bannerScrollY.interpolate({
+        inputRange: [0, 140],
+        outputRange: [1, 0.9],
+        extrapolate: "clamp",
+    });
 
     return (
         <LinearGradient
@@ -544,7 +563,7 @@ export default function ProfileScreen() {
                 pointerEvents="none"
             />
 
-            <SafeAreaView style={st.safe}>
+            <SafeAreaView style={st.safe} edges={["top", "left", "right"]}>
 
                 {/* Header */}
                 <View style={st.topHeader}>
@@ -564,66 +583,16 @@ export default function ProfileScreen() {
                     </View>
                 </View>
 
-                {/* Profile row */}
-                <View style={st.profileRow}>
-                    <View style={st.avatarWrap}>
-                        <AvatarRing />
-                        {/* Use AvatarImage which normalizes/probes profile URLs and handles fallbacks */}
-                        <AvatarImage src={profile?.profile_pic_url ?? null} style={st.avatarImg} />
-                        <View style={st.onlineDot} />
-                    </View>
-                    <View style={st.userInfo}>
-                        <Text style={st.username}>{name || "-"}</Text>
-                        {profileLoading && (
-                            <View style={st.profileStatusRow}>
-                                <ActivityIndicator size="small" color={ORANGE} />
-                                <Text style={st.profileStatusText}>Loading profile...</Text>
-                            </View>
-                        )}
-                        {!profileLoading && profileError && (
-                            <Text style={st.profileErrorText}>{profileError}</Text>
-                        )}
-                        <View style={st.statsRow}>
-                            <View style={st.statBlock}>
-                                <Text style={st.statNum}>{workoutsCount}</Text>
-                                <Text style={st.statLbl}>Workouts</Text>
-                            </View>
-                            <View style={st.statDivider} />
-                            <TouchableOpacity style={st.statBlock} activeOpacity={0.8} onPress={() => setPeopleModal("Followers")}>
-                                <Text style={st.statNum}>{followersCount}</Text>
-                                <Text style={st.statLbl}>Followers</Text>
-                            </TouchableOpacity>
-                            <View style={st.statDivider} />
-                            <TouchableOpacity style={st.statBlock} activeOpacity={0.8} onPress={() => setPeopleModal("Following")}>
-                                <Text style={st.statNum}>{followingCount}</Text>
-                                <Text style={st.statLbl}>Following</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                </View>
-                {(bio.length > 0 || profileLinks.length > 0) && (
-                    <View style={st.bioLinkWrap}>
-                        {bio.length > 0 && (
-                            <Text style={st.bioText}>{bio}</Text>
-                        )}
-                        {profileLinks.length > 0 && (
-                            <TouchableOpacity style={st.linkChip} activeOpacity={0.8} onPress={() => setLinksModalOpen(true)}>
-                                <Feather name="link-2" size={13} color={ORANGE} />
-                                <Text style={st.linkText} numberOfLines={1}>
-                                    {profileLinks.length === 1
-                                        ? profileLinks[0].name
-                                        : `${profileLinks[0].name} and ${profileLinks.length - 1} more`}
-                                </Text>
-                            </TouchableOpacity>
-                        )}
-                    </View>
-                )}
-
                 {/* Scroll */}
-                <ScrollView
+                <Animated.ScrollView
                     style={st.scroll}
                     contentContainerStyle={st.scrollContent}
                     showsVerticalScrollIndicator={false}
+                    onScroll={Animated.event(
+                        [{ nativeEvent: { contentOffset: { y: bannerScrollY } } }],
+                        { useNativeDriver: false }
+                    )}
+                    scrollEventThrottle={16}
                     refreshControl={
                         <RefreshControl
                             refreshing={refreshing}
@@ -633,6 +602,72 @@ export default function ProfileScreen() {
                         />
                     }
                 >
+                    <Animated.View style={[st.bannerWrap, { height: bannerHeight, opacity: bannerOpacity }]}>
+                        <View style={st.bannerCard}>
+                            <View style={st.bannerGrid}>
+                                {PROFILE_BANNER_GRID.map((img, i) => (
+                                    <Image key={i} source={{ uri: img }} style={st.bannerGridImg} />
+                                ))}
+                            </View>
+                            <LinearGradient colors={['transparent', BG]} style={st.bannerGridFade} />
+                        </View>
+                    </Animated.View>
+
+                    {/* Profile row */}
+                    <View style={st.profileRow}>
+                        <View style={st.avatarWrap}>
+                            <AvatarRing />
+                            {/* Use AvatarImage which normalizes/probes profile URLs and handles fallbacks */}
+                            <AvatarImage src={profile?.profile_pic_url ?? null} style={st.avatarImg} />
+                            <View style={st.onlineDot} />
+                        </View>
+                        <View style={st.userInfo}>
+                            <Text style={st.username}>{name || "-"}</Text>
+                            {profileLoading && (
+                                <View style={st.profileStatusRow}>
+                                    <ActivityIndicator size="small" color={ORANGE} />
+                                    <Text style={st.profileStatusText}>Loading profile...</Text>
+                                </View>
+                            )}
+                            {!profileLoading && profileError && (
+                                <Text style={st.profileErrorText}>{profileError}</Text>
+                            )}
+                            <View style={st.statsRow}>
+                                <View style={st.statBlock}>
+                                    <Text style={st.statNum}>{workoutsCount}</Text>
+                                    <Text style={st.statLbl}>Workouts</Text>
+                                </View>
+                                <View style={st.statDivider} />
+                                <TouchableOpacity style={st.statBlock} activeOpacity={0.8} onPress={() => setPeopleModal("Followers")}>
+                                    <Text style={st.statNum}>{followersCount}</Text>
+                                    <Text style={st.statLbl}>Followers</Text>
+                                </TouchableOpacity>
+                                <View style={st.statDivider} />
+                                <TouchableOpacity style={st.statBlock} activeOpacity={0.8} onPress={() => setPeopleModal("Following")}>
+                                    <Text style={st.statNum}>{followingCount}</Text>
+                                    <Text style={st.statLbl}>Following</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    </View>
+                    {(bio.length > 0 || profileLinks.length > 0) && (
+                        <View style={st.bioLinkWrap}>
+                            {bio.length > 0 && (
+                                <Text style={st.bioText}>{bio}</Text>
+                            )}
+                            {profileLinks.length > 0 && (
+                                <TouchableOpacity style={st.linkChip} activeOpacity={0.8} onPress={() => setLinksModalOpen(true)}>
+                                    <Feather name="link-2" size={13} color={ORANGE} />
+                                    <Text style={st.linkText} numberOfLines={1}>
+                                        {profileLinks.length === 1
+                                            ? profileLinks[0].name
+                                            : `${profileLinks[0].name} and ${profileLinks.length - 1} more`}
+                                    </Text>
+                                </TouchableOpacity>
+                            )}
+                        </View>
+                    )}
+
                     {/* Chart card */}
                     <LinearGradient
                         colors={["rgba(255,255,255,0.05)", "rgba(255,255,255,0.02)"]}
@@ -716,7 +751,7 @@ export default function ProfileScreen() {
                         <Text style={st.startText}>Start tracking here</Text>
                         <Feather name="chevron-down" size={16} color={ORANGE} />
                     </TouchableOpacity>
-                </ScrollView>
+                </Animated.ScrollView>
 
                 <PeopleModal
                     visible={!!peopleModal}
@@ -779,6 +814,31 @@ const st = StyleSheet.create({
         backgroundColor: "rgba(255,255,255,0.04)",
         borderWidth: 0.5, borderColor: "rgba(255,255,255,0.08)",
         borderRadius: 12, alignItems: "center", justifyContent: "center",
+    },
+    bannerWrap: {
+        marginTop: 0,
+        marginHorizontal: -16,
+        overflow: "hidden",
+    },
+    bannerCard: {
+        height: BANNER_HEIGHT,
+        borderRadius: 0,
+        borderWidth: 0,
+        overflow: "hidden",
+    },
+    bannerGrid: {
+        flexDirection: "row",
+        height: "100%",
+    },
+    bannerGridImg: {
+        flex: 1,
+    },
+    bannerGridFade: {
+        position: "absolute",
+        bottom: 0,
+        left: 0,
+        right: 0,
+        height: 60,
     },
 
     profileRow: {

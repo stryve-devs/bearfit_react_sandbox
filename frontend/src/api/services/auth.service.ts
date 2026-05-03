@@ -59,4 +59,19 @@ export const authService = {
         const response = await api.get(url);
         return response.data;
     },
+
+    async mergeProfileIntoStoredUser(profile: Partial<MeProfileResponse>): Promise<User | null> {
+        const current = await authService.getUser();
+        if (!current) return null;
+
+        const next: User = {
+            ...current,
+            name: profile.name ?? current.name,
+            username: profile.username ?? current.username,
+            ...(profile.profile_pic_url ? { profile_pic_url: profile.profile_pic_url } : {}),
+        } as User;
+
+        await AsyncStorage.setItem('user', JSON.stringify(next));
+        return next;
+    },
 };

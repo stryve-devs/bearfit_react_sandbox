@@ -23,6 +23,8 @@ const getUserById = async (req, res) => {
                 user_id: true,
                 username: true,
                 name: true,
+                bio: true,
+                link_url: true,
                 profile_pic_url: true,
             },
         });

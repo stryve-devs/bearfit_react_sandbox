@@ -3,7 +3,6 @@ import { View, Text, StatusBar, Dimensions, Platform, ActivityIndicator, StyleSh
 import type { ViewToken } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useIsFocused } from '@react-navigation/native';
@@ -89,11 +88,13 @@ const ATHLETES: Athlete[] = [
 
 const QUICK_EMOJIS = ['💪', '🔥', '👏', '🏋️', '👊', '🥵', '🏆'];
 const LOADING_LINES = [
+  'Loading feed...',
   'Loading awesomeness...',
-  'Warming up the feed...',
-  'Finding your next PR inspiration...',
-  'Polishing fresh workout posts...',
-  'Almost there. Stay strong.',
+  'Fetching fresh posts...',
+  'Warming up your feed...',
+  'Finding your next workout inspo...',
+  'Almost there...',
+  'Pulling in fresh gains...',
 ];
 
 const toLocalComment = utils.toLocalComment;
@@ -118,6 +119,7 @@ export default function DiscoverScreen() {
   const [query, setQuery] = useState('');
   const [activePostId, setActivePostId] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [loadingLine, setLoadingLine] = useState(() => LOADING_LINES[Math.floor(Math.random() * LOADING_LINES.length)]);
 
   const {
     posts,
@@ -196,6 +198,11 @@ export default function DiscoverScreen() {
     }
   }, [isScreenFocused]);
 
+  useEffect(() => {
+    if (!isInitialLoading) return;
+    setLoadingLine(LOADING_LINES[Math.floor(Math.random() * LOADING_LINES.length)]);
+  }, [isInitialLoading]);
+
   const filteredPosts = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return posts;
@@ -232,7 +239,6 @@ export default function DiscoverScreen() {
   // Avatar resolution cache & map (postId -> resolved avatar URI)
   const resolvedAvatarCacheRef = useRef<Record<string, string>>({});
   const [avatarUriByPostId, setAvatarUriByPostId] = useState<Record<string, string>>({});
-  const [loadingLineIndex, setLoadingLineIndex] = useState(0);
 
   // Resolve avatar URLs for posts: try original, encoded variants, then backend proxy fallback
   useEffect(() => {
@@ -331,14 +337,6 @@ export default function DiscoverScreen() {
     return derivedPosts.filter((p: Post) => `${p.athlete.name} ${p.athlete.username} ${p.caption}`.toLowerCase().includes(q));
   }, [query, derivedPosts]);
 
-  useEffect(() => {
-    if (!isInitialLoading) return;
-    const timer = setInterval(() => {
-      setLoadingLineIndex((prev) => (prev + 1) % LOADING_LINES.length);
-    }, 1350);
-    return () => clearInterval(timer);
-  }, [isInitialLoading]);
-
   return (
     <LinearGradient
       colors={['#0e0e11', '#0a0906', '#080808', '#0a0906', '#0b0b0e']}
@@ -356,20 +354,8 @@ export default function DiscoverScreen() {
 
         {isInitialLoading && derivedPosts.length === 0 ? (
           <View style={loadingStyles.wrap}>
-            <View style={loadingStyles.cardShell}>
-              <BlurView intensity={35} tint="dark" style={loadingStyles.card}>
-                <LinearGradient
-                  colors={['rgba(255,122,0,0.16)', 'rgba(255,122,0,0.03)']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={loadingStyles.glow}
-                />
-                <View style={loadingStyles.innerStroke} pointerEvents="none" />
-                <ActivityIndicator size="large" color={ORANGE} />
-                <Text allowFontScaling={false} style={loadingStyles.title}>Discover Feed</Text>
-                <Text allowFontScaling={false} style={loadingStyles.subtitle}>{LOADING_LINES[loadingLineIndex]}</Text>
-              </BlurView>
-            </View>
+            <ActivityIndicator size="large" color={ORANGE} />
+            <Text allowFontScaling={false} style={loadingStyles.label}>{loadingLine}</Text>
           </View>
         ) : (
           <DiscoverList
@@ -435,54 +421,11 @@ const loadingStyles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 24,
   },
-  cardShell: {
-    width: '100%',
-    borderRadius: 24,
-    borderWidth: 0,
-    backgroundColor: 'rgba(12,12,12,0.46)',
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOpacity: 0.24,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 6,
-  },
-  card: {
-    width: '100%',
-    borderRadius: 24,
-    paddingVertical: 28,
-    paddingHorizontal: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-    backgroundColor: 'rgba(12,12,12,0.52)',
-  },
-  glow: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  innerStroke: {
-    position: 'absolute',
-    top: 1,
-    right: 1,
-    bottom: 1,
-    left: 1,
-    borderRadius: 23,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.028)',
-  },
-  title: {
-    marginTop: 14,
-    fontSize: 18,
-    color: TEXT,
-    fontWeight: '800',
-  },
-  subtitle: {
-    marginTop: 8,
-    fontSize: 13,
-    color: 'rgba(240,237,232,0.75)',
-    textAlign: 'center',
+  label: {
+    marginTop: 12,
+    fontSize: 14,
+    color: 'rgba(240,237,232,0.78)',
     fontWeight: '600',
   },
 });

@@ -1,6 +1,16 @@
 import React, { useState } from 'react';
 import { View, TouchableOpacity, Text, Image, ScrollView, Pressable, NativeSyntheticEvent, NativeScrollEvent } from 'react-native';
-import Animated, { useSharedValue, useAnimatedStyle, withSequence, withTiming, FadeInDown } from 'react-native-reanimated';
+import Animated, {
+  Extrapolation,
+  FadeInDown,
+  SharedValue,
+  interpolate,
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import st, { ORANGE, ORANGE2, IS_ANDROID, SCREEN_WIDTH } from './styles';
 import { MediaSlide } from './MediaSlide';
@@ -9,6 +19,32 @@ import LikeButton from './LikeButton';
 import { Ionicons } from '@expo/vector-icons';
 import useResolvedImageUri from '@/hooks/useResolvedImageUri';
 import AvatarImage from '@/components/common/AvatarImage';
+
+function MediaProgressDot({
+  index,
+  scrollX,
+  slideWidth,
+}: {
+  index: number;
+  scrollX: SharedValue<number>;
+  slideWidth: number;
+}) {
+  const animStyle = useAnimatedStyle(() => {
+    const widthBase = 5;
+    const widthActive = 14;
+    const safeWidth = slideWidth > 0 ? slideWidth : 1;
+    const page = scrollX.value / safeWidth;
+    const dist = Math.abs(page - index);
+
+    return {
+      width: interpolate(dist, [0, 1], [widthActive, widthBase], Extrapolation.CLAMP),
+      opacity: interpolate(dist, [0, 1], [1, 0.45], Extrapolation.CLAMP),
+      backgroundColor: dist < 0.5 ? ORANGE : 'rgba(255,255,255,0.30)',
+    };
+  });
+
+  return <Animated.View style={[st.mediaDot, animStyle]} />;
+}
 
 export default function PostCard({
   item,
@@ -38,6 +74,7 @@ export default function PostCard({
   const safeMediaIndex = Math.min(Math.max(0, activeMediaIndex), Math.max(0, totalSlides - 1));
   const [mediaWidth, setMediaWidth] = useState(0);
   const slideWidth = mediaWidth || SCREEN_WIDTH - 56;
+  const scrollX = useSharedValue(0);
 
   const onMediaScrollEnd = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     if (totalSlides <= 1) return;
@@ -48,6 +85,11 @@ export default function PostCard({
       onMediaIndexChange(clampedIndex);
     }
   };
+  const onMediaScroll = useAnimatedScrollHandler({
+    onScroll: (event) => {
+      scrollX.value = event.contentOffset.x;
+    },
+  });
 
   const cardScale = useSharedValue(1);
   const cardStyle = useAnimatedStyle(() => ({ transform: [{ scale: cardScale.value }] }));
@@ -65,6 +107,7 @@ export default function PostCard({
   };
 
   const likedByName = item.likedByUsername;
+  const captionText = typeof item.caption === 'string' ? item.caption.trim() : '';
   const likedByAvatars = (
     item.likedByAvatarUrls && item.likedByAvatarUrls.length > 0
       ? item.likedByAvatarUrls
@@ -74,9 +117,7 @@ export default function PostCard({
   ).slice(0, 2);
 
   // Resolve avatar URL robustly using shared hook
-  const { resolvedUri: avatarResolvedUri, isValidating: avatarValidating } = useResolvedImageUri(item?.athlete?.avatarUrl);
-  // Debugging: log resolved uri and validation status for this post's avatar
-  console.debug('[PostCard] avatarResolvedUri', item.id, avatarResolvedUri, 'validating:', avatarValidating);
+  const { resolvedUri: avatarResolvedUri } = useResolvedImageUri(item?.athlete?.avatarUrl);
 
   return (
     <Animated.View entering={FadeInDown.delay(index * 60).duration(400)}>
@@ -91,13 +132,13 @@ export default function PostCard({
       >
         <Animated.View style={cardStyle}>
           <LinearGradient
-            colors={['rgba(255,255,255,0.06)', 'rgba(255,255,255,0.02)']}
+            colors={['rgba(255,255,255,0.045)', 'rgba(255,255,255,0.015)']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={st.card}
           >
             <LinearGradient
-              colors={['transparent', 'rgba(255,255,255,0.08)', 'transparent']}
+              colors={['transparent', 'rgba(255,255,255,0.06)', 'transparent']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={st.cardShine}
@@ -142,28 +183,16 @@ export default function PostCard({
               </TouchableOpacity>
             </View>
 
-            <View style={{ height: IS_ANDROID ? 10 : 12 }} />
-            {item.title && (
-              <Text allowFontScaling={false} style={st.postTitle}>
-                {item.title}
-              </Text>
-            )}
-            <Text allowFontScaling={false} style={st.caption}>
-              {item.caption}
-            </Text>
-
-            <View style={st.statsRow}>
-              {/* Mini stats left in DiscoverScreen will render via parent if needed */}
-            </View>
-
             <View
               style={st.imageWrap}
               onLayout={(event) => setMediaWidth(event.nativeEvent.layout.width)}
             >
-              <ScrollView
+              <Animated.ScrollView
                 horizontal
                 pagingEnabled
                 showsHorizontalScrollIndicator={false}
+                onScroll={onMediaScroll}
+                scrollEventThrottle={16}
                 onMomentumScrollEnd={onMediaScrollEnd}
               >
                 {item.media.map((media: any, mediaIndex: number) => (
@@ -173,8 +202,6 @@ export default function PostCard({
                     onPress={() => onMediaPress(mediaIndex)}
                   >
                     <View style={[st.mediaSlide, { width: slideWidth }]}>
-                      {/* Debug: log media active state to help trace autoplay issues */}
-                      {console.log('[PostCard] media', item.id, 'mediaIndex', mediaIndex, 'isPostActive', isPostActive, 'isScreenFocused', isScreenFocused, 'safeMediaIndex', safeMediaIndex)}
                       <MediaSlide
                         media={media}
                         isActive={isScreenFocused && isPostActive && safeMediaIndex === mediaIndex}
@@ -242,16 +269,17 @@ export default function PostCard({
                     )}
                   </View>
                 </TouchableOpacity>
-              </ScrollView>
-              <View style={st.imageOverlay} />
+              </Animated.ScrollView>
             </View>
 
             {totalSlides > 1 && (
               <View style={st.mediaDotsRow}>
                 {Array.from({ length: totalSlides }).map((_, mediaIndex) => (
-                  <View
+                  <MediaProgressDot
                     key={`${item.id}-dot-${mediaIndex}`}
-                    style={[st.mediaDot, mediaIndex === safeMediaIndex && st.mediaDotActive]}
+                    index={mediaIndex}
+                    scrollX={scrollX}
+                    slideWidth={slideWidth}
                   />
                 ))}
               </View>
@@ -278,6 +306,22 @@ export default function PostCard({
                 />
               </TouchableOpacity>
             </View>
+
+            {likeCount > 0 && (
+              <View style={st.likesCountRow}>
+                <Text allowFontScaling={false} style={st.likesCountText}>
+                  {likeCount.toLocaleString()} likes
+                </Text>
+              </View>
+            )}
+
+            {!!captionText && (
+              <View style={st.captionRow}>
+                <Text allowFontScaling={false} numberOfLines={2} style={st.captionInline}>
+                  <Text style={st.captionUser}>{item.athlete.username}</Text> {captionText}
+                </Text>
+              </View>
+            )}
 
             {likeCount > 0 && likedByName && (
               <View style={st.likedByRow}>

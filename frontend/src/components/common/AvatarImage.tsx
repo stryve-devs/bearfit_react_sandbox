@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Image, ActivityIndicator, View, StyleProp, ImageStyle } from 'react-native';
+import { Image, View, StyleProp, ImageStyle } from 'react-native';
 import api from '@/api/client';
 
-// AvatarImage: encapsulates image probing/validation. We deliberately do NOT use any
-// dummy placeholder images; when no image is available we render an empty View so
-// the caller's styling (e.g. backgroundColor) determines the visible box (black/empty).
+const DEFAULT_AVATAR_URL = 'https://www.gravatar.com/avatar/?d=mp&s=240';
+
+// AvatarImage: encapsulates image probing/validation and provides a consistent
+// default avatar whenever a profile image is missing or invalid.
 // Props: src or uri (string | null) - the raw URL from backend; style - Image style;
 // skipResolve (boolean) - when true, accept the src/uri as-is and skip probing.
 export default function AvatarImage({
@@ -18,7 +19,7 @@ export default function AvatarImage({
   style?: StyleProp<ImageStyle>;
   skipResolve?: boolean;
 }) {
-  const initial = src ?? uriProp ?? null;
+  const initial = src ?? uriProp ?? DEFAULT_AVATAR_URL;
   const [uri, setUri] = useState<string | null>(initial);
   const [imageLoading, setImageLoading] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
@@ -41,13 +42,12 @@ export default function AvatarImage({
       const L = String(incoming || '').toLowerCase();
       if (L.includes('pravatar.cc') || L.includes('i.pravatar.cc')) {
         console.debug('[AvatarImage] incoming is pravatar placeholder, treating as null', incoming);
-        setUri(null);
+        setUri(DEFAULT_AVATAR_URL);
         return () => { mounted = false; };
       }
     } catch (err) {}
     if (!incoming) {
-      // No URL provided: ensure we render an empty box (no dummy avatar)
-      setUri(null);
+      setUri(DEFAULT_AVATAR_URL);
       return () => { mounted = false; };
     }
 
@@ -131,12 +131,15 @@ export default function AvatarImage({
 
         // nothing worked
         if (mounted) {
-          // No resolvable image -- leave uri null so caller will see an empty box
+          // No resolvable image -- fallback to default avatar.
           setImageError('Could not fetch image (network or invalid URL)');
-          setUri(null);
+          setUri(DEFAULT_AVATAR_URL);
         }
       } catch (err: any) {
-        if (mounted) setImageError(String(err?.message || err));
+        if (mounted) {
+          setImageError(String(err?.message || err));
+          setUri(DEFAULT_AVATAR_URL);
+        }
       } finally {
         if (mounted) {
           setImageLoading(false);
@@ -155,9 +158,9 @@ export default function AvatarImage({
     return () => { mounted = false; if (pendingErrorTimerRef.current) { clearTimeout(pendingErrorTimerRef.current as unknown as number); pendingErrorTimerRef.current = null; } };
   }, [src, skipResolve]);
 
-  // If we don't have any URI to render, show an empty View (so caller's style background shows)
+  // Defensive fallback in case uri is somehow emptied at runtime.
   if (!uri) {
-    return <View style={style} />;
+    return <Image source={{ uri: DEFAULT_AVATAR_URL }} style={style} />;
   }
 
   return (
@@ -201,9 +204,7 @@ export default function AvatarImage({
           }, delayMs) as unknown as number;
         }}
       />
-      {(imageLoading || validatingImage || pendingErrorWaiting) && (
-        <ActivityIndicator style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }} />
-      )}
+      {/* Intentionally no inline spinner for avatars to avoid UI flicker/noise while lists render. */}
     </View>
   );
 }

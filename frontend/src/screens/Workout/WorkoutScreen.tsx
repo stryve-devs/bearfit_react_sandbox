@@ -105,7 +105,7 @@ export default function MainWorkoutScreen() {
                 style={StyleSheet.absoluteFill} pointerEvents="none"
             />
 
-            <SafeAreaView style={st.safe}>
+            <SafeAreaView style={st.safe} edges={["top", "left", "right"]}>
                 {/* Header */}
                 <View style={st.topHeader}>
                     <Text style={st.topName}>WORKOUT</Text>

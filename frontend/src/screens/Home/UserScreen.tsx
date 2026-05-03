@@ -16,6 +16,7 @@ import {
     Pressable,
     ActivityIndicator,
     RefreshControl,
+    Linking,
 } from 'react-native';
 
 import { useLocalSearchParams, router } from 'expo-router';
@@ -40,7 +41,7 @@ import { useState, useEffect, useRef } from 'react';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, Feather } from '@expo/vector-icons';
 import { userService } from '@/api/services/user.service';
 import { useAuth } from '@/context/AuthContext';
 import api from '@/api/client';
@@ -224,12 +225,13 @@ const GlassCard = ({ children, style, shine = true, glowColor }: any) => (
 
 const ProfileVideoMedia = ({ uri, isActive }: { uri: string; isActive: boolean }) => {
     const player = useVideoPlayer(uri as any);
+    const [isMuted, setIsMuted] = useState(true);
 
     useEffect(() => {
         player.loop = true;
 
         if (isActive) {
-            player.muted = false;
+            player.muted = isMuted;
             try {
                 if (typeof (player as any).play === 'function') (player as any).play();
                 if (typeof (player as any).playAsync === 'function') (player as any).playAsync();
@@ -246,9 +248,20 @@ const ProfileVideoMedia = ({ uri, isActive }: { uri: string; isActive: boolean }
             if (typeof (player as any).setCurrentTime === 'function') (player as any).setCurrentTime(0);
             (player as any).currentTime = 0;
         } catch {}
-    }, [isActive, player]);
+    }, [isActive, isMuted, player]);
 
-    return <VideoView player={player} style={styles.postImage} contentFit="cover" nativeControls={false} />;
+    return (
+        <View>
+            <VideoView player={player} style={styles.postImage} contentFit="cover" nativeControls={false} />
+            <TouchableOpacity
+                style={styles.videoMuteBtn}
+                activeOpacity={0.8}
+                onPress={() => setIsMuted((prev) => !prev)}
+            >
+                <Ionicons name={isMuted ? 'volume-mute' : 'volume-high'} size={14} color={C.white} />
+            </TouchableOpacity>
+        </View>
+    );
 };
 
 const ProfileMediaSlide = ({ media, isActive }: { media: { url: string; type: 'IMAGE' | 'VIDEO' }; isActive: boolean }) => {
@@ -256,10 +269,6 @@ const ProfileMediaSlide = ({ media, isActive }: { media: { url: string; type: 'I
         return (
             <View style={styles.mediaSlide}>
                 <ProfileVideoMedia uri={media.url} isActive={isActive} />
-                <View style={styles.videoHint}>
-                    <Ionicons name="videocam" size={11} color={C.white} />
-                    <Text style={styles.videoHintText}>Video</Text>
-                </View>
             </View>
         );
     }
@@ -560,7 +569,6 @@ function PostCard({ post, index, onOpenComments, onUpdatePost }: any) {
                             </TouchableOpacity>
                         </ScrollView>
 
-                        <View style={styles.imageOverlay} />
                         {totalSlides > 1 && (
                             <View style={styles.dotRow}>
                                 {Array.from({ length: totalSlides }).map((_: any, i: number) => (
@@ -730,8 +738,69 @@ export default function UserScreen() {
     const [commentDraft, setCommentDraft] = useState('');
     const [replyingTo, setReplyingTo] = useState<{ commentId: string; user: string } | null>(null);
     const [peopleModal,  setPeopleModal]  = useState<string | null>(null);
+    const [linksModalOpen, setLinksModalOpen] = useState(false);
     const scrollRef = useRef<any>(null);
     const postsY    = useRef(0);
+    const bio = (userData?.bio || '').trim();
+
+    const labelFromUrl = (value: string) => {
+        const normalized = /^https?:\/\//i.test(value) ? value : `https://${value}`;
+        try {
+            const parsed = new URL(normalized);
+            return parsed.host.replace(/^www\./i, '');
+        } catch {
+            return value.replace(/^https?:\/\//i, '');
+        }
+    };
+    const parseProfileLinks = (raw: string | null | undefined): Array<{ name: string; url: string }> => {
+        if (!raw) return [];
+        try {
+            if (String(raw).trim().startsWith('[')) {
+                const arr = JSON.parse(String(raw));
+                if (Array.isArray(arr)) {
+                    return arr
+                        .map((x: any) => ({ name: String(x?.name || '').trim(), url: String(x?.url || '').trim() }))
+                        .filter((x: { name: string; url: string }) => x.name && x.url)
+                        .slice(0, 3);
+                }
+            }
+        } catch {
+            // fallback to legacy plain URL format
+        }
+        const urls = Array.from(new Set(
+            String(raw)
+                .split(/[\s,\n]+/)
+                .map((s) => s.trim())
+                .filter(Boolean)
+        )).slice(0, 3);
+        return urls.map((url) => ({ name: labelFromUrl(url), url }));
+    };
+    const profileLinks = parseProfileLinks(userData?.link_url);
+    const normalizeExternalUrl = (value: string) => {
+        if (!value) return '';
+        if (/^https?:\/\//i.test(value)) return value;
+        return `https://${value}`;
+    };
+    const getHostLabel = (value: string) => {
+        try {
+            const parsed = new URL(normalizeExternalUrl(value));
+            return parsed.host.replace(/^www\./i, '');
+        } catch {
+            return value.replace(/^https?:\/\//i, '');
+        }
+    };
+    const openProfileLink = async (value: string) => {
+        const url = normalizeExternalUrl(value);
+        if (!url) return;
+        try {
+            const supported = await Linking.canOpenURL(url);
+            if (supported) {
+                await Linking.openURL(url);
+            }
+        } catch (err) {
+            console.warn('[UserScreen] Failed opening profile link', err);
+        }
+    };
 
     const scrollToPosts = () => { scrollRef.current?.scrollTo({ y: postsY.current - 50, animated: true }); };
 
@@ -1089,9 +1158,23 @@ export default function UserScreen() {
                         </View>
                     </Animated.View>
 
-                    <Animated.Text entering={FadeInDown.delay(160).springify()} style={styles.bio}>
-                        I want to be strong enough to fight a bear 🐻
-                    </Animated.Text>
+                    {(bio.length > 0 || profileLinks.length > 0) && (
+                        <Animated.View entering={FadeInDown.delay(160).springify()} style={styles.bioLinkWrap}>
+                            {bio.length > 0 && (
+                                <Text style={styles.bio}>{bio}</Text>
+                            )}
+                            {profileLinks.length > 0 && (
+                                <TouchableOpacity style={styles.linkChip} activeOpacity={0.8} onPress={() => setLinksModalOpen(true)}>
+                                    <Feather name="link-2" size={13} color={C.orange} />
+                                    <Text style={styles.linkText} numberOfLines={1}>
+                                        {profileLinks.length === 1
+                                            ? profileLinks[0].name
+                                            : `${profileLinks[0].name} and ${profileLinks.length - 1} more`}
+                                    </Text>
+                                </TouchableOpacity>
+                            )}
+                        </Animated.View>
+                    )}
 
                     {/* Stats */}
                     <View style={styles.statsRow}>
@@ -1192,7 +1275,33 @@ export default function UserScreen() {
                 activePostId={commentsPost?.id || null}
                 quickEmojis={QUICK_EMOJIS}
             />
-             <PeopleModal   visible={!!peopleModal} onClose={() => setPeopleModal(null)} title={peopleModal || ''} targetUserId={userData.user_id} />
+            <Modal visible={linksModalOpen} transparent animationType="fade" onRequestClose={() => setLinksModalOpen(false)}>
+                <View style={styles.modalOverlayCenter}>
+                    <Pressable style={styles.linksBackdrop} onPress={() => setLinksModalOpen(false)} />
+                    <View style={styles.linksSheet}>
+                        <Text style={styles.linksTitle}>Links</Text>
+                        {profileLinks.map((item, idx) => (
+                            <TouchableOpacity
+                                key={`${item.name}-${idx}`}
+                                style={styles.linkOptionRow}
+                                activeOpacity={0.85}
+                                onPress={() => openProfileLink(item.url)}
+                            >
+                                <Feather name="link-2" size={15} color={C.orange} />
+                                <View style={{ flex: 1, minWidth: 0 }}>
+                                    <Text style={styles.linkOptionText} numberOfLines={1}>
+                                        {item.name}
+                                    </Text>
+                                    <Text style={styles.linkOptionSubText} numberOfLines={1}>
+                                        {getHostLabel(item.url)}
+                                    </Text>
+                                </View>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                </View>
+            </Modal>
+            <PeopleModal visible={!!peopleModal} onClose={() => setPeopleModal(null)} title={peopleModal || ''} targetUserId={userData.user_id} />
          </View>
      );
  }
@@ -1227,7 +1336,21 @@ const styles = StyleSheet.create({
     mainAvatarRing: { position: 'absolute', inset: 0, borderRadius: 36, borderWidth: 2.5, borderColor: 'transparent' },
     name: { color: C.white, fontSize: 22, fontWeight: '800', letterSpacing: -0.3 },
     handle: { color: C.gray, fontSize: 13, marginTop: 1 },
-    bio: { color: C.gray, fontSize: 14, lineHeight: 20, marginBottom: 16 },
+    bio: { color: C.gray, fontSize: 14, lineHeight: 20 },
+    bioLinkWrap: { marginBottom: 16, gap: 10 },
+    linkChip: {
+        alignSelf: 'flex-start',
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 7,
+        borderRadius: 999,
+        paddingHorizontal: 12,
+        paddingVertical: 7,
+        borderWidth: 1,
+        borderColor: 'rgba(255,120,37,0.28)',
+        backgroundColor: 'rgba(255,120,37,0.10)',
+    },
+    linkText: { color: C.orange, fontSize: 12, fontWeight: '700', maxWidth: width * 0.7 },
 
     statsRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
     statPill: { padding: 14, alignItems: 'center', borderRadius: 18 },
@@ -1299,9 +1422,20 @@ const styles = StyleSheet.create({
     imageWrap:     { position: 'relative', marginHorizontal: 14, borderRadius: 14, overflow: 'hidden' },
     mediaSlide:    { overflow: 'hidden' },
     postImage:     { width: '100%', height: 240, backgroundColor: '#1a1a1a' },
-    imageOverlay:  { position: 'absolute', bottom: 0, left: 0, right: 0, height: 60, backgroundColor: 'rgba(0,0,0,0.2)' },
-    videoHint:     { position: 'absolute', top: 10, right: 10, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 999, backgroundColor: 'rgba(8,8,16,0.72)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
-    videoHintText: { color: C.white, fontSize: 11, fontWeight: '700' },
+    videoMuteBtn: {
+        position: 'absolute',
+        left: 10,
+        bottom: 10,
+        width: 28,
+        height: 28,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: 999,
+        backgroundColor: 'rgba(8,8,16,0.72)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+    },
+    videoMuteBtnText: { color: C.white, fontSize: 11, fontWeight: '700' },
     dotRow:        { position: 'absolute', bottom: 12, flexDirection: 'row', gap: 6, left: 0, right: 0, justifyContent: 'center' },
     dot:           { width: 5, height: 5, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.3)' },
     dotActive:     { width: 14, backgroundColor: C.orange },
@@ -1330,6 +1464,32 @@ const styles = StyleSheet.create({
 
     // Modal / Sheet
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+    modalOverlayCenter: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+    linksBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.55)' },
+    linksSheet: {
+        width: '86%',
+        maxWidth: 360,
+        borderRadius: 18,
+        padding: 16,
+        borderWidth: 1,
+        borderColor: C.border,
+        backgroundColor: 'rgba(14,13,11,0.96)',
+        gap: 10,
+    },
+    linksTitle: { color: C.white, fontSize: 16, fontWeight: '700', marginBottom: 2 },
+    linkOptionRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+        backgroundColor: 'rgba(255,255,255,0.03)',
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+    },
+    linkOptionText: { color: C.white, fontSize: 13, fontWeight: '600' },
+    linkOptionSubText: { color: C.gray, fontSize: 11, marginTop: 2 },
     sheetKav:     { position: 'absolute', left: 0, right: 0, bottom: 0, top: 0, justifyContent: 'flex-end' },
     commentsSheet: {
         backgroundColor: '#0e0d0b',

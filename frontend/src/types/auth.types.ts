@@ -2,6 +2,7 @@ export interface User {
     user_id: number;
     name?: string;     // 👈 Changed to optional to match DB (String?)
     username?: string;
+    profile_pic_url?: string;
     email: string;
     role: 'USER' | 'ADMIN';
 }

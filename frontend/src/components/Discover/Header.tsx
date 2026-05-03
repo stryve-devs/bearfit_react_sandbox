@@ -3,7 +3,7 @@ import { View, TouchableOpacity, Text, StyleSheet, Platform } from 'react-native
 import Animated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
-import st, { ORANGE, IS_ANDROID } from './styles';
+import st, { IS_ANDROID, TEXT } from './styles';
 
 export default function Header({
   onOpenMenu,
@@ -42,26 +42,26 @@ export default function Header({
           Discover
         </Text>
         <View style={st.chevronWrap}>
-          <Ionicons name="chevron-down" size={12} color={ORANGE} />
+          <Ionicons name="chevron-down" size={12} color={TEXT} />
         </View>
       </TouchableOpacity>
 
       <View style={st.actions}>
         <TouchableOpacity onPress={onSearchOpen} activeOpacity={0.8}>
           <Animated.View style={st.iconBtn}>
-            <Ionicons name="search-outline" size={IS_ANDROID ? 18 : 20} color={ORANGE} />
+            <Ionicons name="search-outline" size={IS_ANDROID ? 18 : 20} color={TEXT} />
           </Animated.View>
         </TouchableOpacity>
 
         <TouchableOpacity onPress={onSyncPress} activeOpacity={0.8} disabled={isSyncing}>
           <Animated.View style={[st.syncBtn, syncAnimStyle, isSyncing && st.syncBtnActive]}>
-            <Ionicons name="sync" size={IS_ANDROID ? 18 : 20} color={isSyncing ? '#FFFFFF' : ORANGE} />
+            <Ionicons name="sync" size={IS_ANDROID ? 18 : 20} color={TEXT} />
           </Animated.View>
         </TouchableOpacity>
 
         <TouchableOpacity onPress={() => {}} activeOpacity={0.8}>
           <Animated.View style={st.iconBtn}>
-            <Ionicons name="notifications-outline" size={IS_ANDROID ? 18 : 20} color={ORANGE} />
+            <Ionicons name="notifications-outline" size={IS_ANDROID ? 18 : 20} color={TEXT} />
           </Animated.View>
         </TouchableOpacity>
       </View>

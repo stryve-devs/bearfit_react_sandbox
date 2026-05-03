@@ -23,6 +23,7 @@ import Toast from "@/components/profile/Toast";
 import * as ImagePicker from "expo-image-picker";
 import { profileService } from "@/api/services/profile.service";
 import api from '@/api/client';
+import { useAuth } from "@/context/AuthContext";
 
 const ORANGE = "#ff7a00";
 
@@ -103,10 +104,12 @@ const InputRow = ({
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function EditProfileScreen() {
     const router = useRouter();
+    const { refreshUserProfile } = useAuth();
     const goBackToSettings = () => {
         router.replace('/(tabs)/Profile/Settings');
     };
     const [name, setName] = useState("Alex Rivera");
+    const [username, setUsername] = useState("");
     const [bio, setBio] = useState("");
     const [links, setLinks] = useState<Array<{ name: string; url: string }>>([]);
     const [showLinkModal, setShowLinkModal] = useState(false);
@@ -177,6 +180,13 @@ export default function EditProfileScreen() {
             // fallback to legacy format
         }
         return parseLegacyUrls(raw).map((url) => ({ name: hostFromUrl(url), url }));
+    };
+    const sanitizeUsername = (value: string) => {
+        // Remove common emoji ranges while keeping regular username characters.
+        return value.replace(
+            /([\u203C-\u3299]|[\uD83C-\uDBFF][\uDC00-\uDFFF]|[\u2600-\u27BF])/g,
+            ""
+        );
     };
 
     // Validate image URL when it changes and attempt encoded fallbacks automatically
@@ -296,6 +306,7 @@ export default function EditProfileScreen() {
                 if (!mounted || !profile) return;
 
                 if (profile.name) setName(profile.name);
+                if (profile.username) setUsername(profile.username);
                 if (profile.bio) setBio(profile.bio);
                 if (profile.link_url) setLinks(parseStoredLinks(profile.link_url));
                 if (profile.sex) setSex(profile.sex);
@@ -449,6 +460,7 @@ export default function EditProfileScreen() {
             // Only save profile picture URL if it was uploaded
             const updatePayload: any = {
                 name,
+                username: sanitizeUsername(username).trim() || null,
                 bio,
                 link_url: links.length ? JSON.stringify(links) : null,
                 sex: sex || null,
@@ -462,6 +474,7 @@ export default function EditProfileScreen() {
 
             // Send update to backend
             await profileService.updateProfile(updatePayload);
+            await refreshUserProfile();
 
             setToastMessage("Profile updated successfully.");
             setToastVisible(true);
@@ -665,8 +678,8 @@ export default function EditProfileScreen() {
                         )}
                         {/* Only show error after validation finished and only if image hasn't successfully loaded */}
                         {(!validatingImage && imageError && !imageLoaded) && <Text style={{ color: '#ff6b6b', fontSize: 11 }}>Image error: {imageError}</Text>}
+                        <Text style={st.handle} numberOfLines={1} ellipsizeMode="tail">@{(username || name || "yourname").toLowerCase().replace(/\s+/g, "")}</Text>
                         <Text style={st.username}>{name || "Your Name"}</Text>
-                        <Text style={st.handle}>@{(name || "yourname").toLowerCase().replace(/\s+/g, "")}</Text>
                         <TouchableOpacity onPress={() => setShowProfilePicModal(true)}>
                             <Text style={st.changePic}>Change Picture</Text>
                         </TouchableOpacity>
@@ -675,6 +688,12 @@ export default function EditProfileScreen() {
                     {/* ── Public profile ── */}
                     <Text style={st.sectionLabel}>Public Profile</Text>
                     <GlassCard style={{ marginBottom: 24 }}>
+                        <InputRow
+                            label="Username"
+                            placeholder="Your username"
+                            value={username}
+                            onChangeText={(text: string) => setUsername(sanitizeUsername(text))}
+                        />
                         <InputRow label="Name" placeholder="Your full name" value={name} onChangeText={setName} />
                         <InputRow label="Bio" placeholder="Describe yourself" value={bio} onChangeText={setBio} multiline />
                         <View style={[inSt.row, { borderBottomWidth: 0, flexDirection: "column", gap: 10 }]}>
@@ -1050,7 +1069,7 @@ const st = StyleSheet.create({
         zIndex: 3,
     },
     username: { marginTop: 16, fontSize: 18, fontWeight: "600", color: "#f0ede8", letterSpacing: -0.3 },
-    handle: { fontSize: 13, color: "rgba(240,237,232,0.4)", marginTop: 2 },
+    handle: { fontSize: 13, color: "rgba(240,237,232,0.4)", marginTop: 2, maxWidth: 220, textAlign: "center" },
     changePic: { fontSize: 13, fontWeight: "500", color: ORANGE, marginTop: 12 },
 
     sectionLabel: {
@@ -1164,7 +1183,7 @@ const inSt = StyleSheet.create({
     },
     label: {
         fontSize: 13, fontWeight: "500",
-        color: "rgba(240,237,232,0.4)", width: 46, paddingTop: 2,
+        color: "rgba(240,237,232,0.4)", width: 78, paddingTop: 2,
         flexShrink: 0, letterSpacing: -0.1,
     },
     input: { flex: 1, fontSize: 15, color: "#f0ede8" },

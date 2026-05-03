@@ -10,6 +10,7 @@ interface AuthContextType {
     login: (credentials: LoginRequest) => Promise<void>;
     register: (data: RegisterRequest) => Promise<void>;
     logout: () => Promise<void>;
+    refreshUserProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -119,6 +120,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
     };
 
+    const refreshUserProfile = async () => {
+        try {
+            const profile = await authService.getMeProfile(true);
+            const mergedUser = await authService.mergeProfileIntoStoredUser(profile);
+            if (mergedUser) {
+                setUser(mergedUser);
+                return;
+            }
+
+            // fallback if storage had no user for some reason
+            await loadUser();
+        } catch (error) {
+            console.error('❌ Failed to refresh user profile in auth context:', error);
+        }
+    };
+
     const contextValue: AuthContextType = {
         user,
         loading,
@@ -126,6 +143,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         login,
         register,
         logout,
+        refreshUserProfile,
     };
 
     console.log('🎯 AuthContext state:', {

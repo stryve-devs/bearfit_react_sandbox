@@ -15,6 +15,7 @@ import {
   Dimensions,
   NativeScrollEvent,
   NativeSyntheticEvent,
+  LayoutChangeEvent,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -429,6 +430,7 @@ export default function FetchPostDetailScreen() {
   const [likeCount, setLikeCount] = useState(0);
   const [activeMediaIndex, setActiveMediaIndex] = useState(0);
   const [activeExerciseIndex, setActiveExerciseIndex] = useState(0);
+  const [mediaSlideWidth, setMediaSlideWidth] = useState(Math.max(1, SCREEN_WIDTH - 56));
 
   const [moreOpen, setMoreOpen] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
@@ -745,7 +747,7 @@ export default function FetchPostDetailScreen() {
 
   const onMediaScrollEnd = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     if (totalSlides <= 1) return;
-    const measuredWidth = SCREEN_WIDTH - 56;
+    const measuredWidth = event.nativeEvent.layoutMeasurement.width || mediaSlideWidth || 1;
     const nextIndex = Math.round(event.nativeEvent.contentOffset.x / measuredWidth);
     const clampedIndex = Math.min(Math.max(0, nextIndex), totalSlides - 1);
     if (clampedIndex !== activeMediaIndex) {
@@ -755,11 +757,18 @@ export default function FetchPostDetailScreen() {
 
   const onExerciseScrollEnd = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     if (totalExerciseSlides <= 1) return;
-    const measuredWidth = SCREEN_WIDTH - 56;
+    const measuredWidth = event.nativeEvent.layoutMeasurement.width || mediaSlideWidth || 1;
     const nextIndex = Math.round(event.nativeEvent.contentOffset.x / measuredWidth);
     const clampedIndex = Math.min(Math.max(0, nextIndex), totalExerciseSlides - 1);
     if (clampedIndex !== activeExerciseIndex) {
       setActiveExerciseIndex(clampedIndex);
+    }
+  };
+
+  const onMediaWrapLayout = (event: LayoutChangeEvent) => {
+    const width = Math.max(1, Math.round(event.nativeEvent.layout.width));
+    if (width !== mediaSlideWidth) {
+      setMediaSlideWidth(width);
     }
   };
 
@@ -883,23 +892,20 @@ export default function FetchPostDetailScreen() {
           </View>
 
           {post.media && post.media.length > 0 && (
-            <View style={styles.imageWrap}>
+            <View style={styles.imageWrap} onLayout={onMediaWrapLayout}>
               <ScrollView
                 horizontal
                 pagingEnabled
                 showsHorizontalScrollIndicator={false}
+                directionalLockEnabled
+                nestedScrollEnabled
+                decelerationRate="fast"
                 onMomentumScrollEnd={onMediaScrollEnd}
               >
                 {post.media.map((media, mediaIndex) => (
-                  <TouchableOpacity
-                    key={`${post.id}-media-${mediaIndex}`}
-                    activeOpacity={0.92}
-                    onPress={() => {}}
-                  >
-                    <View style={[styles.mediaSlide, { width: SCREEN_WIDTH - 56 }]}>
-                      <MediaSlide media={media} isActive={activeMediaIndex === mediaIndex} />
-                    </View>
-                  </TouchableOpacity>
+                  <View key={`${post.id}-media-${mediaIndex}`} style={[styles.mediaSlide, { width: mediaSlideWidth }]}>
+                    <MediaSlide media={media} isActive={activeMediaIndex === mediaIndex} />
+                  </View>
                 ))}
               </ScrollView>
               <View style={styles.imageOverlay} />
@@ -908,15 +914,17 @@ export default function FetchPostDetailScreen() {
 
           {/* Show exercises slide in carousel ONLY if NO media (text-only posts) */}
           {(!post.media || post.media.length === 0) && (post.exercises && post.exercises.length > 0) && (
-            <View style={styles.imageWrap}>
+            <View style={styles.imageWrap} onLayout={onMediaWrapLayout}>
               <ScrollView
                 horizontal
                 pagingEnabled
                 showsHorizontalScrollIndicator={false}
+                directionalLockEnabled
+                nestedScrollEnabled
+                decelerationRate="fast"
                 onMomentumScrollEnd={onExerciseScrollEnd}
               >
-                <TouchableOpacity activeOpacity={0.9} onPress={() => {}}>
-                  <View style={[styles.exerciseSlide, { width: SCREEN_WIDTH - 56 }, (post.exercises || []).length === 1 && styles.exerciseSlideSingle]}>
+                <View style={[styles.exerciseSlide, { width: mediaSlideWidth }, (post.exercises || []).length === 1 && styles.exerciseSlideSingle]}>
                     {(post.exercises || []).length === 1 ? (
                       // Single exercise: centered, larger
                       <View style={styles.singleExerciseContainer}>
@@ -965,8 +973,7 @@ export default function FetchPostDetailScreen() {
                         )}
                       </>
                     )}
-                  </View>
-                </TouchableOpacity>
+                </View>
               </ScrollView>
               <View style={styles.imageOverlay} />
             </View>

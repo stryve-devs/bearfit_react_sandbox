@@ -21,7 +21,10 @@ export default function TabLayout() {
                 headerShown: false,
                 tabBarStyle: {
                     backgroundColor: AppColors.black,
-                    borderTopColor: AppColors.darkGrey,
+                    borderTopWidth: 0,
+                    borderTopColor: 'transparent',
+                    elevation: 0,
+                    shadowOpacity: 0,
                 },
                 tabBarActiveTintColor: AppColors.orange,
                 tabBarInactiveTintColor: AppColors.grey,

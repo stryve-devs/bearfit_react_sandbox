@@ -1,18 +1,19 @@
-import React, { useEffect } from 'react';
-import { View, Image, Text } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Image, Text, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import Video, { useVideoPlayer, VideoView } from 'expo-video';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import st from './styles';
 
 function VideoMedia({ uri, isActive }: { uri: string; isActive: boolean }) {
   const player = useVideoPlayer(uri as any);
+  const [isMuted, setIsMuted] = useState(true);
 
   useEffect(() => {
     console.log('[MediaSlide] VideoMedia effect:', uri, 'isActive=', isActive);
     player.loop = true;
 
     if (isActive) {
-      player.muted = false;
+      player.muted = isMuted;
       try {
         if (typeof (player as any).play === 'function') (player as any).play();
         if (typeof (player as any).playAsync === 'function') (player as any).playAsync();
@@ -36,9 +37,20 @@ function VideoMedia({ uri, isActive }: { uri: string; isActive: boolean }) {
     } catch (e) {
       // ignore
     }
-  }, [isActive, player]);
+  }, [isActive, isMuted, player]);
 
-  return <VideoView player={player} style={st.postImage} contentFit="cover" nativeControls={false} />;
+  return (
+    <View>
+      <VideoView player={player} style={st.postImage} contentFit="cover" nativeControls={false} />
+      <TouchableOpacity
+        style={st.videoMuteBtn}
+        activeOpacity={0.8}
+        onPress={() => setIsMuted((prev) => !prev)}
+      >
+        <Ionicons name={isMuted ? 'volume-mute' : 'volume-high'} size={14} color="#f0ede8" />
+      </TouchableOpacity>
+    </View>
+  );
 }
 
 export function MediaSlide({ media, isActive }: { media: { url: string; type: 'IMAGE' | 'VIDEO' }; isActive: boolean }) {
@@ -59,12 +71,6 @@ export function MediaSlide({ media, isActive }: { media: { url: string; type: 'I
     return (
       <View>
         <VideoMedia uri={media.url} isActive={isActive} />
-        <View style={st.videoHint}>
-          <Ionicons name="videocam" size={11} color={"#f0ede8"} />
-          <Text allowFontScaling={false} style={st.videoHintText}>
-            Video
-          </Text>
-        </View>
       </View>
     );
   }

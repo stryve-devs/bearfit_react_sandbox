@@ -35,9 +35,9 @@ export default function DiscoverSearch({ visible, query, setQuery, filteredPosts
   return (
     <Modal visible={visible} animationType="slide">
       <LinearGradient
-        colors={['#0e0e11', '#080808', '#0b0b0e']}
-        start={{ x: 0.16, y: 0 }}
-        end={{ x: 0.84, y: 1 }}
+        colors={['#11151a', '#0b0f14', '#0a0d12']}
+        start={{ x: 0.08, y: 0 }}
+        end={{ x: 0.92, y: 1 }}
         style={{
           flex: 1,
         }}
@@ -48,7 +48,7 @@ export default function DiscoverSearch({ visible, query, setQuery, filteredPosts
               <Ionicons name="arrow-back" size={IS_ANDROID ? 18 : 20} color={TEXT ?? '#fff'} />
             </TouchableOpacity>
             <LinearGradient
-              colors={['rgba(255,255,255,0.07)', 'rgba(255,255,255,0.04)']}
+              colors={['rgba(255,255,255,0.08)', 'rgba(255,255,255,0.035)']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={st.searchBar}
@@ -87,7 +87,7 @@ export default function DiscoverSearch({ visible, query, setQuery, filteredPosts
               keyExtractor={(p) => p.id}
               contentContainerStyle={{ paddingBottom: 40 }}
               ItemSeparatorComponent={() => (
-                <View style={{ height: 0.5, backgroundColor: 'rgba(255,255,255,0.05)' }} />
+                <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.06)', marginLeft: 72 }} />
               )}
               renderItem={({ item, index }) => <Row item={item} index={index} />}
             />
