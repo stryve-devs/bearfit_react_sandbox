@@ -96,6 +96,9 @@ const SocialIcon = ({ icon, onPress }: SocialIconProps) => (
 export default function SettingsScreen() {
     const router = useRouter();
     const { logout } = useAuth();
+    const goBackToProfile = () => {
+        router.replace('/(tabs)/Profile');
+    };
 
     const handleLogout = () => {
         Alert.alert(
@@ -136,7 +139,7 @@ export default function SettingsScreen() {
                 {/* Header */}
                 <View style={styles.header}>
                     <TouchableOpacity
-                        onPress={() => router.back()}
+                        onPress={goBackToProfile}
                         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                         style={styles.backBtn}
                     >

@@ -1,5 +1,5 @@
 import { GLOBAL_HISTORY } from "./MeasurementsOverviewScreen";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
     View,
     Text,
@@ -53,6 +53,9 @@ export default function LogMeasurementsScreen() {
     const [entryImageUri, setEntryImageUri] = useState<string | null>(null);
     const [entryUploading, setEntryUploading] = useState(false);
     const [imageError, setImageError] = useState<string | null>(null);
+    const [savingProgress, setSavingProgress] = useState(false);
+    const [pendingPhotoSource, setPendingPhotoSource] = useState<"camera" | "library" | null>(null);
+    const launchInProgressRef = useRef(false);
 
     const [measurements, setMeasurements] = useState({
         "Body Weight (kg)": "",
@@ -89,7 +92,7 @@ export default function LogMeasurementsScreen() {
                     return;
                 }
                 const result = await ImagePicker.launchCameraAsync({
-                    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                    mediaTypes: ['images'],
                     allowsEditing: true,
                     quality: 0.8,
                 });
@@ -104,7 +107,7 @@ export default function LogMeasurementsScreen() {
                     return;
                 }
                 const result = await ImagePicker.launchImageLibraryAsync({
-                    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                    mediaTypes: ['images'],
                     allowsEditing: true,
                     quality: 0.8,
                 });
@@ -117,10 +120,24 @@ export default function LogMeasurementsScreen() {
             console.error('Failed to pick image', err);
             setImageError('Failed to pick image');
             Alert.alert('Error', 'Failed to pick image');
-        } finally {
-            setShowPicker(false);
         }
     }
+
+    useEffect(() => {
+        if (!pendingPhotoSource || showPicker || launchInProgressRef.current) return;
+
+        launchInProgressRef.current = true;
+        const timer = setTimeout(async () => {
+            try {
+                await handlePickEntryPhoto(pendingPhotoSource);
+            } finally {
+                launchInProgressRef.current = false;
+                setPendingPhotoSource(null);
+            }
+        }, Platform.OS === "ios" ? 250 : 100);
+
+        return () => clearTimeout(timer);
+    }, [pendingPhotoSource, showPicker]);
 
     async function uploadBlobToUrl(uploadUrl: string, blob: Blob, contentType: string) {
         console.log('[uploadBlobToUrl] uploadUrl:', uploadUrl);
@@ -190,11 +207,12 @@ export default function LogMeasurementsScreen() {
 
                     {/* SAVE BUTTON WITH VALIDATION */}
                     <TouchableOpacity
-                        disabled={!canSave}
-                        style={[styles.saveBtn, { opacity: canSave ? 1 : 0.4 }]}
+                        disabled={!canSave || savingProgress}
+                        style={[styles.saveBtn, { opacity: canSave && !savingProgress ? 1 : 0.4 }]}
                         onPress={async () => {
                             // Save flow: if there's an entryImageUri (local file), presign then upload, then persist measurement
                             let publicUrl: string | null = entryImageUri;
+                            setSavingProgress(true);
                             try {
                                 const localUriPattern = /^(file:|content:|blob:|data:)/i;
                                 let entryImageKey: string | null = null;
@@ -294,6 +312,7 @@ export default function LogMeasurementsScreen() {
                                 Alert.alert('Save failed', 'Could not upload photo or save measurement.');
                             } finally {
                                 setEntryUploading(false);
+                                setSavingProgress(false);
                                 GLOBAL_HISTORY.push({
                                     date: selectedDate.toISOString(),
                                     measurements,
@@ -397,11 +416,23 @@ export default function LogMeasurementsScreen() {
                         <View style={styles.handle} />
                         <Text style={styles.sheetTitle}>Upload Photo</Text>
                         <View style={styles.optionRow}>
-                            <TouchableOpacity style={styles.optionItem} onPress={() => handlePickEntryPhoto("camera")}>
+                            <TouchableOpacity
+                                style={styles.optionItem}
+                                onPress={() => {
+                                    setShowPicker(false);
+                                    setPendingPhotoSource("camera");
+                                }}
+                            >
                                 <View style={styles.optionIcon}><Feather name="camera" size={24} color="#fff" /></View>
                                 <Text style={styles.optionText}>Camera</Text>
                             </TouchableOpacity>
-                            <TouchableOpacity style={styles.optionItem} onPress={() => handlePickEntryPhoto("library")}>
+                            <TouchableOpacity
+                                style={styles.optionItem}
+                                onPress={() => {
+                                    setShowPicker(false);
+                                    setPendingPhotoSource("library");
+                                }}
+                            >
                                 <View style={[styles.optionIcon, { backgroundColor: '#111' }]}><Feather name="image" size={24} color="#fff" /></View>
                                 <Text style={styles.optionText}>Library</Text>
                             </TouchableOpacity>
@@ -475,6 +506,16 @@ export default function LogMeasurementsScreen() {
                     </Animated.View>
                 </View>
             </Modal>
+
+            <Modal visible={savingProgress} transparent animationType="fade">
+                <View style={styles.modalOverlay}>
+                    <View style={styles.savingCard}>
+                        <ActivityIndicator size="large" color={ORANGE} />
+                        <Text style={styles.savingTitle}>Saving Progress</Text>
+                        <Text style={styles.savingSubtitle}>Please wait while we save your entry...</Text>
+                    </View>
+                </View>
+            </Modal>
         </View>
     );
 }
@@ -541,5 +582,27 @@ const styles = StyleSheet.create({
     optionItem: { alignItems: 'center', gap: 12 },
     optionIcon: { width: 70, height: 70, backgroundColor: ORANGE, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
     optionText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+    savingCard: {
+        width: "78%",
+        borderRadius: 20,
+        paddingVertical: 24,
+        paddingHorizontal: 20,
+        alignItems: "center",
+        backgroundColor: "rgba(10,10,10,0.95)",
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.12)",
+    },
+    savingTitle: {
+        color: "#fff",
+        fontSize: 18,
+        fontWeight: "800",
+        marginTop: 14,
+    },
+    savingSubtitle: {
+        color: "#999",
+        fontSize: 13,
+        marginTop: 8,
+        textAlign: "center",
+    },
 });
 

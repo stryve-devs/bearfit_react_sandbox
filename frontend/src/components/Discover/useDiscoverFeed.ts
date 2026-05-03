@@ -40,6 +40,7 @@ export default function useDiscoverFeed() {
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
 
   const loadDiscoverPosts = async (reset = false) => {
     const response = await fetchPostService.getDiscoverPosts(3, reset ? undefined : nextCursor ?? undefined);
@@ -132,7 +133,15 @@ export default function useDiscoverFeed() {
   };
 
   useEffect(() => {
-    loadDiscoverPosts(true).catch((e) => console.error(e));
+    (async () => {
+      try {
+        await loadDiscoverPosts(true);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setIsInitialLoading(false);
+      }
+    })();
   }, []);
 
   const toggleLike = async (id: string) => {
@@ -335,6 +344,7 @@ export default function useDiscoverFeed() {
     loadDiscoverPosts,
     loadMoreDiscoverPosts,
     isLoadingMore,
+    isInitialLoading,
     hasMore,
     nextCursor,
     setNextCursor,

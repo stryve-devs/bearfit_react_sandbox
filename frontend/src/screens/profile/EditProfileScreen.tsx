@@ -102,6 +102,9 @@ const InputRow = ({
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function EditProfileScreen() {
     const router = useRouter();
+    const goBackToSettings = () => {
+        router.replace('/(tabs)/Profile/Settings');
+    };
     const [name, setName] = useState("Alex Rivera");
     const [bio, setBio] = useState("");
     const [link, setLink] = useState("");
@@ -403,7 +406,7 @@ export default function EditProfileScreen() {
             setToastMessage("Profile updated successfully.");
             setToastVisible(true);
             setTimeout(() => {
-                router.back();
+                goBackToSettings();
             }, 500);
         } catch (error) {
             console.error('Error updating profile:', error);
@@ -518,7 +521,7 @@ export default function EditProfileScreen() {
             <SafeAreaView style={st.safe}>
                 {/* ── Header ── */}
                 <View style={st.header}>
-                    <TouchableOpacity style={st.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
+                    <TouchableOpacity style={st.backBtn} onPress={goBackToSettings} activeOpacity={0.7}>
                         <Ionicons name="arrow-back" size={16} color="#f0ede8" />
                     </TouchableOpacity>
                     <Text style={st.headerTitle}>Edit Profile</Text>

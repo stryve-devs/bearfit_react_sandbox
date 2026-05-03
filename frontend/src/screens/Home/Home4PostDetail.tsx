@@ -781,7 +781,7 @@ export default function FetchPostDetailScreen() {
             <TouchableOpacity
               onPress={() => {
                 Haptics.selectionAsync();
-                router.back();
+                router.replace('/(tabs)/home/discover');
               }}
               style={styles.appbarBtn}
               activeOpacity={0.7}

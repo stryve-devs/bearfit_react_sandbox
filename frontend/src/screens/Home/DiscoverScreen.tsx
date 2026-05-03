@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
-import { View, Text, StatusBar, Dimensions, Platform, ActivityIndicator } from 'react-native';
+import { View, Text, StatusBar, Dimensions, Platform, ActivityIndicator, StyleSheet } from 'react-native';
 import type { ViewToken } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -88,6 +88,13 @@ const ATHLETES: Athlete[] = [
 ];
 
 const QUICK_EMOJIS = ['💪', '🔥', '👏', '🏋️', '👊', '🥵', '🏆'];
+const LOADING_LINES = [
+  'Loading awesomeness...',
+  'Warming up the feed...',
+  'Finding your next PR inspiration...',
+  'Polishing fresh workout posts...',
+  'Almost there. Stay strong.',
+];
 
 const toLocalComment = utils.toLocalComment;
 const toLocalPost = utils.toLocalPost;
@@ -130,6 +137,7 @@ export default function DiscoverScreen() {
     loadDiscoverPosts,
     loadMoreDiscoverPosts,
     isLoadingMore,
+    isInitialLoading,
     toggleLike,
     likeComment,
     likeReply,
@@ -224,6 +232,7 @@ export default function DiscoverScreen() {
   // Avatar resolution cache & map (postId -> resolved avatar URI)
   const resolvedAvatarCacheRef = useRef<Record<string, string>>({});
   const [avatarUriByPostId, setAvatarUriByPostId] = useState<Record<string, string>>({});
+  const [loadingLineIndex, setLoadingLineIndex] = useState(0);
 
   // Resolve avatar URLs for posts: try original, encoded variants, then backend proxy fallback
   useEffect(() => {
@@ -322,6 +331,14 @@ export default function DiscoverScreen() {
     return derivedPosts.filter((p: Post) => `${p.athlete.name} ${p.athlete.username} ${p.caption}`.toLowerCase().includes(q));
   }, [query, derivedPosts]);
 
+  useEffect(() => {
+    if (!isInitialLoading) return;
+    const timer = setInterval(() => {
+      setLoadingLineIndex((prev) => (prev + 1) % LOADING_LINES.length);
+    }, 1350);
+    return () => clearInterval(timer);
+  }, [isInitialLoading]);
+
   return (
     <LinearGradient
       colors={['#0e0e11', '#0a0906', '#080808', '#0a0906', '#0b0b0e']}
@@ -337,30 +354,46 @@ export default function DiscoverScreen() {
 
         <Header onOpenMenu={() => setMenuOpen(true)} onSearchOpen={() => setSearchOpen(true)} onSyncPress={handleSyncPress} isSyncing={isSyncing} />
 
-        <DiscoverList
-          posts={derivedPosts}
-          filteredPosts={derivedFilteredPosts}
-          activeMediaByPost={activeMediaByPost}
-          activePlaybackPostId={activePlaybackPostId}
-          isScreenFocused={isScreenFocused}
-          likedIds={likedIds}
-          savedIds={savedIds}
-          followedIds={followedIds}
-          likeCounts={likeCounts}
-          commentsByPost={commentsByPost}
-          loadMoreDiscoverPosts={loadMoreDiscoverPosts}
-          isLoadingMore={isLoadingMore}
-          openComments={openComments}
-          toggleLike={toggleLike}
-          setSavedIds={setSavedIds}
-          setFollowedIds={setFollowedIds}
-          toggleFollowUser={toggleFollowUser}
-          setActiveMediaByPost={setActiveMediaByPost}
-          router={router}
-          currentUserId={currentUserId}
-          onViewableItemsChanged={onViewableItemsChangedRef.current}
-          viewabilityConfig={viewabilityConfigRef.current}
-        />
+        {isInitialLoading && derivedPosts.length === 0 ? (
+          <View style={loadingStyles.wrap}>
+            <BlurView intensity={35} tint="dark" style={loadingStyles.card}>
+              <LinearGradient
+                colors={['rgba(255,122,0,0.18)', 'rgba(255,122,0,0.04)']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={loadingStyles.glow}
+              />
+              <ActivityIndicator size="large" color={ORANGE} />
+              <Text allowFontScaling={false} style={loadingStyles.title}>Discover Feed</Text>
+              <Text allowFontScaling={false} style={loadingStyles.subtitle}>{LOADING_LINES[loadingLineIndex]}</Text>
+            </BlurView>
+          </View>
+        ) : (
+          <DiscoverList
+            posts={derivedPosts}
+            filteredPosts={derivedFilteredPosts}
+            activeMediaByPost={activeMediaByPost}
+            activePlaybackPostId={activePlaybackPostId}
+            isScreenFocused={isScreenFocused}
+            likedIds={likedIds}
+            savedIds={savedIds}
+            followedIds={followedIds}
+            likeCounts={likeCounts}
+            commentsByPost={commentsByPost}
+            loadMoreDiscoverPosts={loadMoreDiscoverPosts}
+            isLoadingMore={isLoadingMore}
+            openComments={openComments}
+            toggleLike={toggleLike}
+            setSavedIds={setSavedIds}
+            setFollowedIds={setFollowedIds}
+            toggleFollowUser={toggleFollowUser}
+            setActiveMediaByPost={setActiveMediaByPost}
+            router={router}
+            currentUserId={currentUserId}
+            onViewableItemsChanged={onViewableItemsChangedRef.current}
+            viewabilityConfig={viewabilityConfigRef.current}
+          />
+        )}
 
         <DiscoverMenu visible={menuOpen} onClose={() => setMenuOpen(false)} />
 
@@ -385,3 +418,40 @@ export default function DiscoverScreen() {
     </LinearGradient>
   );
 }
+
+const loadingStyles = StyleSheet.create({
+  wrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  card: {
+    width: '100%',
+    borderRadius: 22,
+    paddingVertical: 28,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    overflow: 'hidden',
+    backgroundColor: 'rgba(10,10,10,0.72)',
+  },
+  glow: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  title: {
+    marginTop: 14,
+    fontSize: 18,
+    color: TEXT,
+    fontWeight: '800',
+  },
+  subtitle: {
+    marginTop: 8,
+    fontSize: 13,
+    color: 'rgba(240,237,232,0.75)',
+    textAlign: 'center',
+    fontWeight: '600',
+  },
+});
