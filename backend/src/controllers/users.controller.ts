@@ -20,6 +20,8 @@ export const getUserById = async (req: Request, res: Response) => {
         user_id: true,
         username: true,
         name: true,
+        bio: true,
+        link_url: true,
         profile_pic_url: true,
       },
     });

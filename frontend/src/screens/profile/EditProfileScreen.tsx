@@ -19,12 +19,14 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons, Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import Toast from "@/components/profile/Toast";
 import * as ImagePicker from "expo-image-picker";
 import { profileService } from "@/api/services/profile.service";
 import api from '@/api/client';
 
 const ORANGE = "#ff7a00";
+const BANNER_URI_KEY = "bearfit:profile-banner-uri";
 
 const MONTHS = [
     "January", "February", "March", "April", "May", "June",
@@ -107,6 +109,7 @@ export default function EditProfileScreen() {
         router.replace('/(tabs)/Profile/Settings');
     };
     const [name, setName] = useState("Alex Rivera");
+    const [username, setUsername] = useState("");
     const [bio, setBio] = useState("");
     const [links, setLinks] = useState<Array<{ name: string; url: string }>>([]);
     const [showLinkModal, setShowLinkModal] = useState(false);
@@ -116,6 +119,7 @@ export default function EditProfileScreen() {
     const [profilePicUri, setProfilePicUri] = useState<string | null>(null);
     const [profilePicUrl, setProfilePicUrl] = useState<string | null>(null);
     const [profilePicR2Key, setProfilePicR2Key] = useState<string | null>(null);
+    const [bannerUri, setBannerUri] = useState<string | null>(null);
     const [showProfilePicModal, setShowProfilePicModal] = useState(false);
     const [uploadingProfilePic, setUploadingProfilePic] = useState(false);
     const [uploadProgressPercent, setUploadProgressPercent] = useState(0);
@@ -177,6 +181,32 @@ export default function EditProfileScreen() {
             // fallback to legacy format
         }
         return parseLegacyUrls(raw).map((url) => ({ name: hostFromUrl(url), url }));
+    };
+
+    const handleChangeBanner = async () => {
+        try {
+            const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (!permission.granted) {
+                Alert.alert("Permission needed", "Please allow photo library access to change banner.");
+                return;
+            }
+
+            const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: true,
+                quality: 0.9,
+            });
+            if (result.canceled) return;
+            const nextUri = result.assets?.[0]?.uri || null;
+            if (!nextUri) return;
+            setBannerUri(nextUri);
+            await AsyncStorage.setItem(BANNER_URI_KEY, nextUri);
+            setToastMessage("Banner updated.");
+            setToastVisible(true);
+        } catch (e) {
+            setToastMessage("Failed to update banner.");
+            setToastVisible(true);
+        }
     };
 
     // Validate image URL when it changes and attempt encoded fallbacks automatically
@@ -296,6 +326,7 @@ export default function EditProfileScreen() {
                 if (!mounted || !profile) return;
 
                 if (profile.name) setName(profile.name);
+                if (profile.username) setUsername(String(profile.username));
                 if (profile.bio) setBio(profile.bio);
                 if (profile.link_url) setLinks(parseStoredLinks(profile.link_url));
                 if (profile.sex) setSex(profile.sex);
@@ -449,6 +480,7 @@ export default function EditProfileScreen() {
             // Only save profile picture URL if it was uploaded
             const updatePayload: any = {
                 name,
+                username: username.trim() || undefined,
                 bio,
                 link_url: links.length ? JSON.stringify(links) : null,
                 sex: sex || null,
@@ -676,7 +708,23 @@ export default function EditProfileScreen() {
                     <Text style={st.sectionLabel}>Public Profile</Text>
                     <GlassCard style={{ marginBottom: 24 }}>
                         <InputRow label="Name" placeholder="Your full name" value={name} onChangeText={setName} />
+                        <InputRow
+                            label="Username"
+                            placeholder="your_username"
+                            value={username}
+                            onChangeText={(text: string) => setUsername(text.replace(/\s+/g, ""))}
+                            autoCapitalize="none"
+                            autoCorrect={false}
+                            maxLength={20}
+                        />
                         <InputRow label="Bio" placeholder="Describe yourself" value={bio} onChangeText={setBio} multiline />
+                        <TouchableOpacity style={st.actionRow} activeOpacity={0.75} onPress={handleChangeBanner}>
+                            <Text style={inSt.label}>Banner</Text>
+                            <View style={st.actionRight}>
+                                <Text style={st.actionValue}>{bannerUri ? "Updated" : "Change"}</Text>
+                                <Feather name="chevron-right" size={14} color="rgba(255,255,255,0.25)" />
+                            </View>
+                        </TouchableOpacity>
                         <View style={[inSt.row, { borderBottomWidth: 0, flexDirection: "column", gap: 10 }]}>
                             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
                                 <Text style={[inSt.label, { width: "auto", paddingTop: 0 }]}>Links</Text>
@@ -1134,6 +1182,25 @@ const st = StyleSheet.create({
         borderWidth: 0.5,
         borderColor: "rgba(255,107,107,0.24)",
     },
+    actionRow: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        borderBottomWidth: 0.5,
+        borderBottomColor: "rgba(255,255,255,0.06)",
+        paddingHorizontal: 16,
+        paddingVertical: 14,
+    },
+    actionRight: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+    },
+    actionValue: {
+        color: ORANGE,
+        fontSize: 13,
+        fontWeight: "600",
+    },
     linkInput: {
         width: "100%",
         borderWidth: 0.5,
@@ -1164,7 +1231,7 @@ const inSt = StyleSheet.create({
     },
     label: {
         fontSize: 13, fontWeight: "500",
-        color: "rgba(240,237,232,0.4)", width: 46, paddingTop: 2,
+        color: "rgba(240,237,232,0.4)", width: 78, paddingTop: 2,
         flexShrink: 0, letterSpacing: -0.1,
     },
     input: { flex: 1, fontSize: 15, color: "#f0ede8" },
@@ -1314,3 +1381,5 @@ const progressSt = StyleSheet.create({
 
 export {};
 
+                const savedBanner = await AsyncStorage.getItem(BANNER_URI_KEY);
+                if (savedBanner) setBannerUri(savedBanner);

@@ -1,4 +1,5 @@
 {
+  "scheme": "frontend",
   "android": {
     "package": "com.anonymous.frontend"
   },

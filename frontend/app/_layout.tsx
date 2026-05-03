@@ -56,9 +56,24 @@ export default function RootLayout() {
             .filter(([, value]) => value !== undefined && value !== null && String(value).length > 0)
             .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`);
         const fullRoute = entries.length > 0 ? `${pathname}?${entries.join('&')}` : pathname;
-        AsyncStorage.setItem(LAST_ROUTE_KEY, fullRoute).catch((error) => {
-            console.warn('Failed to persist last route', error);
-        });
+        AsyncStorage.getItem(LAST_ROUTE_KEY)
+            .then((existingRoute) => {
+                const existing = existingRoute || '';
+                const existingHasParams = existing.includes('?');
+                const existingPath = existing.split('?')[0];
+                const currentHasParams = entries.length > 0;
+
+                // On hot reload, search params may briefly be empty on the same screen.
+                // Avoid clobbering a richer persisted route (same path + params) with a bare path.
+                if (!currentHasParams && existingHasParams && existingPath === pathname) {
+                    return;
+                }
+
+                return AsyncStorage.setItem(LAST_ROUTE_KEY, fullRoute);
+            })
+            .catch((error) => {
+                console.warn('Failed to persist last route', error);
+            });
     }, [navigationState?.key, pathname, searchParams]);
 
     useEffect(() => {

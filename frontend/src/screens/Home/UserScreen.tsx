@@ -16,6 +16,7 @@ import {
     Pressable,
     ActivityIndicator,
     RefreshControl,
+    Linking,
 } from 'react-native';
 
 import { useLocalSearchParams, router } from 'expo-router';
@@ -49,10 +50,12 @@ import { DiscoverPost } from '@/types/fetchpost.types';
 import discoverUtils from '@/components/Discover/utils';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import CommentsSheet from '@/components/Discover/CommentsSheet';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width, height } = Dimensions.get('window');
 const HEADER_HEIGHT = 260;
 const IS_ANDROID = Platform.OS === 'android';
+const LAST_VIEWED_USER_KEY = 'bearfit:last-viewed-user';
 
 // ─── THEME ────────────────────────────────────────────────────
 const C = {
@@ -200,6 +203,57 @@ const mapApiPostToUiPost = (post: DiscoverPost) => ({
     commentsCount: post.commentsCount || 0,
     comments: Array.isArray(post.comments) ? post.comments.map(mapApiCommentToUiComment) : [],
 });
+
+const parseProfileLinks = (raw?: string | null): { name: string; url: string }[] => {
+    if (!raw) return [];
+    const input = String(raw).trim();
+    const labelFromUrl = (value: string) => {
+        const normalized = /^https?:\/\//i.test(value) ? value : `https://${value}`;
+        try {
+            return new URL(normalized).host.replace(/^www\./i, '');
+        } catch {
+            return value.replace(/^https?:\/\//i, '');
+        }
+    };
+
+    try {
+        if (input.startsWith('[')) {
+            const parsed = JSON.parse(input);
+            if (Array.isArray(parsed)) {
+                return parsed
+                    .map((item: any) => ({
+                        name: String(item?.name || '').trim(),
+                        url: String(item?.url || '').trim(),
+                    }))
+                    .filter((item: { name: string; url: string }) => item.url.length > 0)
+                    .map((item: { name: string; url: string }) => ({
+                        name: item.name || labelFromUrl(item.url),
+                        url: item.url,
+                    }))
+                    .slice(0, 3);
+            }
+        }
+    } catch {
+        // fallback to legacy plain URL format
+    }
+
+    return Array.from(
+        new Set(
+            input
+                .split(/[\s,\n]+/)
+                .map((s) => s.trim())
+                .filter(Boolean)
+        )
+    )
+        .slice(0, 3)
+        .map((url) => ({ name: labelFromUrl(url), url }));
+};
+
+const normalizeExternalUrl = (value: string) => {
+    if (!value) return '';
+    if (/^https?:\/\//i.test(value)) return value;
+    return `https://${value}`;
+};
 
 const FOLLOWING_LIST = [
     { id: '1', user: 'mikelifts',   name: 'Mike Johnson',  avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=80',  isFollowing: true  },
@@ -711,17 +765,17 @@ export default function UserScreen() {
     const params = useLocalSearchParams();
     // support multiple param names used across the app
     const userIdParam = (params?.userId ?? params?.user ?? params?.id ?? params?.username ?? params?.userid) as string | undefined;
-    console.log('🧭 UserScreen params:', params);
-    console.log('🧭 Resolved userIdParam:', userIdParam);
     const userParam = userIdParam;
     const insets = useSafeAreaInsets();
     const [userData, setUserData] = useState<any>(null);
     // don't show perpetual loading when no param provided — start false
     const [loading, setLoading] = useState(false);
+    const [restoringUser, setRestoringUser] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [isFollowing, setIsFollowing] = useState(false);
     const [pendingFollow, setPendingFollow] = useState(false);
     const [pendingAction, setPendingAction] = useState<'follow' | 'unfollow' | null>(null);
+    const [linksModalOpen, setLinksModalOpen] = useState(false);
     const { user: authUser } = useAuth();
     const [posts,        setPosts]        = useState(INITIAL_POSTS);
     const [commentsPost, setCommentsPost] = useState<any>(null);
@@ -756,6 +810,9 @@ export default function UserScreen() {
     // Centralized profile fetch used on mount and pull-to-refresh
     const [refreshing, setRefreshing] = useState(false);
     const [postsLoading, setPostsLoading] = useState(false);
+    const bioText = (userData?.bio || '').trim();
+    const profileLinks = parseProfileLinks(userData?.link_url);
+    const headerPhotos = PHOTO_GRID;
 
     const fetchUser = async (idParam: string) => {
         setError(null);
@@ -765,8 +822,8 @@ export default function UserScreen() {
                 userService.getUserById(idParam),
                 userService.getUserPosts(idParam),
             ]);
-            console.log('🧾 getUserById response:', data);
             setUserData(data);
+            await AsyncStorage.setItem(LAST_VIEWED_USER_KEY, String(idParam));
             const mappedPosts = (postsResponse.posts || []).map(mapApiPostToUiPost);
             // Hydrate commenter avatars by fetching user profiles for commenters (cached per user)
             const userCache: Record<string | number, any> = {};
@@ -837,14 +894,20 @@ export default function UserScreen() {
         let mounted = true;
         (async () => {
             if (!mounted) return;
+            setRestoringUser(true);
             setLoading(true);
-            if (userParam) {
-                await fetchUser(userParam);
+            const resolvedParam = userParam || (await AsyncStorage.getItem(LAST_VIEWED_USER_KEY)) || '';
+            if (resolvedParam) {
+                await fetchUser(String(resolvedParam));
+                await AsyncStorage.setItem(LAST_VIEWED_USER_KEY, String(resolvedParam));
             } else {
                 setError('Missing user id parameter');
                 setUserData(null);
             }
-            if (mounted) setLoading(false);
+            if (mounted) {
+                setLoading(false);
+                setRestoringUser(false);
+            }
         })();
         return () => { mounted = false; };
     }, [userParam]);
@@ -1021,7 +1084,7 @@ export default function UserScreen() {
         }
     };
 
-    if (loading) {
+    if (loading || restoringUser) {
         return (
             <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: C.bg }}>
                 <ActivityIndicator size="large" color={C.white} />
@@ -1070,7 +1133,7 @@ export default function UserScreen() {
                 {/* PHOTO GRID */}
                 <Animated.View style={[{ height: HEADER_HEIGHT }, headerStyle]}>
                     <View style={styles.grid}>
-                        {PHOTO_GRID.map((img, i) => <Image key={i} source={{ uri: img }} style={styles.gridImg} />)}
+                        {headerPhotos.map((img, i) => <Image key={i} source={{ uri: img }} style={styles.gridImg} />)}
                     </View>
                     <LinearGradient colors={['transparent', C.bg]} style={styles.gridFade} />
                 </Animated.View>
@@ -1090,8 +1153,18 @@ export default function UserScreen() {
                     </Animated.View>
 
                     <Animated.Text entering={FadeInDown.delay(160).springify()} style={styles.bio}>
-                        I want to be strong enough to fight a bear 🐻
+                        {bioText || 'No bio yet.'}
                     </Animated.Text>
+                    {profileLinks.length > 0 && (
+                        <Animated.View entering={FadeInDown.delay(180).springify()}>
+                            <TouchableOpacity style={styles.linkChip} activeOpacity={0.85} onPress={() => setLinksModalOpen(true)}>
+                                <Ionicons name="link-outline" size={14} color={C.orange} />
+                                <Text style={styles.linkChipText} numberOfLines={1}>
+                                    {profileLinks.length === 1 ? profileLinks[0].name : `${profileLinks[0].name} and ${profileLinks.length - 1} more`}
+                                </Text>
+                            </TouchableOpacity>
+                        </Animated.View>
+                    )}
 
                     {/* Stats */}
                     <View style={styles.statsRow}>
@@ -1192,7 +1265,34 @@ export default function UserScreen() {
                 activePostId={commentsPost?.id || null}
                 quickEmojis={QUICK_EMOJIS}
             />
-             <PeopleModal   visible={!!peopleModal} onClose={() => setPeopleModal(null)} title={peopleModal || ''} targetUserId={userData.user_id} />
+            <PeopleModal visible={!!peopleModal} onClose={() => setPeopleModal(null)} title={peopleModal || ''} targetUserId={userData.user_id} />
+            <Modal visible={linksModalOpen} transparent animationType="fade" onRequestClose={() => setLinksModalOpen(false)}>
+                <View style={styles.modalOverlay}>
+                    <Pressable style={styles.backdrop} onPress={() => setLinksModalOpen(false)} />
+                    <View style={styles.linksSheet}>
+                        <View style={styles.sheetHandle} />
+                        <Text style={styles.sheetTitle}>Links</Text>
+                        <ScrollView style={{ maxHeight: 260 }} showsVerticalScrollIndicator={false}>
+                            {profileLinks.map((item, idx) => (
+                                <TouchableOpacity
+                                    key={`${item.url}-${idx}`}
+                                    style={styles.linkRow}
+                                    onPress={async () => {
+                                        setLinksModalOpen(false);
+                                        const safeUrl = normalizeExternalUrl(item.url);
+                                        const canOpen = await Linking.canOpenURL(safeUrl);
+                                        if (canOpen) await Linking.openURL(safeUrl);
+                                    }}
+                                    activeOpacity={0.85}
+                                >
+                                    <Ionicons name="link-outline" size={15} color={C.orange} />
+                                    <Text style={styles.linkRowText} numberOfLines={1}>{item.name}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
+                    </View>
+                </View>
+            </Modal>
          </View>
      );
  }
@@ -1228,6 +1328,20 @@ const styles = StyleSheet.create({
     name: { color: C.white, fontSize: 22, fontWeight: '800', letterSpacing: -0.3 },
     handle: { color: C.gray, fontSize: 13, marginTop: 1 },
     bio: { color: C.gray, fontSize: 14, lineHeight: 20, marginBottom: 16 },
+    linkChip: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        alignSelf: 'flex-start',
+        marginBottom: 14,
+        backgroundColor: 'rgba(255,120,37,0.12)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,120,37,0.2)',
+        borderRadius: 14,
+        paddingHorizontal: 10,
+        paddingVertical: 7,
+    },
+    linkChipText: { color: C.orange, fontSize: 12, fontWeight: '700' },
 
     statsRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
     statPill: { padding: 14, alignItems: 'center', borderRadius: 18 },
@@ -1330,6 +1444,7 @@ const styles = StyleSheet.create({
 
     // Modal / Sheet
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+    backdrop: { ...StyleSheet.absoluteFillObject },
     sheetKav:     { position: 'absolute', left: 0, right: 0, bottom: 0, top: 0, justifyContent: 'flex-end' },
     commentsSheet: {
         backgroundColor: '#0e0d0b',
@@ -1341,6 +1456,26 @@ const styles = StyleSheet.create({
     handleArea:  { alignItems: 'center', paddingVertical: 12, paddingHorizontal: 60 },
     sheetHandle: { width: 40, height: 4, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.2)', alignSelf: 'center' },
     sheetTitle:  { color: C.white, fontWeight: '700', fontSize: 16, textAlign: 'center', marginBottom: 10 },
+    linksSheet: {
+        backgroundColor: '#0e0d0b',
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+        paddingTop: 10,
+        paddingBottom: IS_ANDROID ? 16 : 24,
+        paddingHorizontal: 16,
+        borderTopWidth: 0.5,
+        borderTopColor: 'rgba(255,255,255,0.09)',
+        maxHeight: '65%',
+    },
+    linkRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        paddingVertical: 12,
+        borderBottomWidth: 0.5,
+        borderBottomColor: 'rgba(255,255,255,0.08)',
+    },
+    linkRowText: { color: C.white, fontSize: 14, flex: 1 },
 
     // Comments
     commentsList: { maxHeight: IS_ANDROID ? 280 : 320, paddingHorizontal: 14 },

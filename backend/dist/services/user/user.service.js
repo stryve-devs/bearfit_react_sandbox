@@ -12,6 +12,7 @@ const getCurrentUserProfile = async (userId) => {
             username: true,
             name: true,
             bio: true,
+            link_url: true,
             profile_pic_url: true,
             following_links: {
                 select: {
@@ -51,6 +52,7 @@ const getCurrentUserProfile = async (userId) => {
         username: user.username,
         name: user.name,
         bio: user.bio,
+        link_url: user.link_url,
         profile_pic_url: user.profile_pic_url,
         followers: user.follower_links.map((link) => ({
             user_id: link.follower.user_id,

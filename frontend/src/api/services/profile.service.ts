@@ -93,6 +93,7 @@ const generateUuid = (): string => {
 
 export interface ProfileUpdatePayload {
     name?: string;
+    username?: string;
     bio?: string;
     link_url?: string;
     sex?: string | null;

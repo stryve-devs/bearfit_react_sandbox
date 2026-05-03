@@ -15,6 +15,7 @@ import { LinearGradient } from "expo-linear-gradient";
 
 const ORANGE  = "#ff7a00";
 const ORANGE2 = "#cc5500";
+const USERNAME_REGEX = /^[a-zA-Z0-9_-]{3,20}$/;
 
 export default function ChangeUsernameScreen() {
     const router = useRouter();
@@ -37,11 +38,12 @@ export default function ChangeUsernameScreen() {
     });
 
     const handleUpdate = () => {
-        if (username.trim().length < 3) {
-            Alert.alert("Error", "Username must be at least 3 characters.");
+        const usernameTrim = username.trim();
+        if (!USERNAME_REGEX.test(usernameTrim)) {
+            Alert.alert("Error", "Username must be 3-20 characters and can only contain letters, numbers, _ and -.");
             return;
         }
-        Alert.alert("Success", `Username updated to "${username}".`, [
+        Alert.alert("Success", `Username updated to "${usernameTrim}".`, [
             { text: "OK", onPress: () => router.back() },
         ]);
     };
@@ -97,7 +99,7 @@ export default function ChangeUsernameScreen() {
                                 placeholder="Enter new username"
                                 placeholderTextColor="rgba(240,237,232,0.20)"
                                 value={username}
-                                onChangeText={setUsername}
+                                onChangeText={(text) => setUsername(text.replace(/\s+/g, ""))}
                                 onFocus={onFocus}
                                 onBlur={onBlur}
                                 autoCapitalize="none"
@@ -113,7 +115,7 @@ export default function ChangeUsernameScreen() {
                                 </TouchableOpacity>
                             )}
                         </Animated.View>
-                        <Text style={styles.hint}>{username.length}/20 characters</Text>
+                        <Text style={styles.hint}>{username.length}/20 characters • letters, numbers, _ and - only</Text>
                     </LinearGradient>
 
                     {/* Button */}
