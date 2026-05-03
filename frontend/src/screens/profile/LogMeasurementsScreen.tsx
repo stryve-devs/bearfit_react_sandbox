@@ -14,12 +14,14 @@ import {
     Image,
     ActivityIndicator,
     Alert,
+    InteractionManager,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Animated, {
     FadeInDown,
     ScaleInDown,
@@ -56,6 +58,24 @@ export default function LogMeasurementsScreen() {
     const [savingProgress, setSavingProgress] = useState(false);
     const [pendingPhotoSource, setPendingPhotoSource] = useState<"camera" | "library" | null>(null);
     const launchInProgressRef = useRef(false);
+
+    const flushPendingPhotoLaunch = React.useCallback(() => {
+        if (!pendingPhotoSource || launchInProgressRef.current) return;
+
+        launchInProgressRef.current = true;
+        const sourceToLaunch = pendingPhotoSource;
+        setPendingPhotoSource(null);
+
+        InteractionManager.runAfterInteractions(() => {
+            setTimeout(async () => {
+                try {
+                    await handlePickEntryPhoto(sourceToLaunch);
+                } finally {
+                    launchInProgressRef.current = false;
+                }
+            }, Platform.OS === "ios" ? 260 : 80);
+        });
+    }, [handlePickEntryPhoto, pendingPhotoSource]);
 
     const [measurements, setMeasurements] = useState({
         "Body Weight (kg)": "",
@@ -124,20 +144,63 @@ export default function LogMeasurementsScreen() {
     }
 
     useEffect(() => {
-        if (!pendingPhotoSource || showPicker || launchInProgressRef.current) return;
+        if (!showPicker && Platform.OS !== "ios") {
+            flushPendingPhotoLaunch();
+        }
+    }, [showPicker, flushPendingPhotoLaunch]);
 
-        launchInProgressRef.current = true;
-        const timer = setTimeout(async () => {
-            try {
-                await handlePickEntryPhoto(pendingPhotoSource);
-            } finally {
-                launchInProgressRef.current = false;
-                setPendingPhotoSource(null);
-            }
-        }, Platform.OS === "ios" ? 250 : 100);
+    async function uploadViaFileSystemWithTimeout(
+        url: string,
+        fileUri: string,
+        options: FileSystemLegacy.FileSystemUploadOptions,
+        timeoutMs = 15000
+    ) {
+        return await Promise.race([
+            FileSystemLegacy.uploadAsync(url, fileUri, options),
+            new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error(`FileSystem.uploadAsync timeout after ${timeoutMs}ms`)), timeoutMs)
+            ),
+        ]);
+    }
 
-        return () => clearTimeout(timer);
-    }, [pendingPhotoSource, showPicker]);
+    function getProxyMeasurementUploadUrl() {
+        const rawBase = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001/api';
+        const normalizedBase = rawBase.replace(/\/+$/, '');
+        if (normalizedBase.endsWith('/api')) {
+            return `${normalizedBase}/uploads/proxy-measurement`;
+        }
+        return `${normalizedBase}/api/uploads/proxy-measurement`;
+    }
+
+    async function uploadToProxyWithFetch(fileUri: string, filename: string, contentType: string) {
+        const backendUploadUrl = getProxyMeasurementUploadUrl();
+        const accessToken = await AsyncStorage.getItem('accessToken');
+        console.log('[Save] proxy upload URL:', backendUploadUrl);
+
+        const fileResponse = await fetch(fileUri);
+        const fileBlob = await fileResponse.blob();
+
+        const proxyFetchRes = await fetch(backendUploadUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': contentType,
+                'x-filename': filename,
+                ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+            },
+            body: fileBlob,
+        });
+
+        const proxyBodyText = await proxyFetchRes.text();
+        if (!proxyFetchRes.ok) {
+            throw new Error(`Proxy upload failed status ${proxyFetchRes.status}. body=${proxyBodyText}`);
+        }
+
+        try {
+            return JSON.parse(proxyBodyText || '{}');
+        } catch {
+            return {};
+        }
+    }
 
     async function uploadBlobToUrl(uploadUrl: string, blob: Blob, contentType: string) {
         console.log('[uploadBlobToUrl] uploadUrl:', uploadUrl);
@@ -224,45 +287,42 @@ export default function LogMeasurementsScreen() {
                                      // Get presigned URL from backend
                                      const presign = await measurementsService.presignMeasurementPhoto(filename, contentType);
 
-                                     // Try Expo FileSystem PUT (more reliable on RN/Expo)
+                                     // iOS: direct presigned PUT can hang; use backend proxy directly.
+                                     // Android: try direct PUT first, fallback to proxy.
+                                     const shouldUseProxyFirst = Platform.OS === 'ios';
                                      try {
-                                        console.log('[Save] attempting FileSystem.uploadAsync to', presign.uploadUrl);
-                                        const fsRes = await FileSystemLegacy.uploadAsync(presign.uploadUrl, entryImageUri, {
-                                            httpMethod: 'PUT',
-                                            headers: { 'Content-Type': contentType },
-                                        });
-                                         if (fsRes.status && fsRes.status >= 200 && fsRes.status < 300) {
-                                            console.log('[Save] FileSystem.uploadAsync succeeded', fsRes.status);
-                                            // Use the presigned publicUrl when presigned upload succeeded
-                                            publicUrl = presign.publicUrl;
-                                            entryImageKey = presign.key;
-                                         } else {
-                                            throw new Error('FileSystem.uploadAsync status ' + fsRes.status);
-                                         }
+                                        if (!shouldUseProxyFirst) {
+                                            console.log('[Save] attempting FileSystem.uploadAsync to', presign.uploadUrl);
+                                            const fsRes = await uploadViaFileSystemWithTimeout(presign.uploadUrl, entryImageUri, {
+                                                httpMethod: 'PUT',
+                                                headers: { 'Content-Type': contentType },
+                                                uploadType: FileSystemLegacy.FileSystemUploadType.BINARY_CONTENT,
+                                            });
+                                            if (fsRes.status && fsRes.status >= 200 && fsRes.status < 300) {
+                                                console.log('[Save] FileSystem.uploadAsync succeeded', fsRes.status);
+                                                publicUrl = presign.publicUrl;
+                                                entryImageKey = presign.key;
+                                            } else {
+                                                throw new Error('FileSystem.uploadAsync status ' + fsRes.status);
+                                            }
+                                        } else {
+                                            throw new Error('Skip direct PUT on iOS');
+                                        }
                                     } catch (fsErr) {
-                                        console.warn('[Save] FileSystem.uploadAsync to presigned URL failed', fsErr);
-                                        // Try backend proxy as a fallback: upload directly to our backend which will PUT to R2
+                                        if (!shouldUseProxyFirst) {
+                                            console.warn('[Save] FileSystem.uploadAsync to presigned URL failed', fsErr);
+                                        } else {
+                                            console.log('[Save] iOS detected, using proxy upload path');
+                                        }
                                         try {
                                             console.log('[Save] attempting proxy upload to backend');
-                                            const backendUploadUrl = `${process.env.EXPO_PUBLIC_API_URL || 'http://192.168.1.215:3001'}/api/uploads/proxy-measurement`;
-                                            const proxyRes = await FileSystemLegacy.uploadAsync(backendUploadUrl, entryImageUri, {
-                                                httpMethod: 'POST',
-                                                headers: { 'Content-Type': contentType, 'x-filename': filename },
-                                            });
-                                            if (proxyRes.status && proxyRes.status >= 200 && proxyRes.status < 300) {
-                                                // backend returns { publicUrl, key }
-                                                try {
-                                                    const parsed = JSON.parse(proxyRes.body || '{}');
-                                                    if (parsed.publicUrl) {
-                                                        publicUrl = parsed.publicUrl;
-                                                        entryImageKey = parsed.key || null;
-                                                        console.log('[Save] proxy upload succeeded, publicUrl:', publicUrl, 'key:', entryImageKey);
-                                                    }
-                                                } catch (e) {
-                                                    console.warn('[Save] failed to parse proxy response', e);
-                                                }
+                                            const parsed = await uploadToProxyWithFetch(entryImageUri, filename, contentType);
+                                            if (parsed?.publicUrl) {
+                                                publicUrl = parsed.publicUrl;
+                                                entryImageKey = parsed.key || null;
+                                                console.log('[Save] proxy upload succeeded, publicUrl:', publicUrl, 'key:', entryImageKey);
                                             } else {
-                                                throw new Error('Proxy upload failed status ' + proxyRes.status);
+                                                throw new Error('Proxy upload succeeded but missing publicUrl in response');
                                             }
                                         } catch (proxyErr) {
                                             console.error('[Save] proxy upload also failed', proxyErr);
@@ -409,7 +469,12 @@ export default function LogMeasurementsScreen() {
             </Modal>
 
             {/* PHOTO PICKER */}
-            <Modal visible={showPicker} transparent animationType="slide">
+            <Modal
+                visible={showPicker}
+                transparent
+                animationType="slide"
+                onDismiss={flushPendingPhotoLaunch}
+            >
                 <View style={styles.bottomSheetOverlay}>
                     <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => setShowPicker(false)} />
                     <View style={styles.sheetContent}>

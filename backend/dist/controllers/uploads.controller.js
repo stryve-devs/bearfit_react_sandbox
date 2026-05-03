@@ -3,20 +3,27 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.proxyImage = exports.getMeasurementUploadUrl = exports.getUploadUrlDebug = exports.getUploadUrl = void 0;
+exports.proxyImage = exports.uploadMeasurementProxy = exports.getMeasurementUploadUrl = exports.getUploadUrlDebug = exports.getUploadUrl = void 0;
 const client_s3_1 = require("@aws-sdk/client-s3");
 const s3_request_presigner_1 = require("@aws-sdk/s3-request-presigner");
 const uuid_1 = require("uuid");
 const http_1 = __importDefault(require("http"));
 const https_1 = __importDefault(require("https"));
-const R2_ENDPOINT = process.env.EXPO_PUBLIC_R2_ENDPOINT;
-const R2_ACCESS_KEY_ID = process.env.EXPO_PUBLIC_R2_ACCESS_KEY_ID;
-const R2_SECRET_ACCESS_KEY = process.env.EXPO_PUBLIC_R2_SECRET_ACCESS_KEY;
-const R2_BUCKET_NAME = process.env.EXPO_PUBLIC_R2_BUCKET_NAME || 'bearfit-assets';
-const R2_PUBLIC_URL = process.env.EXPO_PUBLIC_R2_PUBLIC_URL || '';
+const R2_ENDPOINT = process.env.R2_ENDPOINT || process.env.EXPO_PUBLIC_R2_ENDPOINT;
+const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID || process.env.EXPO_PUBLIC_R2_ACCESS_KEY_ID;
+const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY || process.env.EXPO_PUBLIC_R2_SECRET_ACCESS_KEY;
+const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || process.env.EXPO_PUBLIC_R2_BUCKET_NAME || 'bearfit-assets';
+const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL || process.env.EXPO_PUBLIC_R2_PUBLIC_URL || '';
 if (!R2_ENDPOINT || !R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY) {
     console.warn('R2 config missing. Uploads will fail until EXPO_PUBLIC_R2_* env variables are set.');
 }
+console.log('[uploads.controller] R2 config loaded', {
+    endpoint: R2_ENDPOINT || null,
+    bucket: R2_BUCKET_NAME,
+    hasAccessKey: Boolean(R2_ACCESS_KEY_ID),
+    hasSecret: Boolean(R2_SECRET_ACCESS_KEY),
+    hasPublicUrl: Boolean(R2_PUBLIC_URL),
+});
 const s3Client = new client_s3_1.S3Client({
     region: 'auto',
     endpoint: R2_ENDPOINT,
@@ -140,6 +147,77 @@ const getMeasurementUploadUrl = async (req, res) => {
     }
 };
 exports.getMeasurementUploadUrl = getMeasurementUploadUrl;
+// New: server-side proxy upload for measurement photos. Accepts raw image body (express.raw) and uploads to R2.
+const uploadMeasurementProxy = async (req, res) => {
+    try {
+        const userId = req.user?.userId;
+        if (!userId)
+            return res.status(401).json({ message: 'Unauthorized' });
+        // Raw body expected, but normalize defensively to Buffer.
+        const rawBody = req.body;
+        let bodyBuffer = null;
+        if (Buffer.isBuffer(rawBody)) {
+            bodyBuffer = rawBody;
+        }
+        else if (rawBody instanceof Uint8Array) {
+            bodyBuffer = Buffer.from(rawBody);
+        }
+        else if (typeof rawBody === 'string') {
+            bodyBuffer = Buffer.from(rawBody);
+        }
+        else if (rawBody && typeof rawBody === 'object' && typeof rawBody.length === 'number') {
+            bodyBuffer = Buffer.from(rawBody);
+        }
+        if (!bodyBuffer || bodyBuffer.length === 0) {
+            console.warn('[uploads.controller] uploadMeasurementProxy empty/invalid body', {
+                bodyType: typeof rawBody,
+                isBuffer: Buffer.isBuffer(rawBody),
+                contentTypeHeader: req.headers['content-type'],
+                contentLengthHeader: req.headers['content-length'],
+            });
+            return res.status(400).json({ message: 'Empty body' });
+        }
+        const contentType = String(req.headers['content-type'] || 'image/jpeg');
+        const filenameHeader = String(req.headers['x-filename'] || 'measurement.jpg');
+        const ext = (filenameHeader.split('.').pop() || 'jpg').replace(/[^a-z0-9]/gi, '').toLowerCase();
+        const base = sanitizeFilename(filenameHeader || `measurement`);
+        const key = `profile/Measurements/${base}-${(0, uuid_1.v4)()}.${ext}`;
+        const command = new client_s3_1.PutObjectCommand({
+            Bucket: R2_BUCKET_NAME,
+            Key: key,
+            ContentType: contentType,
+            Body: bodyBuffer,
+        });
+        await s3Client.send(command);
+        let publicUrl;
+        if (R2_PUBLIC_URL) {
+            publicUrl = `${R2_PUBLIC_URL.replace(/\/$/, '')}/${encodeKeyForUrl(key)}`;
+        }
+        else if (R2_ENDPOINT) {
+            publicUrl = `${R2_ENDPOINT.replace(/\/$/, '')}/${encodeKeyForUrl(key)}`;
+        }
+        else {
+            publicUrl = `https://${R2_BUCKET_NAME}.s3.auto.amazonaws.com/${encodeKeyForUrl(key)}`;
+        }
+        console.log('[uploads.controller] uploaded measurement via proxy, publicUrl:', publicUrl);
+        return res.status(200).json({ publicUrl, key });
+    }
+    catch (error) {
+        const details = {
+            name: error?.name,
+            message: error?.message,
+            code: error?.code,
+            '$metadata': error?.$metadata,
+        };
+        console.error('[uploads.controller] uploadMeasurementProxy error', details);
+        return res.status(500).json({
+            message: 'Failed to upload measurement',
+            error: error?.message || 'Unknown error',
+            code: error?.code || null,
+        });
+    }
+};
+exports.uploadMeasurementProxy = uploadMeasurementProxy;
 const proxyImage = async (req, res) => {
     try {
         const key = String(req.query.key || '').trim();

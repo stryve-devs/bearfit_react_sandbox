@@ -5,15 +5,22 @@ import { v4 as uuidv4 } from 'uuid';
 import http from 'http';
 import https from 'https';
 
-const R2_ENDPOINT = process.env.EXPO_PUBLIC_R2_ENDPOINT;
-const R2_ACCESS_KEY_ID = process.env.EXPO_PUBLIC_R2_ACCESS_KEY_ID;
-const R2_SECRET_ACCESS_KEY = process.env.EXPO_PUBLIC_R2_SECRET_ACCESS_KEY;
-const R2_BUCKET_NAME = process.env.EXPO_PUBLIC_R2_BUCKET_NAME || 'bearfit-assets';
-const R2_PUBLIC_URL = process.env.EXPO_PUBLIC_R2_PUBLIC_URL || '';
+const R2_ENDPOINT = process.env.R2_ENDPOINT || process.env.EXPO_PUBLIC_R2_ENDPOINT;
+const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID || process.env.EXPO_PUBLIC_R2_ACCESS_KEY_ID;
+const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY || process.env.EXPO_PUBLIC_R2_SECRET_ACCESS_KEY;
+const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || process.env.EXPO_PUBLIC_R2_BUCKET_NAME || 'bearfit-assets';
+const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL || process.env.EXPO_PUBLIC_R2_PUBLIC_URL || '';
 
 if (!R2_ENDPOINT || !R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY) {
     console.warn('R2 config missing. Uploads will fail until EXPO_PUBLIC_R2_* env variables are set.');
 }
+console.log('[uploads.controller] R2 config loaded', {
+    endpoint: R2_ENDPOINT || null,
+    bucket: R2_BUCKET_NAME,
+    hasAccessKey: Boolean(R2_ACCESS_KEY_ID),
+    hasSecret: Boolean(R2_SECRET_ACCESS_KEY),
+    hasPublicUrl: Boolean(R2_PUBLIC_URL),
+});
 
 const s3Client = new S3Client({
     region: 'auto',
@@ -153,9 +160,28 @@ export const uploadMeasurementProxy = async (req: Request, res: Response) => {
         const userId = (req as any).user?.userId;
         if (!userId) return res.status(401).json({ message: 'Unauthorized' });
 
-        // Raw body expected (Buffer)
-        const bodyBuffer = req.body as Buffer | undefined;
-        if (!bodyBuffer || bodyBuffer.length === 0) return res.status(400).json({ message: 'Empty body' });
+        // Raw body expected, but normalize defensively to Buffer.
+        const rawBody = req.body as any;
+        let bodyBuffer: Buffer | null = null;
+        if (Buffer.isBuffer(rawBody)) {
+            bodyBuffer = rawBody;
+        } else if (rawBody instanceof Uint8Array) {
+            bodyBuffer = Buffer.from(rawBody);
+        } else if (typeof rawBody === 'string') {
+            bodyBuffer = Buffer.from(rawBody);
+        } else if (rawBody && typeof rawBody === 'object' && typeof rawBody.length === 'number') {
+            bodyBuffer = Buffer.from(rawBody);
+        }
+
+        if (!bodyBuffer || bodyBuffer.length === 0) {
+            console.warn('[uploads.controller] uploadMeasurementProxy empty/invalid body', {
+                bodyType: typeof rawBody,
+                isBuffer: Buffer.isBuffer(rawBody),
+                contentTypeHeader: req.headers['content-type'],
+                contentLengthHeader: req.headers['content-length'],
+            });
+            return res.status(400).json({ message: 'Empty body' });
+        }
 
         const contentType = String(req.headers['content-type'] || 'image/jpeg');
         const filenameHeader = String(req.headers['x-filename'] || 'measurement.jpg');
@@ -183,9 +209,19 @@ export const uploadMeasurementProxy = async (req: Request, res: Response) => {
 
         console.log('[uploads.controller] uploaded measurement via proxy, publicUrl:', publicUrl);
         return res.status(200).json({ publicUrl, key });
-    } catch (error) {
-        console.error('[uploads.controller] uploadMeasurementProxy error', error);
-        return res.status(500).json({ message: 'Failed to upload measurement' });
+    } catch (error: any) {
+        const details = {
+            name: error?.name,
+            message: error?.message,
+            code: error?.code,
+            '$metadata': error?.$metadata,
+        };
+        console.error('[uploads.controller] uploadMeasurementProxy error', details);
+        return res.status(500).json({
+            message: 'Failed to upload measurement',
+            error: error?.message || 'Unknown error',
+            code: error?.code || null,
+        });
     }
 };
 
