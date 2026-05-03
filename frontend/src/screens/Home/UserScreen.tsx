@@ -899,8 +899,6 @@ export default function UserScreen() {
         try {
             const response = await fetchPostService.createPostComment(activePostId, text, replyingTo?.commentId);
             const postedComment = mapApiCommentToUiComment(response.comment);
-
-            // Hydrate optimistic comment avatar aggressively from authUser (or fetched profile)
             // Helper: proxify backend-hosted URLs and ignore pravatar placeholders
             const proxifyIfNeededLocal = (url?: string | null) => {
                 if (!url) return null;
@@ -916,6 +914,27 @@ export default function UserScreen() {
                     return url;
                 }
             };
+            try {
+                const av = String(postedComment.avatarUrl || postedComment.avatar || '');
+                if (av.toLowerCase().includes('pravatar.cc') || av.toLowerCase().includes('i.pravatar.cc')) {
+                    postedComment.avatarUrl = null;
+                    postedComment.avatar = null;
+                }
+            } catch (e) {}
+
+            if (postedComment.avatarUrl) {
+                const proxied = proxifyIfNeededLocal(postedComment.avatarUrl);
+                postedComment.avatarUrl = proxied;
+                postedComment.avatar = postedComment.avatar || proxied;
+            }
+            if (Array.isArray(postedComment.replies)) {
+                postedComment.replies = postedComment.replies.map((r: any) => {
+                    const prox = proxifyIfNeededLocal(r.avatarUrl || r.avatar);
+                    return { ...r, avatarUrl: prox, avatar: r.avatar || prox };
+                });
+            }
+
+            // Hydrate optimistic comment avatar aggressively from authUser (or fetched profile)
 
             try {
                 const needHydrate = !(postedComment.avatar || postedComment.avatarUrl);

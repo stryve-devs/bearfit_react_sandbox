@@ -8,11 +8,9 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
   StatusBar,
   TouchableOpacity,
-  KeyboardAvoidingView,
   ActivityIndicator,
   Dimensions,
   NativeScrollEvent,
@@ -44,6 +42,7 @@ import AvatarImage from '@/components/common/AvatarImage';
 import { userService } from '@/api/services/user.service';
 import { authService } from '@/api/services/auth.service';
 import api from '@/api/client';
+import CommentsSheet from '@/components/Discover/CommentsSheet';
 
 type Athlete = { name: string; username: string; avatarUrl: string };
 type Post = {
@@ -478,14 +477,7 @@ export default function FetchPostDetailScreen() {
     loadPost();
   }, [params?.postId]);
 
-  const sheetY = useSharedValue(700);
   const moreSheetY = useSharedValue(300);
-
-  useEffect(() => {
-    sheetY.value = commentsOpen
-      ? withTiming(0, { duration: 320, easing: Easing.out(Easing.cubic) })
-      : withTiming(700, { duration: 280, easing: Easing.in(Easing.cubic) });
-  }, [commentsOpen]);
 
   useEffect(() => {
     moreSheetY.value = moreOpen
@@ -493,7 +485,6 @@ export default function FetchPostDetailScreen() {
       : withTiming(300, { duration: 240, easing: Easing.in(Easing.cubic) });
   }, [moreOpen]);
 
-  const sheetStyle = useAnimatedStyle(() => ({ transform: [{ translateY: sheetY.value }] }));
   const moreSheetStyle = useAnimatedStyle(() => ({ transform: [{ translateY: moreSheetY.value }] }));
 
   const heartScale = useSharedValue(1);
@@ -646,6 +637,13 @@ export default function FetchPostDetailScreen() {
       );
 
       const postedComment = toLocalComment(response.comment);
+      try {
+        const av = String((postedComment as any).avatarUrl || (postedComment as any).avatar || '');
+        if (av.toLowerCase().includes('pravatar.cc') || av.toLowerCase().includes('i.pravatar.cc')) {
+          postedComment.avatarUrl = null as any;
+          (postedComment as any).avatar = null;
+        }
+      } catch (e) {}
 
       // Ensure any avatar URLs coming from the backend are proxied if they point to internal/private storage (R2)
       if (postedComment.avatarUrl) {
@@ -660,42 +658,53 @@ export default function FetchPostDetailScreen() {
         });
       }
 
-      // If backend didn't include avatarUrl for the newly posted comment, try hydrating from cached auth user
+      // If backend didn't include avatarUrl for the newly posted comment, hydrate from current auth user first.
       try {
-        const { user: authUser } = (await import('@/context/AuthContext')).useAuth?.() ?? { user: null };
-        if ((!postedComment.avatar && !postedComment.avatarUrl) && authUser) {
-          const cached: any = authUser as any;
-          const cachedUrl = cached.profile_pic_url ?? cached.profile_picUrl ?? null;
-          if (cachedUrl) {
-            const LOWER = String(cachedUrl).toLowerCase();
-            if (!LOWER.includes('pravatar.cc') && !LOWER.includes('i.pravatar.cc')) {
-              const proxied = proxifyIfNeeded(cachedUrl);
-              postedComment.avatarUrl = postedComment.avatarUrl || proxied;
-              (postedComment as any).avatar = (postedComment as any).avatar || proxied;
+        const resolveAuthUserAvatar = (cached: any) => {
+          try {
+            const cachedUrl = cached?.profile_pic_url ?? cached?.profile_picUrl ?? null;
+            if (cachedUrl) {
+              const lower = String(cachedUrl).toLowerCase();
+              if (lower.includes('pravatar.cc') || lower.includes('i.pravatar.cc')) return null;
+              return proxifyIfNeeded(cachedUrl);
             }
-          } else if (cached.profile_pic_key) {
-            const proxyUrl = `${api.defaults.baseURL.replace(/\/$/, '')}/uploads/proxy?key=${encodeURIComponent(String(cached.profile_pic_key))}`;
-            postedComment.avatarUrl = postedComment.avatarUrl || proxyUrl;
-            (postedComment as any).avatar = (postedComment as any).avatar || proxyUrl;
+            if (cached?.profile_pic_key) {
+              return `${api.defaults.baseURL.replace(/\/$/, '')}/uploads/proxy?key=${encodeURIComponent(String(cached.profile_pic_key))}`;
+            }
+          } catch (e) {}
+          return null;
+        };
+
+        if ((!postedComment.avatarUrl || postedComment.avatarUrl === null) && currentUser) {
+          const cached: any = currentUser as any;
+          const candidate = resolveAuthUserAvatar(cached);
+          if (candidate) {
+            postedComment.avatarUrl = candidate as any;
+            (postedComment as any).avatar = (postedComment as any).avatar || candidate;
           } else {
             try {
-              const { userService } = await import('@/api/services/user.service');
               const me = await userService.getUserById(cached.user_id ?? cached.username ?? String(cached));
-              if (me && me.profile_pic_url) {
-                const ML = String(me.profile_pic_url || '').toLowerCase();
-                if (!ML.includes('pravatar.cc') && !ML.includes('i.pravatar.cc')) {
-                  const proxied = proxifyIfNeeded(me.profile_pic_url);
-                  postedComment.avatarUrl = postedComment.avatarUrl || proxied;
-                  (postedComment as any).avatar = (postedComment as any).avatar || proxied;
-                }
+              const meCandidate = resolveAuthUserAvatar(me);
+              if (meCandidate) {
+                postedComment.avatarUrl = meCandidate as any;
+                (postedComment as any).avatar = (postedComment as any).avatar || meCandidate;
               }
-            } catch (err) {
-              // ignore
-            }
+            } catch (err) {}
+          }
+
+          if (Array.isArray(postedComment.replies)) {
+            postedComment.replies = postedComment.replies.map((r: any) => {
+              const rCandidate = r.avatarUrl || r.avatar || postedComment.avatarUrl;
+              return {
+                ...r,
+                avatarUrl: r.avatarUrl || proxifyIfNeeded(rCandidate),
+                avatar: r.avatar || proxifyIfNeeded(rCandidate),
+              };
+            });
           }
         }
       } catch (err) {
-        // ignore
+        console.warn('[PostDetail] failed to hydrate posted comment avatar', err);
       }
 
       console.debug('[PostDetail] sendComment: final postedComment.avatarUrl', postedComment.avatarUrl);
@@ -1135,160 +1144,24 @@ export default function FetchPostDetailScreen() {
         </Animated.View>
       </Modal>
 
-      <Modal visible={commentsOpen} transparent animationType="none">
-        <Pressable
-          style={styles.backdrop}
-          onPress={() => {
-            setCommentsOpen(false);
-            setReplyingTo(null);
-          }}
-        />
-        <KeyboardAvoidingView behavior={IS_ANDROID ? 'height' : 'padding'} style={styles.kavWrap}>
-          <Animated.View style={[styles.commentsSheet, sheetStyle]}>
-            <View style={styles.sheetHandle} />
-            <Text allowFontScaling={false} style={styles.sheetTitle}>
-              Comments
-            </Text>
-
-            <ScrollView
-              style={styles.commentsList}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-            >
-              {comments.length === 0 ? (
-                <View style={styles.emptyComments}>
-                  <Ionicons name="chatbubble-outline" size={32} color={AppColors.darkGrey} />
-                  <Text allowFontScaling={false} style={styles.emptyCommentsText}>
-                    No comments yet!
-                  </Text>
-                </View>
-              ) : (
-                comments.map((c, idx) => (
-                  <Animated.View
-                    key={c.id}
-                    entering={FadeInDown.delay(idx * 30).duration(260).easing(Easing.out(Easing.cubic))}
-                  >
-                    <View style={styles.commentItem}>
-                      <AvatarImage src={c.avatarUrl} style={styles.commentAvatar} />
-                      <View style={{ flex: 1 }}>
-                        <View style={styles.commentTopRow}>
-                          <Text allowFontScaling={false} style={styles.commentUser}>
-                            {c.user}
-                          </Text>
-                          <Text allowFontScaling={false} style={styles.commentTime}>
-                            {c.time}
-                          </Text>
-                        </View>
-                        <Text allowFontScaling={false} style={styles.commentText}>
-                          {c.text}
-                        </Text>
-                        <View style={styles.commentActions}>
-                          <TouchableOpacity
-                            onPress={() => {
-                              Haptics.selectionAsync();
-                              setReplyingTo({ commentId: c.id, user: c.user });
-                            }}
-                            style={styles.replyBtn}
-                          >
-                            <Text allowFontScaling={false} style={styles.replyBtnText}>
-                              Reply
-                            </Text>
-                          </TouchableOpacity>
-                          {c.replies.length > 0 && (
-                            <TouchableOpacity onPress={() => toggleReplies(c.id)} style={styles.viewRepliesBtn}>
-                              <Ionicons
-                                name={c.showReplies ? 'chevron-up' : 'chevron-down'}
-                                size={11}
-                                color={ORANGE}
-                              />
-                              <Text allowFontScaling={false} style={styles.viewRepliesText}>
-                                {c.showReplies ? 'Hide' : `${c.replies.length}`}{' '}
-                                {c.replies.length === 1 ? 'reply' : 'replies'}
-                              </Text>
-                            </TouchableOpacity>
-                          )}
-                        </View>
-                        {c.showReplies &&
-                          c.replies.map((r) => (
-                            <View key={r.id} style={styles.replyItem}>
-                              <AvatarImage src={r.avatarUrl} style={styles.replyAvatar} />
-                               <View style={{ flex: 1 }}>
-                                <View style={styles.commentTopRow}>
-                                  <Text allowFontScaling={false} style={styles.commentUser}>
-                                    {r.user}
-                                  </Text>
-                                  <Text allowFontScaling={false} style={styles.commentTime}>
-                                    {r.time}
-                                  </Text>
-                                </View>
-                                <Text allowFontScaling={false} style={styles.commentText}>
-                                  {r.text}
-                                </Text>
-                              </View>
-                              <CommentLike
-                                liked={r.liked}
-                                count={r.likes}
-                                onPress={() => likeReply(c.id, r.id)}
-                              />
-                            </View>
-                          ))}
-                      </View>
-                      <CommentLike liked={c.liked} count={c.likes} onPress={() => likeComment(c.id)} />
-                    </View>
-                    {idx < comments.length - 1 && <View style={styles.commentDivider} />}
-                  </Animated.View>
-                ))
-              )}
-            </ScrollView>
-
-            <View style={styles.emojiRow}>
-              {QUICK_EMOJIS.map((emoji) => (
-                <TouchableOpacity
-                  key={emoji}
-                  onPress={() => {
-                    Haptics.selectionAsync();
-                    setCommentDraft((p) => `${p}${emoji}`);
-                  }}
-                  style={styles.emojiBtn}
-                >
-                  <Text style={styles.emojiText}>{emoji}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {replyingTo && (
-              <Animated.View entering={FadeIn.duration(180)} style={styles.replyBanner}>
-                <Ionicons name="return-down-forward" size={13} color={ORANGE} />
-                <Text allowFontScaling={false} style={styles.replyBannerText}>
-                  Replying to <Text style={{ color: ORANGE, fontWeight: '700' }}>@{replyingTo.user}</Text>
-                </Text>
-                <TouchableOpacity onPress={() => setReplyingTo(null)}>
-                  <Ionicons name="close" size={14} color={AppColors.grey} />
-                </TouchableOpacity>
-              </Animated.View>
-            )}
-
-            <View style={styles.commentInputBar}>
-              <TextInput
-                value={commentDraft}
-                onChangeText={setCommentDraft}
-                placeholder={replyingTo ? `Reply to @${replyingTo.user}...` : 'Add a comment...'}
-                placeholderTextColor="rgba(255,255,255,0.3)"
-                style={styles.commentInput}
-                allowFontScaling={false}
-              />
-              <TouchableOpacity
-                onPress={sendComment}
-                activeOpacity={0.8}
-                style={[styles.sendBtn, !commentDraft.trim() && { opacity: 0.4 }]}
-                disabled={!commentDraft.trim()}
-              >
-                <Ionicons name="arrow-up" size={IS_ANDROID ? 18 : 20} color={BG} />
-              </TouchableOpacity>
-            </View>
-          </Animated.View>
-        </KeyboardAvoidingView>
-      </Modal>
+      <CommentsSheet
+        visible={commentsOpen}
+        activeComments={comments}
+        commentDraft={commentDraft}
+        setCommentDraft={setCommentDraft}
+        replyingTo={replyingTo}
+        setReplyingTo={setReplyingTo}
+        sendComment={sendComment}
+        likeComment={(_postId: string, commentId: string) => likeComment(commentId)}
+        likeReply={(_postId: string, commentId: string, replyId: string) => likeReply(commentId, replyId)}
+        toggleReplies={(_postId: string, commentId: string) => toggleReplies(commentId)}
+        close={() => {
+          setCommentsOpen(false);
+          setReplyingTo(null);
+        }}
+        activePostId={post?.id ?? null}
+        quickEmojis={QUICK_EMOJIS}
+      />
         </>
       )}
     </SafeAreaView>

@@ -29,6 +29,8 @@ services:
         condition: service_healthy
     environment:
       - NODE_ENV=development
+    init: true
+    command: ["npx", "nodemon", "src/server.ts"]
 
   frontend:
     build:
@@ -36,7 +38,7 @@ services:
       dockerfile: Dockerfile
       args:
         # This pulls from the 'export EXPO_PUBLIC_API_URL' in your dev.sh
-        - EXPO_PUBLIC_API_URL=${EXPO_PUBLIC_API_URL}
+        - EXPO_PUBLIC_API_URL=${EXPO_PUBLIC_API_URL:-http://localhost:3001/api}
     container_name: frontend-container
     ports:
       - "8081:8081"
@@ -48,7 +50,7 @@ services:
       # Using the IP_ADDR from your script
       - REACT_NATIVE_PACKAGER_HOSTNAME=${IP_ADDR:-localhost}
       - EXPO_PACKAGER_HOSTNAME=${IP_ADDR:-localhost}
-      - EXPO_PUBLIC_API_URL=${EXPO_PUBLIC_API_URL}
+      - EXPO_PUBLIC_API_URL=${EXPO_PUBLIC_API_URL:-http://localhost:3001/api}
       - EXPO_DEVTOOLS_LISTEN_ADDRESS=0.0.0.0
       - METRO_SERVER_PORT=8081
     volumes:
