@@ -101,6 +101,11 @@ const normalizeUrl = (u: string) => {
 };
 
 export const measurementsService = {
+    async getMeasurements() {
+        const res = await api.get('/measurements');
+        return res.data;
+    },
+
     async presignMeasurementPhoto(filename: string, contentType: string) {
         const res = await api.post('/uploads/measurement-photo', { filename, contentType });
         return res.data; // { uploadUrl, publicUrl, key }

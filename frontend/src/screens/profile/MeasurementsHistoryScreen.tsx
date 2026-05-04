@@ -1,9 +1,9 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
     Dimensions,
     FlatList,
     Image,
-    ListRenderItemInfo,
+    TextInput,
     ScrollView,
     StyleSheet,
     Text,
@@ -24,7 +24,8 @@ import Animated, {
     useSharedValue,
 } from "react-native-reanimated";
 import { LineChart } from "react-native-chart-kit";
-import { GLOBAL_HISTORY } from "./MeasurementsOverviewScreen";
+import { measurementsService } from "@/api/services/measurements.service";
+import DateTimePicker, { type DateTimePickerEvent } from "@react-native-community/datetimepicker";
 
 const ORANGE = "#FF7825";
 const GREEN = "#57D98D";
@@ -111,8 +112,8 @@ function formatMetricLabel(metric: string) {
     return metric.split(" (")[0];
 }
 
-function normalizeJourneyEntries(): JourneyEntry[] {
-    return [...GLOBAL_HISTORY]
+function normalizeJourneyEntries(rawHistory: any[]): JourneyEntry[] {
+    return [...rawHistory]
         .map((item, index) => {
             const rawMeasurements = item?.measurements || {};
             const measurements = { ...EMPTY_MEASUREMENTS };
@@ -132,6 +133,20 @@ function normalizeJourneyEntries(): JourneyEntry[] {
             };
         })
         .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+}
+
+function toDayKey(isoDate: string) {
+    return new Date(isoDate).toISOString().slice(0, 10);
+}
+
+function isWithinPeriod(date: Date, period: "week" | "month" | "year") {
+    const now = new Date();
+    const start = new Date(now);
+    start.setHours(0, 0, 0, 0);
+    if (period === "week") start.setDate(now.getDate() - 6);
+    if (period === "month") start.setMonth(now.getMonth() - 1);
+    if (period === "year") start.setFullYear(now.getFullYear() - 1);
+    return date.getTime() >= start.getTime() && date.getTime() <= now.getTime();
 }
 
 function buildComparisons(entries: JourneyEntry[]): ComparisonItem[] {
@@ -356,16 +371,29 @@ function BodyComparisonSection({ comparisons }: { comparisons: ComparisonItem[] 
 }
 
 function ProgressGallery({ entries }: { entries: JourneyEntry[] }) {
-    const photoEntries = entries.filter((entry) => Boolean(entry.photoUrl));
-    const scrollX = useSharedValue(0);
-
-    const onScroll = useAnimatedScrollHandler((event) => {
-        scrollX.value = event.contentOffset.x;
-    });
-
-    const renderGalleryItem = ({ item, index }: ListRenderItemInfo<JourneyEntry>) => (
-        <ProgressGalleryCard item={item} index={index} scrollX={scrollX} />
+    const [period, setPeriod] = useState<"week" | "month" | "year">("month");
+    const [selectedDay, setSelectedDay] = useState<string | null>(null);
+    const photoEntries = useMemo(() => entries.filter((entry) => Boolean(entry.photoUrl)), [entries]);
+    const periodEntries = useMemo(
+        () => photoEntries.filter((entry) => isWithinPeriod(new Date(entry.date), period)),
+        [photoEntries, period]
     );
+    const dayGroups = useMemo(() => {
+        const map: Record<string, JourneyEntry[]> = {};
+        periodEntries.forEach((entry) => {
+            const key = toDayKey(entry.date);
+            if (!map[key]) map[key] = [];
+            map[key].push(entry);
+        });
+        return Object.entries(map)
+            .map(([day, photos]) => ({ day, photos }))
+            .sort((a, b) => new Date(b.day).getTime() - new Date(a.day).getTime());
+    }, [periodEntries]);
+    const selectedGroup = selectedDay ? dayGroups.find((g) => g.day === selectedDay) : undefined;
+    const selectedScrollX = useSharedValue(0);
+    const onSelectedScroll = useAnimatedScrollHandler((event) => {
+        selectedScrollX.value = event.contentOffset.x;
+    });
 
     return (
         <Animated.View entering={FadeInDown.delay(240).duration(540)} style={styles.sectionCard}>
@@ -375,23 +403,59 @@ function ProgressGallery({ entries }: { entries: JourneyEntry[] }) {
                     <Text style={styles.sectionTitle}>Your wrapped photo recap</Text>
                 </View>
                 <View style={styles.sectionBadge}>
-                    <Text style={styles.sectionBadgeText}>{photoEntries.length} photos</Text>
+                    <Text style={styles.sectionBadgeText}>{periodEntries.length} photos</Text>
                 </View>
             </View>
 
-            {photoEntries.length ? (
-                <Animated.FlatList
-                    data={photoEntries}
-                    keyExtractor={(item) => item.id}
-                    renderItem={renderGalleryItem}
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    snapToInterval={GALLERY_CARD_WIDTH + 18}
-                    decelerationRate="fast"
-                    contentContainerStyle={styles.galleryListContent}
-                    onScroll={onScroll}
-                    scrollEventThrottle={16}
-                />
+            <View style={styles.metricPillsRow}>
+                {(["week", "month", "year"] as const).map((value) => (
+                    <TouchableOpacity
+                        key={value}
+                        style={[styles.metricPill, period === value && styles.metricPillActive]}
+                        onPress={() => {
+                            setPeriod(value);
+                            setSelectedDay(null);
+                        }}
+                    >
+                        <Text style={[styles.metricPillText, period === value && styles.metricPillTextActive]}>
+                            {value[0].toUpperCase() + value.slice(1)}
+                        </Text>
+                    </TouchableOpacity>
+                ))}
+            </View>
+
+            {periodEntries.length ? (
+                selectedGroup ? (
+                    <View>
+                        <TouchableOpacity style={styles.dayBackBtn} onPress={() => setSelectedDay(null)}>
+                            <Feather name="chevron-left" size={16} color={ORANGE} />
+                            <Text style={styles.dayBackText}>Back to dates</Text>
+                        </TouchableOpacity>
+                        <Text style={styles.dayTitle}>{formatDate(selectedGroup.day, { month: "long", day: "numeric", year: "numeric" })}</Text>
+                        <Animated.FlatList
+                            data={selectedGroup.photos}
+                            keyExtractor={(item, index) => `${item.id}-${index}`}
+                            renderItem={({ item, index }) => <ProgressGalleryCard item={item} index={index} scrollX={selectedScrollX} />}
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            snapToInterval={GALLERY_CARD_WIDTH + 18}
+                            decelerationRate="fast"
+                            contentContainerStyle={styles.galleryListContent}
+                            onScroll={onSelectedScroll}
+                            scrollEventThrottle={16}
+                        />
+                    </View>
+                ) : (
+                    <View style={styles.comparisonGrid}>
+                        {dayGroups.map((group) => (
+                            <TouchableOpacity key={group.day} style={styles.comparisonCard} onPress={() => setSelectedDay(group.day)}>
+                                <Text style={styles.comparisonLabel}>{formatDate(group.day, { month: "short", day: "numeric" })}</Text>
+                                <Text style={styles.comparisonCurrent}>{group.photos.length} photo{group.photos.length > 1 ? "s" : ""}</Text>
+                                <Text style={styles.comparisonPrevious}>{formatDate(group.day, { year: "numeric" })}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                )
             ) : (
                 <View style={styles.emptyState}>
                     <Feather name="image" size={24} color="#5f5f5f" />
@@ -491,9 +555,124 @@ function MeasurementsTimeline({
 export default function MeasurementsHistoryScreen() {
     const router = useRouter();
     const [selectedMetric, setSelectedMetric] = useState<MetricLabel>(DEFAULT_METRIC);
+    const [rawHistory, setRawHistory] = useState<any[]>([]);
+    const [timelineFrom, setTimelineFrom] = useState<Date | null>(null);
+    const [timelineTo, setTimelineTo] = useState<Date | null>(null);
+    const [activePicker, setActivePicker] = useState<"from" | "to" | null>(null);
+    const [timelineMode, setTimelineMode] = useState<"range" | "cherry">("range");
+    const [stepDaysInput, setStepDaysInput] = useState("1");
+    const [selectedDates, setSelectedDates] = useState<string[]>([]);
 
-    const entries = useMemo(() => normalizeJourneyEntries(), []);
+    useEffect(() => {
+        const load = async () => {
+            try {
+                const data = await measurementsService.getMeasurements();
+                const measurements = Array.isArray(data?.measurements) ? data.measurements : [];
+                const mapped = measurements.map((item: any) => ({
+                    date: item.measurement_date,
+                    entry_image_url: item.entry_image_url,
+                    measurements: {
+                        "Body Weight (kg)": item.body_weight,
+                        "Waist (cm)": item.waist,
+                        "Body Fat (%)": item.body_fat,
+                        "Lean Body Mass (kg)": item.lean_body_mass,
+                        "Neck (cm)": item.neck,
+                        "Shoulder (cm)": item.shoulder,
+                        "Chest (cm)": item.chest,
+                        "Left Bicep (cm)": item.left_bicep,
+                        "Right Bicep (cm)": item.right_bicep,
+                        "Left Forearm (cm)": item.left_forearm,
+                        "Right Forearm (cm)": item.right_forearm,
+                        "Abdomen (cm)": item.abdomen,
+                        "Left Thigh (cm)": item.left_thigh,
+                        "Right Thigh (cm)": item.right_thigh,
+                        "Left Calf (cm)": item.left_calf,
+                        "Right Calf (cm)": item.right_calf,
+                    },
+                }));
+                setRawHistory(mapped);
+            } catch (error) {
+                console.warn("Failed to fetch measurements history", error);
+                setRawHistory([]);
+            }
+        };
+        load();
+    }, []);
+
+    const entries = useMemo(() => normalizeJourneyEntries(rawHistory), [rawHistory]);
     const comparisons = useMemo(() => buildComparisons(entries), [entries]);
+    const filteredTimelineEntries = useMemo(() => {
+        const sorted = [...entries].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        if (timelineMode === "cherry") {
+            const selected = new Set(selectedDates);
+            return sorted.filter((entry) => selected.has(toDayKey(entry.date)));
+        }
+
+        if (!timelineFrom || !timelineTo) return entries;
+        const fromTime = new Date(timelineFrom).setHours(0, 0, 0, 0);
+        const toTime = new Date(timelineTo).setHours(23, 59, 59, 999);
+        const withinRange = sorted.filter((entry) => {
+            const t = new Date(entry.date).getTime();
+            return t >= fromTime && t <= toTime;
+        });
+        const stepDays = Math.max(1, Number.parseInt(stepDaysInput || "1", 10) || 1);
+        if (stepDays <= 1) return withinRange;
+
+        const stepped: JourneyEntry[] = [];
+        let lastIncludedTime: number | null = null;
+        withinRange.forEach((entry) => {
+            const currentTime = new Date(entry.date).getTime();
+            if (lastIncludedTime == null) {
+                stepped.push(entry);
+                lastIncludedTime = currentTime;
+                return;
+            }
+            const diffDays = (currentTime - lastIncludedTime) / (1000 * 60 * 60 * 24);
+            if (diffDays >= stepDays) {
+                stepped.push(entry);
+                lastIncludedTime = currentTime;
+            }
+        });
+        return stepped;
+    }, [entries, timelineFrom, timelineTo, timelineMode, selectedDates, stepDaysInput]);
+
+    const availableTimelineDates = useMemo(
+        () =>
+            Array.from(new Set(entries.map((entry) => toDayKey(entry.date))))
+                .sort((a, b) => new Date(a).getTime() - new Date(b).getTime()),
+        [entries]
+    );
+
+    useEffect(() => {
+        if (!entries.length) return;
+        if (timelineFrom && timelineTo) return;
+        setTimelineFrom(new Date(entries[0].date));
+        setTimelineTo(new Date(entries[entries.length - 1].date));
+    }, [entries, timelineFrom, timelineTo]);
+
+    useEffect(() => {
+        if (!availableTimelineDates.length) return;
+        setSelectedDates((prev) => {
+            if (prev.length) return prev.filter((d) => availableTimelineDates.includes(d));
+            return [availableTimelineDates[0]];
+        });
+    }, [availableTimelineDates]);
+
+    const onPickTimelineDate = (event: DateTimePickerEvent, value?: Date) => {
+        if (event.type === "dismissed" || !value) {
+            setActivePicker(null);
+            return;
+        }
+        if (activePicker === "from") {
+            setTimelineFrom(value);
+            if (timelineTo && value > timelineTo) setTimelineTo(value);
+        }
+        if (activePicker === "to") {
+            setTimelineTo(value);
+            if (timelineFrom && value < timelineFrom) setTimelineFrom(value);
+        }
+        setActivePicker(null);
+    };
 
     return (
         <View style={styles.screen}>
@@ -510,7 +689,7 @@ export default function MeasurementsHistoryScreen() {
                 </View>
 
                 <FlatList
-                    data={entries}
+                    data={filteredTimelineEntries}
                     keyExtractor={(item) => item.id}
                     renderItem={({ item, index }) => <MeasurementsTimeline item={item} index={index} />}
                     contentContainerStyle={styles.listContent}
@@ -527,20 +706,101 @@ export default function MeasurementsHistoryScreen() {
                             <View style={styles.timelineHeader}>
                                 <Text style={styles.sectionEyebrow}>Timeline</Text>
                                 <Text style={styles.sectionTitle}>Every checkpoint, in order</Text>
+                                <View style={styles.timelineFiltersRow}>
+                                    <TouchableOpacity
+                                        style={[styles.metricPill, timelineMode === "range" && styles.metricPillActive]}
+                                        onPress={() => setTimelineMode("range")}
+                                    >
+                                        <Text style={[styles.metricPillText, timelineMode === "range" && styles.metricPillTextActive]}>Range + Step</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={[styles.metricPill, timelineMode === "cherry" && styles.metricPillActive]}
+                                        onPress={() => setTimelineMode("cherry")}
+                                    >
+                                        <Text style={[styles.metricPillText, timelineMode === "cherry" && styles.metricPillTextActive]}>Cherry Pick</Text>
+                                    </TouchableOpacity>
+                                </View>
+                                {timelineMode === "range" ? (
+                                    <>
+                                        <View style={styles.timelineFiltersRow}>
+                                            <TouchableOpacity style={styles.timelineFilterBtn} onPress={() => setActivePicker("from")}>
+                                                <Text style={styles.timelineFilterLabel}>From</Text>
+                                                <Text style={styles.timelineFilterValue}>
+                                                    {timelineFrom ? formatDate(timelineFrom.toISOString()) : "Select date"}
+                                                </Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity style={styles.timelineFilterBtn} onPress={() => setActivePicker("to")}>
+                                                <Text style={styles.timelineFilterLabel}>To</Text>
+                                                <Text style={styles.timelineFilterValue}>
+                                                    {timelineTo ? formatDate(timelineTo.toISOString()) : "Select date"}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                        <View style={styles.timelineStepRow}>
+                                            <Text style={styles.timelineFilterLabel}>Step (days between checkpoints)</Text>
+                                            <TextInput
+                                                style={styles.stepInput}
+                                                value={stepDaysInput}
+                                                onChangeText={setStepDaysInput}
+                                                keyboardType="number-pad"
+                                                placeholder="1"
+                                                placeholderTextColor="#6f6f6f"
+                                            />
+                                        </View>
+                                    </>
+                                ) : (
+                                    <View style={styles.cherryWrap}>
+                                        {availableTimelineDates.map((day) => {
+                                            const active = selectedDates.includes(day);
+                                            return (
+                                                <TouchableOpacity
+                                                    key={day}
+                                                    style={[styles.metricPill, active && styles.metricPillActive]}
+                                                    onPress={() =>
+                                                        setSelectedDates((prev) =>
+                                                            prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
+                                                        )
+                                                    }
+                                                >
+                                                    <Text style={[styles.metricPillText, active && styles.metricPillTextActive]}>
+                                                        {formatDate(day, { month: "short", day: "numeric", year: "numeric" })}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            );
+                                        })}
+                                    </View>
+                                )}
+                                {activePicker && timelineMode === "range" ? (
+                                    <DateTimePicker
+                                        value={activePicker === "from" ? (timelineFrom || new Date()) : (timelineTo || new Date())}
+                                        mode="date"
+                                        display="default"
+                                        onChange={onPickTimelineDate}
+                                        maximumDate={new Date()}
+                                    />
+                                ) : null}
                             </View>
                         </View>
                     }
                     ListEmptyComponent={
-                        <View style={styles.emptyJourneyState}>
-                            <Feather name="moon" size={28} color="#737373" />
-                            <Text style={styles.emptyJourneyTitle}>Your story starts with the first entry</Text>
-                            <Text style={styles.emptyJourneyText}>
-                                Add a measurement to unlock the trend graph, comparisons, timeline, and wrapped-style gallery.
-                            </Text>
-                            <TouchableOpacity style={styles.emptyJourneyBtn} onPress={() => router.push("/Profile/add-measurement")}>
-                                <Text style={styles.emptyJourneyBtnText}>Add Measurement</Text>
-                            </TouchableOpacity>
-                        </View>
+                        entries.length === 0 ? (
+                            <View style={styles.emptyJourneyState}>
+                                <Feather name="moon" size={28} color="#737373" />
+                                <Text style={styles.emptyJourneyTitle}>Your story starts with the first entry</Text>
+                                <Text style={styles.emptyJourneyText}>
+                                    Add a measurement to unlock the trend graph, comparisons, timeline, and wrapped-style gallery.
+                                </Text>
+                                <TouchableOpacity style={styles.emptyJourneyBtn} onPress={() => router.push("/Profile/add-measurement")}>
+                                    <Text style={styles.emptyJourneyBtnText}>Add Measurement</Text>
+                                </TouchableOpacity>
+                            </View>
+                        ) : (
+                            <View style={styles.emptyState}>
+                                <Feather name="calendar" size={24} color="#5f5f5f" />
+                                <Text style={styles.emptyStateTitle}>No checkpoints in this date range</Text>
+                                <Text style={styles.emptyStateText}>Choose different dates to see available checkpoints.</Text>
+                            </View>
+                        )
                     }
                 />
             </SafeAreaView>
@@ -592,6 +852,15 @@ const styles = StyleSheet.create({
     },
     headerTitle: { color: "#fff", fontSize: 18, fontWeight: "800" },
     listContent: { paddingHorizontal: 18, paddingBottom: 48 },
+    dayBackBtn: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 4,
+        marginTop: 10,
+        marginBottom: 6,
+    },
+    dayBackText: { color: ORANGE, fontSize: 13, fontWeight: "700" },
+    dayTitle: { color: "#fff", fontSize: 16, fontWeight: "700", marginBottom: 10 },
     heroCard: {
         borderRadius: 30,
         padding: 24,
@@ -704,6 +973,39 @@ const styles = StyleSheet.create({
     galleryDate: { color: "#fff", fontSize: 20, fontWeight: "800", marginBottom: 6 },
     galleryStats: { color: "rgba(255,255,255,0.78)", fontSize: 13, fontWeight: "700" },
     timelineHeader: { paddingVertical: 8, marginBottom: 6 },
+    timelineFiltersRow: { flexDirection: "row", gap: 10, marginTop: 12 },
+    timelineFilterBtn: {
+        flex: 1,
+        borderRadius: 14,
+        paddingVertical: 10,
+        paddingHorizontal: 12,
+        backgroundColor: "rgba(255,255,255,0.03)",
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.08)",
+    },
+    timelineFilterLabel: { color: "#A7A7A7", fontSize: 11, fontWeight: "700", marginBottom: 4, textTransform: "uppercase" },
+    timelineFilterValue: { color: "#fff", fontSize: 13, fontWeight: "700" },
+    timelineStepRow: {
+        marginTop: 10,
+        borderRadius: 14,
+        padding: 12,
+        backgroundColor: "rgba(255,255,255,0.03)",
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.08)",
+    },
+    stepInput: {
+        marginTop: 8,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.12)",
+        backgroundColor: "rgba(0,0,0,0.25)",
+        color: "#fff",
+        paddingHorizontal: 10,
+        paddingVertical: 8,
+        fontSize: 14,
+        fontWeight: "700",
+    },
+    cherryWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 },
     timelineCard: {
         borderRadius: 26,
         padding: 16,

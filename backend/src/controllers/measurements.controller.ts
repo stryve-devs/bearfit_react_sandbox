@@ -127,3 +127,21 @@ export const createMeasurement = async (req: Request, res: Response) => {
         return res.status(500).json({ message: error.message || 'Failed to create measurement' });
     }
 };
+
+// Get all measurement records for authenticated user (latest first)
+export const getMeasurements = async (req: Request, res: Response) => {
+    try {
+        const userId = (req as any).user?.userId;
+        if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+
+        const records = await prisma.measurement.findMany({
+            where: { user_id: userId },
+            orderBy: { measurement_date: 'desc' },
+        });
+
+        return res.status(200).json({ measurements: records });
+    } catch (error: any) {
+        console.error('[measurements.controller] getMeasurements error', error);
+        return res.status(500).json({ message: error.message || 'Failed to fetch measurements' });
+    }
+};
