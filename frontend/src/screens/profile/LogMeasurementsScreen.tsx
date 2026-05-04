@@ -19,17 +19,14 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import Animated, {
     FadeInDown,
     ScaleInDown,
 } from "react-native-reanimated";
 
 import * as ImagePicker from "expo-image-picker";
-import * as FileSystem from 'expo-file-system';
-import * as FileSystemLegacy from 'expo-file-system/legacy';
 import { measurementsService } from '@/api/services/measurements.service';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -42,6 +39,7 @@ const MONTHS = [
 
 export default function LogMeasurementsScreen() {
     const router = useRouter();
+    const params = useLocalSearchParams<{ entryImageUri?: string }>();
 
     const [showPicker, setShowPicker] = useState(false);
     const [showCalendar, setShowCalendar] = useState(false);
@@ -98,7 +96,7 @@ export default function LogMeasurementsScreen() {
 
     // --- LOGIC: SAVE BUTTON VALIDATION ---
     const filledCount = Object.values(measurements).filter(v => (v as string).trim() !== "").length;
-    const canSave = filledCount > 0;
+    const canSave = filledCount > 0 || Boolean(entryImageUri);
     const progressWidth = (filledCount / Object.keys(measurements).length) * 100;
 
     async function handlePickEntryPhoto(source: "camera" | "library") {
@@ -149,93 +147,23 @@ export default function LogMeasurementsScreen() {
         }
     }, [showPicker, flushPendingPhotoLaunch]);
 
-    async function uploadViaFileSystemWithTimeout(
-        url: string,
-        fileUri: string,
-        options: FileSystemLegacy.FileSystemUploadOptions,
-        timeoutMs = 15000
-    ) {
-        return await Promise.race([
-            FileSystemLegacy.uploadAsync(url, fileUri, options),
-            new Promise<never>((_, reject) =>
-                setTimeout(() => reject(new Error(`FileSystem.uploadAsync timeout after ${timeoutMs}ms`)), timeoutMs)
-            ),
-        ]);
-    }
-
-    function getProxyMeasurementUploadUrl() {
-        const rawBase = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001/api';
-        const normalizedBase = rawBase.replace(/\/+$/, '');
-        if (normalizedBase.endsWith('/api')) {
-            return `${normalizedBase}/uploads/proxy-measurement`;
-        }
-        return `${normalizedBase}/api/uploads/proxy-measurement`;
-    }
-
-    async function uploadToProxyWithFetch(fileUri: string, filename: string, contentType: string) {
-        const backendUploadUrl = getProxyMeasurementUploadUrl();
-        const accessToken = await AsyncStorage.getItem('accessToken');
-        console.log('[Save] proxy upload URL:', backendUploadUrl);
-
-        const fileResponse = await fetch(fileUri);
-        const fileBlob = await fileResponse.blob();
-
-        const proxyFetchRes = await fetch(backendUploadUrl, {
-            method: 'POST',
-            headers: {
-                'Content-Type': contentType,
-                'x-filename': filename,
-                ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-            },
-            body: fileBlob,
-        });
-
-        const proxyBodyText = await proxyFetchRes.text();
-        if (!proxyFetchRes.ok) {
-            throw new Error(`Proxy upload failed status ${proxyFetchRes.status}. body=${proxyBodyText}`);
-        }
+    useEffect(() => {
+        const rawImageUri = typeof params.entryImageUri === "string" ? params.entryImageUri : undefined;
+        if (!rawImageUri) return;
 
         try {
-            return JSON.parse(proxyBodyText || '{}');
+            const decoded = decodeURIComponent(rawImageUri);
+            if (decoded && decoded !== entryImageUri) {
+                setEntryImageUri(decoded);
+                setImageError(null);
+            }
         } catch {
-            return {};
+            if (rawImageUri !== entryImageUri) {
+                setEntryImageUri(rawImageUri);
+                setImageError(null);
+            }
         }
-    }
-
-    async function uploadBlobToUrl(uploadUrl: string, blob: Blob, contentType: string) {
-        console.log('[uploadBlobToUrl] uploadUrl:', uploadUrl);
-        try {
-            const res = await fetch(uploadUrl, {
-                method: 'PUT',
-                headers: { 'Content-Type': contentType },
-                body: blob,
-            });
-            if (!res.ok) throw new Error('Upload failed status ' + res.status);
-            return;
-        } catch (err) {
-            console.warn('[uploadBlobToUrl] fetch PUT failed, attempting XHR fallback', err);
-            // XHR fallback (works more reliably on some RN setups)
-            return await new Promise<void>((resolve, reject) => {
-                try {
-                    const xhr = new XMLHttpRequest();
-                    xhr.open('PUT', uploadUrl);
-                    xhr.setRequestHeader('Content-Type', contentType);
-                    xhr.onload = () => {
-                        if (xhr.status >= 200 && xhr.status < 300) {
-                            resolve();
-                        } else {
-                            reject(new Error('XHR upload failed status ' + xhr.status));
-                        }
-                    };
-                    xhr.onerror = () => reject(new Error('XHR upload network error'));
-                    // Some environments require responseType; not needed for PUT
-                    xhr.send(blob as any);
-                } catch (e) {
-                    reject(e);
-                }
-            });
-        }
-    }
+    }, [entryImageUri, params.entryImageUri]);
 
     function generateCalendar(date: Date) {
         const year = date.getFullYear();
@@ -273,63 +201,17 @@ export default function LogMeasurementsScreen() {
                         disabled={!canSave || savingProgress}
                         style={[styles.saveBtn, { opacity: canSave && !savingProgress ? 1 : 0.4 }]}
                         onPress={async () => {
-                            // Save flow: if there's an entryImageUri (local file), presign then upload, then persist measurement
+                            // Save flow: upload any local entry image first, then persist the measurement.
                             let publicUrl: string | null = entryImageUri;
+                            let didSaveMeasurement = false;
                             setSavingProgress(true);
                             try {
                                 const localUriPattern = /^(file:|content:|blob:|data:)/i;
-                                let entryImageKey: string | null = null;
                                 if (entryImageUri && localUriPattern.test(entryImageUri)) {
-                                     setEntryUploading(true);
-                                     const filename = entryImageUri.split('/').pop() || `measurement.jpg`;
-                                     const contentType = 'image/jpeg';
-
-                                     // Get presigned URL from backend
-                                     const presign = await measurementsService.presignMeasurementPhoto(filename, contentType);
-
-                                     // iOS: direct presigned PUT can hang; use backend proxy directly.
-                                     // Android: try direct PUT first, fallback to proxy.
-                                     const shouldUseProxyFirst = Platform.OS === 'ios';
-                                     try {
-                                        if (!shouldUseProxyFirst) {
-                                            console.log('[Save] attempting FileSystem.uploadAsync to', presign.uploadUrl);
-                                            const fsRes = await uploadViaFileSystemWithTimeout(presign.uploadUrl, entryImageUri, {
-                                                httpMethod: 'PUT',
-                                                headers: { 'Content-Type': contentType },
-                                                uploadType: FileSystemLegacy.FileSystemUploadType.BINARY_CONTENT,
-                                            });
-                                            if (fsRes.status && fsRes.status >= 200 && fsRes.status < 300) {
-                                                console.log('[Save] FileSystem.uploadAsync succeeded', fsRes.status);
-                                                publicUrl = presign.publicUrl;
-                                                entryImageKey = presign.key;
-                                            } else {
-                                                throw new Error('FileSystem.uploadAsync status ' + fsRes.status);
-                                            }
-                                        } else {
-                                            throw new Error('Skip direct PUT on iOS');
-                                        }
-                                    } catch (fsErr) {
-                                        if (!shouldUseProxyFirst) {
-                                            console.warn('[Save] FileSystem.uploadAsync to presigned URL failed', fsErr);
-                                        } else {
-                                            console.log('[Save] iOS detected, using proxy upload path');
-                                        }
-                                        try {
-                                            console.log('[Save] attempting proxy upload to backend');
-                                            const parsed = await uploadToProxyWithFetch(entryImageUri, filename, contentType);
-                                            if (parsed?.publicUrl) {
-                                                publicUrl = parsed.publicUrl;
-                                                entryImageKey = parsed.key || null;
-                                                console.log('[Save] proxy upload succeeded, publicUrl:', publicUrl, 'key:', entryImageKey);
-                                            } else {
-                                                throw new Error('Proxy upload succeeded but missing publicUrl in response');
-                                            }
-                                        } catch (proxyErr) {
-                                            console.error('[Save] proxy upload also failed', proxyErr);
-                                            throw proxyErr;
-                                        }
-                                    }
-                                 }
+                                    setEntryUploading(true);
+                                    const uploaded = await measurementsService.uploadMeasurementPhoto(entryImageUri);
+                                    publicUrl = uploaded.url;
+                                }
 
                                  // Create measurement record in backend
                                 const parseNum = (v: any) => {
@@ -359,13 +241,14 @@ export default function LogMeasurementsScreen() {
                                     left_calf: parseNum(measurements['Left Calf (cm)']),
                                     right_calf: parseNum(measurements['Right Calf (cm)']),
                                     entry_image_url: publicUrl,
-                                    entry_image_key: entryImageKey,
                                 };
 
                                 try {
                                     await measurementsService.createMeasurement(payload);
+                                    didSaveMeasurement = true;
                                 } catch (err) {
                                     console.warn('Failed to persist measurement to backend', err);
+                                    throw err;
                                 }
                             } catch (err) {
                                 console.error('Save flow error', err);
@@ -373,12 +256,14 @@ export default function LogMeasurementsScreen() {
                             } finally {
                                 setEntryUploading(false);
                                 setSavingProgress(false);
-                                GLOBAL_HISTORY.push({
-                                    date: selectedDate.toISOString(),
-                                    measurements,
-                                    entry_image_url: publicUrl,
-                                });
-                                router.replace("/(tabs)/Profile/log-measurements");
+                                if (didSaveMeasurement) {
+                                    GLOBAL_HISTORY.push({
+                                        date: selectedDate.toISOString(),
+                                        measurements,
+                                        entry_image_url: publicUrl,
+                                    });
+                                    router.replace("/(tabs)/Profile/log-measurements");
+                                }
                             }
                         }}
                      >
@@ -415,7 +300,12 @@ export default function LogMeasurementsScreen() {
 
                         <TouchableOpacity style={styles.photoBox} onPress={() => setShowPicker(true)}>
                             {entryImageUri ? (
-                                <Image source={{ uri: entryImageUri }} style={styles.photoPreview} resizeMode="cover" />
+                                <View>
+                                    <Image source={{ uri: entryImageUri }} style={styles.photoPreview} resizeMode="cover" />
+                                    <View style={styles.photoOverlay}>
+                                        <Text style={styles.photoOverlayText}>Tap to change photo</Text>
+                                    </View>
+                                </View>
                             ) : (
                                 <LinearGradient colors={["rgba(255,120,37,0.05)", "transparent"]} style={styles.photoGradient}>
                                     <Feather name="camera" size={28} color={ORANGE} />
@@ -423,6 +313,7 @@ export default function LogMeasurementsScreen() {
                                 </LinearGradient>
                             )}
                         </TouchableOpacity>
+                        {imageError ? <Text style={styles.imageErrorText}>{imageError}</Text> : null}
 
                         <Text style={styles.sectionTitle}>Detailed Measurements</Text>
 
@@ -502,6 +393,18 @@ export default function LogMeasurementsScreen() {
                                 <Text style={styles.optionText}>Library</Text>
                             </TouchableOpacity>
                         </View>
+                        {entryImageUri ? (
+                            <TouchableOpacity
+                                style={styles.removePhotoBtn}
+                                onPress={() => {
+                                    setEntryImageUri(null);
+                                    setImageError(null);
+                                    setShowPicker(false);
+                                }}
+                            >
+                                <Text style={styles.removePhotoText}>Remove current photo</Text>
+                            </TouchableOpacity>
+                        ) : null}
                         {entryUploading && <ActivityIndicator style={{ marginTop: 20 }} color={ORANGE} />}
                     </View>
                 </View>
@@ -606,7 +509,18 @@ const styles = StyleSheet.create({
     photoBox: { borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: '#111', borderStyle: 'dashed' },
     photoGradient: { paddingVertical: 35, alignItems: 'center', justifyContent: 'center' },
     photoPreview: { width: '100%', height: 180, borderRadius: 24, backgroundColor: '#000' },
+    photoOverlay: {
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        bottom: 0,
+        paddingVertical: 10,
+        paddingHorizontal: 14,
+        backgroundColor: 'rgba(0,0,0,0.45)',
+    },
+    photoOverlayText: { color: '#fff', fontSize: 12, fontWeight: '700' },
     addPic: { color: ORANGE, marginTop: 10, fontWeight: "800", fontSize: 13 },
+    imageErrorText: { color: '#ff7a7a', fontSize: 12, marginTop: 8, marginBottom: 4 },
     inputCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#0A0A0A', borderRadius: 20, padding: 16, marginBottom: 8, borderWidth: 1, borderColor: '#0F0F0F' },
     activeInputCard: { borderColor: 'rgba(255,120,37,0.3)', backgroundColor: '#0F0F0F' },
     measureText: { color: "#999", fontSize: 14, fontWeight: '600' },
@@ -647,6 +561,17 @@ const styles = StyleSheet.create({
     optionItem: { alignItems: 'center', gap: 12 },
     optionIcon: { width: 70, height: 70, backgroundColor: ORANGE, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
     optionText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+    removePhotoBtn: {
+        marginTop: 18,
+        alignSelf: 'center',
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderRadius: 14,
+        backgroundColor: '#111',
+        borderWidth: 1,
+        borderColor: '#222',
+    },
+    removePhotoText: { color: '#ffb08a', fontSize: 13, fontWeight: '700' },
     savingCard: {
         width: "78%",
         borderRadius: 20,
