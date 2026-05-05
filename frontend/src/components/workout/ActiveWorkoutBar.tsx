@@ -183,13 +183,13 @@ export default function ActiveWorkoutBar() {
     <>
       <View style={[styles.wrap, { bottom: insets.bottom + 64 }]}>
         <TouchableOpacity activeOpacity={0.9} onPress={goToWorkout} style={styles.bar}>
+          <TouchableOpacity onPress={() => setExpanded(true)} style={styles.iconBtn}>
+            <Ionicons name="chevron-up" size={18} color={AppColors.orange} />
+          </TouchableOpacity>
           <View style={styles.main}>
             <Text style={styles.time}>Workout Time: {formatElapsed(elapsed)}</Text>
             <Text style={styles.exercise} numberOfLines={1}>{currentExerciseName}</Text>
           </View>
-          <TouchableOpacity onPress={() => setExpanded(true)} style={styles.iconBtn}>
-            <Ionicons name="chevron-up" size={18} color={AppColors.orange} />
-          </TouchableOpacity>
           <TouchableOpacity onPress={requestClearWorkout} style={styles.iconBtn}>
             <Ionicons name="trash-outline" size={18} color="#FF6B6B" />
           </TouchableOpacity>
@@ -351,26 +351,28 @@ const styles = StyleSheet.create({
     zIndex: 9999,
   },
   bar: {
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.14)',
+    borderRadius: 24,
+    borderWidth: 0,
     backgroundColor: '#151515',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    minHeight: 60,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
   },
   main: { flex: 1 },
   time: { color: '#fff', fontSize: 12, fontWeight: '700' },
   exercise: { color: '#BBBBBB', fontSize: 12, marginTop: 2 },
   iconBtn: {
-    width: 30,
-    height: 30,
+    width: 36,
+    height: 36,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 8,
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: 'rgba(255,255,255,0.03)',
   },
   backdrop: {
     flex: 1,
