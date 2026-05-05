@@ -8,9 +8,14 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { WorkoutProvider } from '../src/context/WorkoutContext';
+import ActiveWorkoutBar from '../src/components/workout/ActiveWorkoutBar';
 
 SplashScreen.preventAutoHideAsync();
 const LAST_ROUTE_KEY = 'bearfit:last-route';
+const LAST_ROUTE_EXCLUDE_PREFIXES = [
+    '/(tabs)/Workout/addexercise',
+];
 
 export default function RootLayout() {
     const router = useRouter();
@@ -52,6 +57,7 @@ export default function RootLayout() {
 
     useEffect(() => {
         if (!navigationState?.key || !pathname || pathname === '/') return;
+        if (LAST_ROUTE_EXCLUDE_PREFIXES.some((prefix) => pathname.startsWith(prefix))) return;
         const entries = Object.entries(searchParams ?? {})
             .filter(([, value]) => value !== undefined && value !== null && String(value).length > 0)
             .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`);
@@ -72,14 +78,17 @@ export default function RootLayout() {
     return (
         <GestureHandlerRootView style={{ flex: 1 }}>
             <SafeAreaProvider>
-                <AuthProvider>
-                    <Stack
-                        screenOptions={{
-                            headerShown: false,
-                            contentStyle: { backgroundColor: '#000000' },
-                        }}
-                    />
-                </AuthProvider>
+                <WorkoutProvider>
+                    <AuthProvider>
+                        <Stack
+                            screenOptions={{
+                                headerShown: false,
+                                contentStyle: { backgroundColor: '#000000' },
+                            }}
+                        />
+                        <ActiveWorkoutBar />
+                    </AuthProvider>
+                </WorkoutProvider>
             </SafeAreaProvider>
         </GestureHandlerRootView>
     );

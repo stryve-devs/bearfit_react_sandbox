@@ -1,12 +1,30 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001/api';
+const ENV_API_URL = process.env.EXPO_PUBLIC_API_URL?.trim();
 
-// 👇 ADD THIS - Log the API URL on startup
-console.log('🌐 API Configuration:');
-console.log('   EXPO_PUBLIC_API_URL:', process.env.EXPO_PUBLIC_API_URL);
-console.log('   Final API_URL:', API_URL);
+const getDerivedApiUrl = (): string => {
+    if (ENV_API_URL) {
+        return ENV_API_URL;
+    }
+
+    const hostUri = (Constants.expoConfig as any)?.hostUri as string | undefined;
+    const host = hostUri?.split(':')[0];
+    if (host) {
+        return `http://${host}:3001/api`;
+    }
+
+    return 'http://localhost:3001/api';
+};
+
+const API_URL = getDerivedApiUrl();
+
+console.log('API Configuration:', {
+    envApiUrl: ENV_API_URL || null,
+    hostUri: (Constants.expoConfig as any)?.hostUri || null,
+    finalApiUrl: API_URL,
+});
 
 const api = axios.create({
     baseURL: API_URL,
@@ -16,17 +34,8 @@ const api = axios.create({
     },
 });
 
-// Request interceptor
 api.interceptors.request.use(
     async (config) => {
-        // 👇 ADD THIS - Log every request
-        console.log('📤 API Request:', {
-            method: config.method?.toUpperCase(),
-            url: config.url,
-            fullUrl: `${config.baseURL}${config.url}`,
-        });
-
-        // If caller added a cache-busting param (e.g., ?_t=...), ensure we bypass intermediary caches
         if (config.url && config.url.includes('_t=')) {
             config.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
             config.headers.Pragma = 'no-cache';
@@ -39,37 +48,15 @@ api.interceptors.request.use(
         }
         return config;
     },
-    (error) => {
-        console.error('❌ Request interceptor error:', error);
-        return Promise.reject(error);
-    }
+    (error) => Promise.reject(error)
 );
 
-// Response interceptor
 api.interceptors.response.use(
-    (response) => {
-        console.log('✅ API Response:', response.status, response.config.url);
-        return response;
-    },
+    (response) => response,
     async (error) => {
         const status = error.response?.status;
-        const info = {
-            message: error.message,
-            url: error.config?.url,
-            fullUrl: `${error.config?.baseURL}${error.config?.url}`,
-            status: status,
-        };
-
-        // For expected auth errors (401) or not found (404) avoid noisy error logging — log as warning
-        if (status === 401 || status === 404) {
-            console.warn('⚠️ API Auth/NotFound:', info);
-        } else {
-            console.error('❌ API Error:', info);
-        }
-
         const originalRequest = error.config;
 
-        // If 401 and not already retried, try refreshing token
         if (status === 401 && !originalRequest._retry) {
             originalRequest._retry = true;
 
@@ -89,9 +76,7 @@ api.interceptors.response.use(
                     return api(originalRequest);
                 }
             } catch (refreshError) {
-                // Clear tokens and reject (caller can handle navigation to login)
                 await AsyncStorage.multiRemove(['accessToken', 'refreshToken', 'user']);
-                console.warn('⚠️ Token refresh failed, cleared stored tokens.');
                 return Promise.reject(refreshError);
             }
         }

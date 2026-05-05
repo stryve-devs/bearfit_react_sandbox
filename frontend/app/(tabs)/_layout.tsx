@@ -55,6 +55,12 @@ export default function TabLayout() {
                         <Ionicons name="barbell" size={size} color={color} />
                     ),
                 }}
+                listeners={{
+                    tabPress: (e) => {
+                        e.preventDefault();
+                        router.replace('/(tabs)/Workout');
+                    },
+                }}
             />
             <Tabs.Screen
                 name="Profile"

@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
     Dimensions,
     FlatList,
     Image,
+    Modal,
     TextInput,
     ScrollView,
     StyleSheet,
@@ -10,7 +11,7 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -32,6 +33,8 @@ const GREEN = "#57D98D";
 const RED = "#FF6B6B";
 const SCREEN_WIDTH = Dimensions.get("window").width;
 const GALLERY_CARD_WIDTH = SCREEN_WIDTH * 0.66;
+const WHEEL_ITEM_HEIGHT = 44;
+const WHEEL_VISIBLE_ROWS = 3;
 
 type MetricLabel =
     | "Body Weight (kg)"
@@ -112,6 +115,11 @@ function formatMetricLabel(metric: string) {
     return metric.split(" (")[0];
 }
 
+function metricUnit(metric: string) {
+    const match = metric.match(/\(([^)]+)\)/);
+    return match ? match[1] : "value";
+}
+
 function normalizeJourneyEntries(rawHistory: any[]): JourneyEntry[] {
     return [...rawHistory]
         .map((item, index) => {
@@ -135,8 +143,12 @@ function normalizeJourneyEntries(rawHistory: any[]): JourneyEntry[] {
         .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 }
 
-function toDayKey(isoDate: string) {
-    return new Date(isoDate).toISOString().slice(0, 10);
+function toDayKey(dateInput: string | Date) {
+    const date = dateInput instanceof Date ? dateInput : new Date(dateInput);
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
 }
 
 function isWithinPeriod(date: Date, period: "week" | "month" | "year") {
@@ -187,7 +199,7 @@ function buildComparisons(entries: JourneyEntry[]): ComparisonItem[] {
         }));
 }
 
-function formatDate(date: string, options?: Intl.DateTimeFormatOptions) {
+function formatDate(date: string | Date, options?: Intl.DateTimeFormatOptions) {
     return new Date(date).toLocaleDateString("en-US", options || {
         month: "short",
         day: "numeric",
@@ -198,6 +210,30 @@ function formatDate(date: string, options?: Intl.DateTimeFormatOptions) {
 function formatValue(value: number | null, unit: string) {
     if (value == null) return "--";
     return `${value.toFixed(1)}${unit ? ` ${unit}` : ""}`;
+}
+
+function monthStart(date: Date) {
+    return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+const MONTH_NAMES = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
+];
+
+function buildCalendarDays(monthDate: Date) {
+    const start = monthStart(monthDate);
+    const startWeekday = start.getDay();
+    const gridStart = new Date(start);
+    gridStart.setDate(start.getDate() - startWeekday);
+
+    const days: Date[] = [];
+    for (let i = 0; i < 42; i += 1) {
+        const day = new Date(gridStart);
+        day.setDate(gridStart.getDate() + i);
+        days.push(day);
+    }
+    return days;
 }
 
 function JourneyHeader({ entries }: { entries: JourneyEntry[] }) {
@@ -252,12 +288,13 @@ function ProgressGraph({
         [entries, selectedMetric]
     );
     const values = filteredEntries.map((entry) => entry.measurements[selectedMetric] || 0);
+    const yUnit = metricUnit(selectedMetric);
     const graphWidth = Math.max(SCREEN_WIDTH - 40, filteredEntries.length * 64);
 
     return (
         <Animated.View entering={FadeInDown.delay(100).duration(500)} style={styles.sectionCard}>
             <View style={styles.sectionHeaderRow}>
-                <View>
+                <View style={styles.sectionHeaderCopy}>
                     <Text style={styles.sectionEyebrow}>Progress Graph</Text>
                     <Text style={styles.sectionTitle}>Your trend arc</Text>
                 </View>
@@ -286,9 +323,11 @@ function ProgressGraph({
                     </View>
                 ))}
             </ScrollView>
-
             {filteredEntries.length > 1 ? (
                 <Animated.View entering={FadeInRight.delay(180).duration(550)} style={styles.chartShell}>
+                    <View style={styles.axisLegendRow}>
+                        <Text style={styles.axisLegendText}>Y: {yUnit}</Text>
+                    </View>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                         <LineChart
                             data={{
@@ -306,7 +345,8 @@ function ProgressGraph({
                             chartConfig={chartConfig}
                             bezier
                             withShadow
-                            withInnerLines={false}
+                            withInnerLines
+                            withVerticalLines={false}
                             withOuterLines={false}
                             transparent
                             style={styles.chart}
@@ -328,7 +368,7 @@ function BodyComparisonSection({ comparisons }: { comparisons: ComparisonItem[] 
     return (
         <Animated.View entering={FadeInDown.delay(180).duration(520)} style={styles.sectionCard}>
             <View style={styles.sectionHeaderRow}>
-                <View>
+                <View style={styles.sectionHeaderCopy}>
                     <Text style={styles.sectionEyebrow}>Body Comparison</Text>
                     <Text style={styles.sectionTitle}>What changed most</Text>
                 </View>
@@ -370,6 +410,148 @@ function BodyComparisonSection({ comparisons }: { comparisons: ComparisonItem[] 
     );
 }
 
+function AnalyticsRangeSection({
+    rangeFrom,
+    rangeTo,
+    onPickFrom,
+    onPickTo,
+}: {
+    rangeFrom: Date | null;
+    rangeTo: Date | null;
+    onPickFrom: () => void;
+    onPickTo: () => void;
+}) {
+    return (
+        <Animated.View entering={FadeInDown.delay(120).duration(500)} style={styles.sectionCard}>
+            <View style={styles.sectionHeaderRow}>
+                <View style={styles.sectionHeaderCopy}>
+                    <Text style={styles.sectionEyebrow}>Analytics Range</Text>
+                    <Text style={styles.sectionTitle}>Pick comparison window</Text>
+                </View>
+                <View style={styles.sectionBadge}>
+                    <Text style={styles.sectionBadgeText}>Shared</Text>
+                </View>
+            </View>
+            <View style={styles.timelineFiltersRow}>
+                <TouchableOpacity style={styles.timelineFilterBtn} onPress={onPickFrom}>
+                    <Text style={styles.timelineFilterLabel}>From</Text>
+                    <Text style={styles.timelineFilterValue}>
+                        {rangeFrom ? formatDate(rangeFrom) : "Select date"}
+                    </Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.timelineFilterBtn} onPress={onPickTo}>
+                    <Text style={styles.timelineFilterLabel}>To</Text>
+                    <Text style={styles.timelineFilterValue}>
+                        {rangeTo ? formatDate(rangeTo) : "Select date"}
+                    </Text>
+                </TouchableOpacity>
+            </View>
+        </Animated.View>
+    );
+}
+
+function WheelPickerItem({
+    label,
+    index,
+    scrollY,
+}: {
+    label: string;
+    index: number;
+    scrollY: SharedValue<number>;
+}) {
+    const animatedStyle = useAnimatedStyle(() => {
+        const center = scrollY.value / WHEEL_ITEM_HEIGHT;
+        const distance = Math.abs(index - center);
+        return {
+            opacity: interpolate(distance, [0, 1, 2], [1, 0.55, 0.3], "clamp"),
+            transform: [{ scale: interpolate(distance, [0, 1, 2], [1, 0.92, 0.84], "clamp") }],
+        };
+    });
+
+    return (
+        <Animated.View style={[styles.analyticsWheelItem, animatedStyle]}>
+            <Text style={styles.analyticsWheelText}>{label}</Text>
+        </Animated.View>
+    );
+}
+
+function WheelPickerColumn({
+    items,
+    selectedIndex,
+    onChangeIndex,
+}: {
+    items: string[];
+    selectedIndex: number;
+    onChangeIndex: (idx: number) => void;
+}) {
+    const listRef = useRef<FlatList<string>>(null);
+    const selectedIndexRef = useRef(selectedIndex);
+    const didSnapThisGestureRef = useRef(false);
+    const scrollY = useSharedValue(selectedIndex * WHEEL_ITEM_HEIGHT);
+
+    useEffect(() => {
+        selectedIndexRef.current = selectedIndex;
+        scrollY.value = selectedIndex * WHEEL_ITEM_HEIGHT;
+        listRef.current?.scrollToOffset({
+            offset: selectedIndex * WHEEL_ITEM_HEIGHT,
+            animated: false,
+        });
+    }, [selectedIndex, scrollY]);
+
+    const onScroll = useAnimatedScrollHandler((event) => {
+        scrollY.value = event.contentOffset.y;
+    });
+
+    const snapToClosest = (offsetY: number) => {
+        if (didSnapThisGestureRef.current) return;
+        const idx = Math.max(0, Math.min(items.length - 1, Math.round(offsetY / WHEEL_ITEM_HEIGHT)));
+        const snappedOffset = idx * WHEEL_ITEM_HEIGHT;
+        didSnapThisGestureRef.current = true;
+        listRef.current?.scrollToOffset({ offset: snappedOffset, animated: true });
+        if (idx !== selectedIndexRef.current) {
+            onChangeIndex(idx);
+        }
+    };
+
+    return (
+        <View style={styles.analyticsWheelCol}>
+            <View pointerEvents="none" style={styles.analyticsWheelSelectionOverlay} />
+            <Animated.FlatList
+                ref={listRef}
+                data={items}
+                keyExtractor={(item, index) => `${item}-${index}`}
+                renderItem={({ item, index }) => (
+                    <WheelPickerItem label={item} index={index} scrollY={scrollY} />
+                )}
+                showsVerticalScrollIndicator={false}
+                snapToInterval={WHEEL_ITEM_HEIGHT}
+                decelerationRate="fast"
+                getItemLayout={(_, index) => ({
+                    length: WHEEL_ITEM_HEIGHT,
+                    offset: WHEEL_ITEM_HEIGHT * index,
+                    index,
+                })}
+                contentContainerStyle={styles.analyticsWheelContent}
+                initialScrollIndex={Math.max(0, selectedIndex)}
+                onScrollBeginDrag={() => {
+                    didSnapThisGestureRef.current = false;
+                }}
+                onScroll={onScroll}
+                scrollEventThrottle={16}
+                onMomentumScrollEnd={(event) => {
+                    snapToClosest(event.nativeEvent.contentOffset.y);
+                }}
+                onScrollEndDrag={(event) => {
+                    const velocityY = event.nativeEvent.velocity?.y ?? 0;
+                    if (Math.abs(velocityY) < 0.01) {
+                        snapToClosest(event.nativeEvent.contentOffset.y);
+                    }
+                }}
+            />
+        </View>
+    );
+}
+
 function ProgressGallery({ entries }: { entries: JourneyEntry[] }) {
     const [period, setPeriod] = useState<"week" | "month" | "year">("month");
     const [selectedDay, setSelectedDay] = useState<string | null>(null);
@@ -398,7 +580,7 @@ function ProgressGallery({ entries }: { entries: JourneyEntry[] }) {
     return (
         <Animated.View entering={FadeInDown.delay(240).duration(540)} style={styles.sectionCard}>
             <View style={styles.sectionHeaderRow}>
-                <View>
+                <View style={styles.sectionHeaderCopy}>
                     <Text style={styles.sectionEyebrow}>Progress Gallery</Text>
                     <Text style={styles.sectionTitle}>Your wrapped photo recap</Text>
                 </View>
@@ -554,14 +736,22 @@ function MeasurementsTimeline({
 
 export default function MeasurementsHistoryScreen() {
     const router = useRouter();
+    const insets = useSafeAreaInsets();
     const [selectedMetric, setSelectedMetric] = useState<MetricLabel>(DEFAULT_METRIC);
     const [rawHistory, setRawHistory] = useState<any[]>([]);
     const [timelineFrom, setTimelineFrom] = useState<Date | null>(null);
     const [timelineTo, setTimelineTo] = useState<Date | null>(null);
     const [activePicker, setActivePicker] = useState<"from" | "to" | null>(null);
+    const [analyticsFrom, setAnalyticsFrom] = useState<Date | null>(null);
+    const [analyticsTo, setAnalyticsTo] = useState<Date | null>(null);
+    const [analyticsPicker, setAnalyticsPicker] = useState<"from" | "to" | null>(null);
+    const [analyticsMonth, setAnalyticsMonth] = useState<Date>(monthStart(new Date()));
+    const [analyticsMonthYearPickerOpen, setAnalyticsMonthYearPickerOpen] = useState(false);
     const [timelineMode, setTimelineMode] = useState<"range" | "cherry">("range");
     const [stepDaysInput, setStepDaysInput] = useState("1");
     const [selectedDates, setSelectedDates] = useState<string[]>([]);
+    const [cherryMonth, setCherryMonth] = useState<Date>(monthStart(new Date()));
+    const [cherryAnchorDate, setCherryAnchorDate] = useState<string | null>(null);
 
     useEffect(() => {
         const load = async () => {
@@ -600,7 +790,16 @@ export default function MeasurementsHistoryScreen() {
     }, []);
 
     const entries = useMemo(() => normalizeJourneyEntries(rawHistory), [rawHistory]);
-    const comparisons = useMemo(() => buildComparisons(entries), [entries]);
+    const analyticsEntries = useMemo(() => {
+        if (!analyticsFrom || !analyticsTo) return entries;
+        const fromTime = new Date(analyticsFrom).setHours(0, 0, 0, 0);
+        const toTime = new Date(analyticsTo).setHours(23, 59, 59, 999);
+        return entries.filter((entry) => {
+            const t = new Date(entry.date).getTime();
+            return t >= fromTime && t <= toTime;
+        });
+    }, [entries, analyticsFrom, analyticsTo]);
+    const comparisons = useMemo(() => buildComparisons(analyticsEntries), [analyticsEntries]);
     const filteredTimelineEntries = useMemo(() => {
         const sorted = [...entries].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
         if (timelineMode === "cherry") {
@@ -642,6 +841,12 @@ export default function MeasurementsHistoryScreen() {
                 .sort((a, b) => new Date(a).getTime() - new Date(b).getTime()),
         [entries]
     );
+    const availableTimelineDatesSet = useMemo(() => new Set(availableTimelineDates), [availableTimelineDates]);
+    const cherryCalendarDays = useMemo(() => buildCalendarDays(cherryMonth), [cherryMonth]);
+    const cherryMonthLabel = useMemo(
+        () => cherryMonth.toLocaleDateString("en-US", { month: "long", year: "numeric" }),
+        [cherryMonth]
+    );
 
     useEffect(() => {
         if (!entries.length) return;
@@ -649,6 +854,17 @@ export default function MeasurementsHistoryScreen() {
         setTimelineFrom(new Date(entries[0].date));
         setTimelineTo(new Date(entries[entries.length - 1].date));
     }, [entries, timelineFrom, timelineTo]);
+    useEffect(() => {
+        if (!entries.length) return;
+        if (analyticsFrom && analyticsTo) return;
+        setAnalyticsFrom(new Date(entries[0].date));
+        setAnalyticsTo(new Date(entries[entries.length - 1].date));
+    }, [entries, analyticsFrom, analyticsTo]);
+    useEffect(() => {
+        if (!entries.length) return;
+        const latest = entries[entries.length - 1];
+        setAnalyticsMonth(monthStart(new Date(latest.date)));
+    }, [entries]);
 
     useEffect(() => {
         if (!availableTimelineDates.length) return;
@@ -656,6 +872,12 @@ export default function MeasurementsHistoryScreen() {
             if (prev.length) return prev.filter((d) => availableTimelineDates.includes(d));
             return [availableTimelineDates[0]];
         });
+    }, [availableTimelineDates]);
+
+    useEffect(() => {
+        if (!availableTimelineDates.length) return;
+        const latest = availableTimelineDates[availableTimelineDates.length - 1];
+        setCherryMonth(monthStart(new Date(latest)));
     }, [availableTimelineDates]);
 
     const onPickTimelineDate = (event: DateTimePickerEvent, value?: Date) => {
@@ -672,6 +894,51 @@ export default function MeasurementsHistoryScreen() {
             if (timelineFrom && value < timelineFrom) setTimelineFrom(value);
         }
         setActivePicker(null);
+    };
+    const onPickAnalyticsDate = (value: Date) => {
+        if (analyticsPicker === "from") {
+            setAnalyticsFrom(value);
+            if (analyticsTo && value > analyticsTo) setAnalyticsTo(value);
+        }
+        if (analyticsPicker === "to") {
+            setAnalyticsTo(value);
+            if (analyticsFrom && value < analyticsFrom) setAnalyticsFrom(value);
+        }
+        setAnalyticsPicker(null);
+    };
+    const analyticsYearOptions = useMemo(() => {
+        const years = entries.map((entry) => new Date(entry.date).getFullYear());
+        const currentYear = new Date().getFullYear();
+        const dataMin = years.length ? Math.min(...years) : currentYear;
+        const dataMax = years.length ? Math.max(...years) : currentYear;
+        const min = Math.min(dataMin - 10, currentYear - 15);
+        const max = Math.max(dataMax + 10, currentYear + 15);
+        const result: number[] = [];
+        for (let y = min; y <= max; y += 1) result.push(y);
+        return result;
+    }, [entries]);
+    const analyticsSelectedYear = analyticsMonth.getFullYear();
+    const analyticsSelectedMonth = analyticsMonth.getMonth();
+    const selectedYearIndex = Math.max(0, analyticsYearOptions.indexOf(analyticsSelectedYear));
+    const yearLabels = analyticsYearOptions.map((year) => String(year));
+
+    const onCherryDayPress = (dayKey: string) => {
+        if (!availableTimelineDatesSet.has(dayKey)) return;
+        if (cherryAnchorDate) {
+            const start = cherryAnchorDate < dayKey ? cherryAnchorDate : dayKey;
+            const end = cherryAnchorDate > dayKey ? cherryAnchorDate : dayKey;
+            const rangeDates = availableTimelineDates.filter((d) => d >= start && d <= end);
+            setSelectedDates(rangeDates);
+            setCherryAnchorDate(null);
+            return;
+        }
+        setSelectedDates((prev) => (prev.includes(dayKey) ? prev.filter((d) => d !== dayKey) : [...prev, dayKey].sort()));
+    };
+
+    const onCherryDayLongPress = (dayKey: string) => {
+        if (!availableTimelineDatesSet.has(dayKey)) return;
+        setCherryAnchorDate(dayKey);
+        setSelectedDates([dayKey]);
     };
 
     return (
@@ -692,7 +959,7 @@ export default function MeasurementsHistoryScreen() {
                     data={filteredTimelineEntries}
                     keyExtractor={(item) => item.id}
                     renderItem={({ item, index }) => <MeasurementsTimeline item={item} index={index} />}
-                    contentContainerStyle={styles.listContent}
+                    contentContainerStyle={[styles.listContent, { paddingBottom: 48 + insets.bottom }]}
                     showsVerticalScrollIndicator={false}
                     initialNumToRender={8}
                     maxToRenderPerBatch={8}
@@ -700,9 +967,124 @@ export default function MeasurementsHistoryScreen() {
                     ListHeaderComponent={
                         <View>
                             <JourneyHeader entries={entries} />
-                            <ProgressGraph entries={entries} selectedMetric={selectedMetric} onMetricChange={setSelectedMetric} />
+                            <AnalyticsRangeSection
+                                rangeFrom={analyticsFrom}
+                                rangeTo={analyticsTo}
+                                onPickFrom={() => setAnalyticsPicker("from")}
+                                onPickTo={() => setAnalyticsPicker("to")}
+                            />
+                            <ProgressGraph
+                                entries={analyticsEntries}
+                                selectedMetric={selectedMetric}
+                                onMetricChange={setSelectedMetric}
+                            />
                             <BodyComparisonSection comparisons={comparisons} />
                             <ProgressGallery entries={entries} />
+                            <Modal
+                                visible={analyticsPicker != null}
+                                transparent
+                                animationType="fade"
+                                onRequestClose={() => setAnalyticsPicker(null)}
+                            >
+                                <View style={styles.analyticsModalBackdrop}>
+                                    <View style={styles.analyticsModalCard}>
+                                        <View style={styles.sectionHeaderRow}>
+                                            <View style={styles.sectionHeaderCopy}>
+                                                <Text style={styles.sectionEyebrow}>Analytics Range</Text>
+                                                <Text style={styles.sectionTitle}>
+                                                    {analyticsPicker === "from" ? "Select From Date" : "Select To Date"}
+                                                </Text>
+                                            </View>
+                                            <TouchableOpacity style={styles.headerBtn} onPress={() => setAnalyticsPicker(null)}>
+                                                <Feather name="x" size={18} color="#fff" />
+                                            </TouchableOpacity>
+                                        </View>
+                                        <View style={styles.cherryToolbar}>
+                                            <TouchableOpacity
+                                                style={styles.cherryMonthBtn}
+                                                onPress={() => setAnalyticsMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
+                                            >
+                                                <Feather name="chevron-left" size={16} color="#fff" />
+                                            </TouchableOpacity>
+                                            <TouchableOpacity
+                                                style={styles.analyticsMonthLabelBtn}
+                                                onPress={() => setAnalyticsMonthYearPickerOpen((prev) => !prev)}
+                                            >
+                                                <Text style={styles.cherryMonthLabel}>
+                                                    {analyticsMonth.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+                                                </Text>
+                                                <Feather name={analyticsMonthYearPickerOpen ? "chevron-up" : "chevron-down"} size={14} color="#cfcfcf" />
+                                            </TouchableOpacity>
+                                            <TouchableOpacity
+                                                style={styles.cherryMonthBtn}
+                                                onPress={() => setAnalyticsMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
+                                            >
+                                                <Feather name="chevron-right" size={16} color="#fff" />
+                                            </TouchableOpacity>
+                                        </View>
+                                        {analyticsMonthYearPickerOpen ? (
+                                            <View style={styles.analyticsMonthYearPanel}>
+                                                <View style={styles.analyticsWheelRow}>
+                                                    <WheelPickerColumn
+                                                        items={MONTH_NAMES}
+                                                        selectedIndex={analyticsSelectedMonth}
+                                                        onChangeIndex={(monthIdx) =>
+                                                            setAnalyticsMonth(new Date(analyticsSelectedYear, monthIdx, 1))
+                                                        }
+                                                    />
+                                                    <WheelPickerColumn
+                                                        items={yearLabels}
+                                                        selectedIndex={selectedYearIndex}
+                                                        onChangeIndex={(yearIdx) =>
+                                                            setAnalyticsMonth(new Date(analyticsYearOptions[yearIdx], analyticsSelectedMonth, 1))
+                                                        }
+                                                    />
+                                                </View>
+                                                <TouchableOpacity style={styles.analyticsWheelDoneBtn} onPress={() => setAnalyticsMonthYearPickerOpen(false)}>
+                                                    <Text style={styles.analyticsWheelDoneText}>Done</Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                        ) : (
+                                            <>
+                                                <View style={styles.cherryWeekRow}>
+                                                    {["S", "M", "T", "W", "T", "F", "S"].map((label, index) => (
+                                                        <Text key={`analytics-${label}-${index}`} style={styles.cherryWeekLabel}>{label}</Text>
+                                                    ))}
+                                                </View>
+                                                <View style={styles.cherryGrid}>
+                                                    {buildCalendarDays(analyticsMonth).map((day) => {
+                                                        const dayKey = toDayKey(day);
+                                                        const inMonth = day.getMonth() === analyticsMonth.getMonth();
+                                                        const isFrom = analyticsFrom ? toDayKey(analyticsFrom) === dayKey : false;
+                                                        const isTo = analyticsTo ? toDayKey(analyticsTo) === dayKey : false;
+                                                        const selected = isFrom || isTo;
+                                                        return (
+                                                            <TouchableOpacity
+                                                                key={`analytics-${dayKey}`}
+                                                                style={[styles.cherryCell, !inMonth && styles.cherryCellOutside]}
+                                                                onPress={() => onPickAnalyticsDate(day)}
+                                                            >
+                                                                <View style={[styles.cherryCellInner, selected && styles.cherryCellSelected]}>
+                                                                    <Text
+                                                                        style={[
+                                                                            styles.cherryCellText,
+                                                                            !inMonth && styles.cherryCellTextOutside,
+                                                                            inMonth && styles.cherryCellTextData,
+                                                                            selected && styles.cherryCellTextSelected,
+                                                                        ]}
+                                                                    >
+                                                                        {day.getDate()}
+                                                                    </Text>
+                                                                </View>
+                                                            </TouchableOpacity>
+                                                        );
+                                                    })}
+                                                </View>
+                                            </>
+                                        )}
+                                    </View>
+                                </View>
+                            </Modal>
                             <View style={styles.timelineHeader}>
                                 <Text style={styles.sectionEyebrow}>Timeline</Text>
                                 <Text style={styles.sectionTitle}>Every checkpoint, in order</Text>
@@ -726,13 +1108,13 @@ export default function MeasurementsHistoryScreen() {
                                             <TouchableOpacity style={styles.timelineFilterBtn} onPress={() => setActivePicker("from")}>
                                                 <Text style={styles.timelineFilterLabel}>From</Text>
                                                 <Text style={styles.timelineFilterValue}>
-                                                    {timelineFrom ? formatDate(timelineFrom.toISOString()) : "Select date"}
+                                                {timelineFrom ? formatDate(timelineFrom) : "Select date"}
                                                 </Text>
                                             </TouchableOpacity>
                                             <TouchableOpacity style={styles.timelineFilterBtn} onPress={() => setActivePicker("to")}>
                                                 <Text style={styles.timelineFilterLabel}>To</Text>
                                                 <Text style={styles.timelineFilterValue}>
-                                                    {timelineTo ? formatDate(timelineTo.toISOString()) : "Select date"}
+                                                {timelineTo ? formatDate(timelineTo) : "Select date"}
                                                 </Text>
                                             </TouchableOpacity>
                                         </View>
@@ -749,25 +1131,85 @@ export default function MeasurementsHistoryScreen() {
                                         </View>
                                     </>
                                 ) : (
-                                    <View style={styles.cherryWrap}>
-                                        {availableTimelineDates.map((day) => {
-                                            const active = selectedDates.includes(day);
-                                            return (
-                                                <TouchableOpacity
-                                                    key={day}
-                                                    style={[styles.metricPill, active && styles.metricPillActive]}
-                                                    onPress={() =>
-                                                        setSelectedDates((prev) =>
-                                                            prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
-                                                        )
-                                                    }
-                                                >
-                                                    <Text style={[styles.metricPillText, active && styles.metricPillTextActive]}>
-                                                        {formatDate(day, { month: "short", day: "numeric", year: "numeric" })}
-                                                    </Text>
-                                                </TouchableOpacity>
-                                            );
-                                        })}
+                                    <View style={styles.cherryCalendarWrap}>
+                                        <View style={styles.cherryToolbar}>
+                                            <TouchableOpacity
+                                                style={styles.cherryMonthBtn}
+                                                onPress={() => setCherryMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
+                                            >
+                                                <Feather name="chevron-left" size={16} color="#fff" />
+                                            </TouchableOpacity>
+                                            <Text style={styles.cherryMonthLabel}>{cherryMonthLabel}</Text>
+                                            <TouchableOpacity
+                                                style={styles.cherryMonthBtn}
+                                                onPress={() => setCherryMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
+                                            >
+                                                <Feather name="chevron-right" size={16} color="#fff" />
+                                            </TouchableOpacity>
+                                        </View>
+                                        <View style={styles.cherryWeekRow}>
+                                            {["S", "M", "T", "W", "T", "F", "S"].map((label, index) => (
+                                                <Text key={`${label}-${index}`} style={styles.cherryWeekLabel}>{label}</Text>
+                                            ))}
+                                        </View>
+                                        <View style={styles.cherryGrid}>
+                                            {cherryCalendarDays.map((day) => {
+                                                const dayKey = toDayKey(day);
+                                                const inMonth = day.getMonth() === cherryMonth.getMonth();
+                                                const hasData = availableTimelineDatesSet.has(dayKey);
+                                                const selected = selectedDates.includes(dayKey);
+                                                const anchored = cherryAnchorDate === dayKey;
+                                                return (
+                                                    <TouchableOpacity
+                                                        key={dayKey}
+                                                        style={[
+                                                            styles.cherryCell,
+                                                            !inMonth && styles.cherryCellOutside,
+                                                        ]}
+                                                        disabled={!hasData}
+                                                        onPress={() => onCherryDayPress(dayKey)}
+                                                        onLongPress={() => onCherryDayLongPress(dayKey)}
+                                                    >
+                                                        <View
+                                                            style={[
+                                                                styles.cherryCellInner,
+                                                                hasData && styles.cherryCellData,
+                                                                selected && styles.cherryCellSelected,
+                                                                anchored && styles.cherryCellAnchored,
+                                                            ]}
+                                                        >
+                                                            <Text
+                                                                style={[
+                                                                    styles.cherryCellText,
+                                                                    !inMonth && styles.cherryCellTextOutside,
+                                                                    hasData && styles.cherryCellTextData,
+                                                                    selected && styles.cherryCellTextSelected,
+                                                                ]}
+                                                            >
+                                                                {day.getDate()}
+                                                            </Text>
+                                                        </View>
+                                                    </TouchableOpacity>
+                                                );
+                                            })}
+                                        </View>
+                                        <Text style={styles.cherryHintText}>
+                                            Long-press a date to start selection, then tap another date to select that full range.
+                                        </Text>
+                                        <View style={styles.cherryActionsRow}>
+                                            <TouchableOpacity style={styles.timelineFilterBtn} onPress={() => setSelectedDates(availableTimelineDates)}>
+                                                <Text style={styles.timelineFilterValue}>Select All</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity
+                                                style={styles.timelineFilterBtn}
+                                                onPress={() => {
+                                                    setSelectedDates([]);
+                                                    setCherryAnchorDate(null);
+                                                }}
+                                            >
+                                                <Text style={styles.timelineFilterValue}>Clear</Text>
+                                            </TouchableOpacity>
+                                        </View>
                                     </View>
                                 )}
                                 {activePicker && timelineMode === "range" ? (
@@ -824,8 +1266,8 @@ const chartConfig = {
         fill: ORANGE,
     },
     propsForBackgroundLines: {
-        stroke: "rgba(255,255,255,0.08)",
-        strokeDasharray: "",
+        stroke: "rgba(255,255,255,0.16)",
+        strokeDasharray: "4,6",
     },
 };
 
@@ -851,7 +1293,7 @@ const styles = StyleSheet.create({
         justifyContent: "center",
     },
     headerTitle: { color: "#fff", fontSize: 18, fontWeight: "800" },
-    listContent: { paddingHorizontal: 18, paddingBottom: 48 },
+    listContent: { paddingHorizontal: 18 },
     dayBackBtn: {
         flexDirection: "row",
         alignItems: "center",
@@ -901,7 +1343,8 @@ const styles = StyleSheet.create({
         borderColor: "rgba(255,255,255,0.08)",
         marginBottom: 18,
     },
-    sectionHeaderRow: { flexDirection: "row", justifyContent: "space-between", gap: 12 },
+    sectionHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12 },
+    sectionHeaderCopy: { flex: 1, minWidth: 0 },
     sectionEyebrow: {
         color: "#B8B8B8",
         fontSize: 11,
@@ -910,13 +1353,15 @@ const styles = StyleSheet.create({
         letterSpacing: 1.4,
         marginBottom: 6,
     },
-    sectionTitle: { color: "#fff", fontSize: 24, fontWeight: "800" },
+    sectionTitle: { color: "#fff", fontSize: 24, fontWeight: "800", flexShrink: 1 },
     sectionBadge: {
         alignSelf: "flex-start",
         backgroundColor: "rgba(255,120,37,0.12)",
         borderRadius: 999,
         paddingHorizontal: 12,
         paddingVertical: 8,
+        flexShrink: 1,
+        maxWidth: "45%",
     },
     sectionBadgeText: { color: "#FFB88C", fontSize: 11, fontWeight: "800" },
     metricGroupsWrap: { paddingTop: 18, paddingBottom: 8 },
@@ -944,6 +1389,20 @@ const styles = StyleSheet.create({
         backgroundColor: "rgba(0,0,0,0.22)",
     },
     chart: { borderRadius: 22, marginLeft: -6 },
+    axisLegendRow: {
+        flexDirection: "row",
+        justifyContent: "flex-start",
+        alignItems: "center",
+        paddingHorizontal: 12,
+        paddingTop: 12,
+    },
+    axisLegendText: {
+        color: "#8f8f8f",
+        fontSize: 11,
+        fontWeight: "700",
+        textTransform: "uppercase",
+        letterSpacing: 0.5,
+    },
     comparisonGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 18 },
     comparisonCard: {
         width: "48%",
@@ -1005,7 +1464,133 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: "700",
     },
-    cherryWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 },
+    cherryCalendarWrap: {
+        marginTop: 10,
+        borderRadius: 16,
+        padding: 12,
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.08)",
+        backgroundColor: "rgba(255,255,255,0.03)",
+    },
+    cherryToolbar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
+    cherryMonthBtn: {
+        width: 32,
+        height: 32,
+        borderRadius: 10,
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: "rgba(255,255,255,0.05)",
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.08)",
+    },
+    cherryMonthLabel: { color: "#fff", fontSize: 14, fontWeight: "800" },
+    cherryWeekRow: { flexDirection: "row", marginBottom: 8 },
+    cherryWeekLabel: { flex: 1, textAlign: "center", color: "#808080", fontSize: 11, fontWeight: "700" },
+    cherryGrid: { flexDirection: "row", flexWrap: "wrap", rowGap: 6 },
+    cherryCell: {
+        width: `${100 / 7}%`,
+        aspectRatio: 1,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    cherryCellInner: {
+        width: "82%",
+        height: "82%",
+        borderRadius: 10,
+        alignItems: "center",
+        justifyContent: "center",
+        borderWidth: 1,
+        borderColor: "transparent",
+    },
+    cherryCellOutside: { opacity: 0.45 },
+    cherryCellData: { borderColor: "rgba(255,120,37,0.25)", backgroundColor: "rgba(255,120,37,0.08)" },
+    cherryCellSelected: { backgroundColor: ORANGE, borderColor: ORANGE },
+    cherryCellAnchored: { borderColor: "#fff", borderWidth: 2 },
+    cherryCellText: { color: "#666", fontSize: 13, fontWeight: "700" },
+    cherryCellTextOutside: { color: "#4f4f4f" },
+    cherryCellTextData: { color: "#f2f2f2" },
+    cherryCellTextSelected: { color: "#fff" },
+    cherryHintText: { marginTop: 10, color: "#8f8f8f", fontSize: 12, lineHeight: 17 },
+    cherryActionsRow: { flexDirection: "row", gap: 10, marginTop: 10 },
+    analyticsModalBackdrop: {
+        flex: 1,
+        backgroundColor: "rgba(0,0,0,0.6)",
+        justifyContent: "center",
+        paddingHorizontal: 16,
+    },
+    analyticsModalCard: {
+        borderRadius: 18,
+        padding: 14,
+        backgroundColor: "#14110E",
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.12)",
+    },
+    analyticsMonthLabelBtn: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6,
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: 10,
+        backgroundColor: "rgba(255,255,255,0.04)",
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.08)",
+    },
+    analyticsMonthYearPanel: {
+        marginBottom: 8,
+        gap: 10,
+    },
+    analyticsWheelRow: {
+        flexDirection: "row",
+        gap: 10,
+        minHeight: WHEEL_ITEM_HEIGHT * WHEEL_VISIBLE_ROWS,
+    },
+    analyticsWheelCol: {
+        flex: 1,
+        height: WHEEL_ITEM_HEIGHT * WHEEL_VISIBLE_ROWS,
+        borderRadius: 12,
+        backgroundColor: "rgba(255,255,255,0.03)",
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.08)",
+        overflow: "hidden",
+    },
+    analyticsWheelContent: {
+        paddingVertical: WHEEL_ITEM_HEIGHT,
+    },
+    analyticsWheelSelectionOverlay: {
+        position: "absolute",
+        left: 8,
+        right: 8,
+        top: WHEEL_ITEM_HEIGHT,
+        height: WHEEL_ITEM_HEIGHT,
+        borderRadius: 10,
+        backgroundColor: "rgba(255,120,37,0.22)",
+        borderWidth: 1,
+        borderColor: ORANGE,
+        zIndex: 10,
+    },
+    analyticsWheelItem: {
+        height: WHEEL_ITEM_HEIGHT,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    analyticsWheelText: {
+        color: "#c4c4c4",
+        fontSize: 14,
+        fontWeight: "700",
+    },
+    analyticsWheelDoneBtn: {
+        alignSelf: "flex-end",
+        borderRadius: 12,
+        backgroundColor: ORANGE,
+        paddingHorizontal: 14,
+        paddingVertical: 8,
+    },
+    analyticsWheelDoneText: {
+        color: "#fff",
+        fontSize: 13,
+        fontWeight: "800",
+    },
     timelineCard: {
         borderRadius: 26,
         padding: 16,

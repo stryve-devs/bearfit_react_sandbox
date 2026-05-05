@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import {
   Routine,
   ExerciseLog,
@@ -17,6 +17,16 @@ export const WorkoutProvider: React.FC<{ children: ReactNode }> = ({
   const [currentRoutine, setCurrentRoutine] = useState<Routine | null>(null);
   const [exercises, setExercises] = useState<ExerciseLog[]>([]);
   const [elapsed, setElapsed] = useState(0);
+  const [isWorkoutActive, setIsWorkoutActive] = useState(false);
+  const [runningTimedSet, setRunningTimedSet] = useState<{ exerciseIndex: number; setIndex: number } | null>(null);
+
+  useEffect(() => {
+    if (!isWorkoutActive) return;
+    const timer = setInterval(() => {
+      setElapsed((prev) => prev + 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [isWorkoutActive]);
 
   const addExercise = (exercise: Exercise) => {
     const newExerciseLog: ExerciseLog = {
@@ -51,15 +61,25 @@ export const WorkoutProvider: React.FC<{ children: ReactNode }> = ({
     setCurrentRoutine(null);
     setExercises([]);
     setElapsed(0);
+    setIsWorkoutActive(false);
+    setRunningTimedSet(null);
   };
+
+  const startWorkout = () => setIsWorkoutActive(true);
+  const stopWorkout = () => setIsWorkoutActive(false);
 
   const value: WorkoutContextType = {
     currentRoutine,
     exercises,
     elapsed,
+    isWorkoutActive,
+    runningTimedSet,
     setCurrentRoutine,
     setExercises,
     setElapsed,
+    setRunningTimedSet,
+    startWorkout,
+    stopWorkout,
     addExercise,
     removeExercise,
     updateExerciseTarget,

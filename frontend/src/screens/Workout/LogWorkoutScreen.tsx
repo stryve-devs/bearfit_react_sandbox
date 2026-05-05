@@ -24,6 +24,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { setHeaderActions } from '../../../app/(tabs)/Workout/_layout';
 import exerciseData from '../../constants/exercise-data.json';
+import { useWorkout } from '../../context/WorkoutContext';
 
 type WorkoutExerciseSelection = {
     name: string;
@@ -69,9 +70,18 @@ export default function LogWorkoutScreen() {
     const routeParams = useLocalSearchParams();
     const navigation = useNavigation();
 
-    const [elapsed, setElapsed] = useState(0);
-    const [exercises, setLocalExercises] = useState<ExerciseLog[]>([]);
-    const [currentRoutine, setLocalRoutine] = useState<Routine | null>(null);
+    const {
+        elapsed,
+        setElapsed,
+        exercises,
+        setExercises: setLocalExercises,
+        currentRoutine,
+        setCurrentRoutine: setLocalRoutine,
+        startWorkout,
+        clearWorkout,
+        runningTimedSet,
+        setRunningTimedSet,
+    } = useWorkout();
     const [workoutInProgressVisible, setWorkoutInProgressVisible] = useState(false);
     const [clockOverlayVisible, setClockOverlayVisible] = useState(false);
     const [restCompleteVisible, setRestCompleteVisible] = useState(false);
@@ -83,12 +93,6 @@ export default function LogWorkoutScreen() {
     const [savedRoutines, setSavedRoutines] = useState<Routine[]>([]);
     const [saveRoutineVisible, setSaveRoutineVisible] = useState(false);
     const [muscleDistributionVisible, setMuscleDistributionVisible] = useState(false);
-    const [runningTimedSet, setRunningTimedSet] = useState<{
-        exerciseIndex: number;
-        setIndex: number;
-    } | null>(null);
-
-    const elapsedTimerRef = useRef<NodeJS.Timeout | null>(null);
     const restTimersRef = useRef<{ [key: number]: NodeJS.Timeout }>({});
     const timedSetIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -98,7 +102,7 @@ export default function LogWorkoutScreen() {
             timedSetIntervalRef.current = null;
         }
         setRunningTimedSet(null);
-    }, []);
+    }, [setRunningTimedSet]);
 
     useEffect(() => {
         return () => {
@@ -109,17 +113,11 @@ export default function LogWorkoutScreen() {
     }, []);
 
     useEffect(() => {
-        elapsedTimerRef.current = setInterval(() => {
-            setElapsed((prev) => prev + 1);
-        }, 1000);
-
+        startWorkout();
         return () => {
-            if (elapsedTimerRef.current) {
-                clearInterval(elapsedTimerRef.current);
-            }
             Object.values(restTimersRef.current).forEach(timer => clearInterval(timer));
         };
-    }, []);
+    }, [startWorkout]);
 
     useEffect(() => {
         if (routeParams?.routine) {
@@ -268,8 +266,8 @@ export default function LogWorkoutScreen() {
     };
 
     const handleBack = useCallback(() => {
-        setWorkoutInProgressVisible(true);
-    }, []);
+        router.back();
+    }, [router]);
 
     const handleDiscardWorkout = () => {
         setWorkoutInProgressVisible(false);
@@ -278,6 +276,7 @@ export default function LogWorkoutScreen() {
 
     const handleConfirmDiscard = () => {
         setDiscardConfirmAlertVisible(false);
+        clearWorkout();
         setTimeout(() => {
             router.push('/(tabs)/Workout');
         }, 50);
@@ -296,11 +295,12 @@ export default function LogWorkoutScreen() {
             exercises,
         };
 
+        clearWorkout();
         router.push({
             pathname: '/(tabs)/Workout/save',
             params: { workoutData: JSON.stringify(workoutData) },
         });
-    }, [elapsed, exercises, router]);
+    }, [elapsed, exercises, router, clearWorkout]);
 
     const handleSaveAsRoutine = () => {
         setSaveRoutineVisible(false);

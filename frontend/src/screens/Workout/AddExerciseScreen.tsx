@@ -26,6 +26,7 @@ import { BlurView } from 'expo-blur';
 import { AppColors } from '../../constants/colors';
 import { Exercise } from '../../types/workout.types';
 import { useRoutine } from '../../context/RoutineContext';
+import { useWorkout } from '../../context/WorkoutContext';
 
 type LocalExerciseRecord = {
     id?: string;
@@ -109,6 +110,13 @@ export default function AddExerciseScreen() {
     const routeParams = useLocalSearchParams();
     const navigation = useNavigation();
     const { addTarget } = useRoutine();
+    const { setExercises } = useWorkout();
+    const fromWorkoutParam = Array.isArray(routeParams?.fromWorkout) ? routeParams.fromWorkout[0] : routeParams?.fromWorkout;
+    const fromQuickEditParam = Array.isArray(routeParams?.fromQuickEdit) ? routeParams.fromQuickEdit[0] : routeParams?.fromQuickEdit;
+    const returnToParam = Array.isArray(routeParams?.returnTo) ? routeParams.returnTo[0] : routeParams?.returnTo;
+    const isFromWorkout = String(fromWorkoutParam) === 'true';
+    const isFromQuickEdit = String(fromQuickEditParam) === 'true';
+    const quickEditReturnTo = typeof returnToParam === 'string' && returnToParam.startsWith('/') ? returnToParam : null;
 
     const [searchText, setSearchText] = useState('');
     const [selectedEquipment, setSelectedEquipment] = useState<string | null>(null);
@@ -180,12 +188,35 @@ export default function AddExerciseScreen() {
     }, [filteredExercises.length]);
 
     const handleExerciseSelect = (exercise: Exercise) => {
-        if (routeParams?.fromWorkout === 'true') {
+        if (isFromWorkout) {
             const selected = exercise as ScreenExercise;
             const payload: WorkoutExerciseSelection = {
                 name: selected.name,
                 externalId: selected.exerciseId || null,
             };
+
+            if (isFromQuickEdit) {
+                setExercises((prev) => [
+                    ...prev,
+                    {
+                        name: payload.name,
+                        externalId: payload.externalId || null,
+                        sets: [{ weightKg: 0, reps: 0, done: false }],
+                        restSeconds: 0,
+                        restRemaining: 0,
+                        restTimerRef: null,
+                    },
+                ]);
+                if (quickEditReturnTo) {
+                    router.replace({
+                        pathname: quickEditReturnTo as any,
+                        params: { quickEditOpen: 'true' },
+                    });
+                } else {
+                    router.back();
+                }
+                return;
+            }
 
             router.back();
             setTimeout(() => {
@@ -261,7 +292,29 @@ export default function AddExerciseScreen() {
             externalId: item.exerciseId || null,
         }));
 
-        if (routeParams?.fromWorkout === 'true') {
+        if (isFromWorkout) {
+            if (isFromQuickEdit) {
+                const mapped = selectedPayloads.map((item) => ({
+                    name: item.name,
+                    externalId: item.externalId || null,
+                    sets: [{ weightKg: 0, reps: 0, done: false }],
+                    restSeconds: 0,
+                    restRemaining: 0,
+                    restTimerRef: null,
+                }));
+                setExercises((prev) => [...prev, ...mapped]);
+                setIsSelectionMode(false);
+                setSelectedExerciseKeys([]);
+                if (quickEditReturnTo) {
+                    router.replace({
+                        pathname: quickEditReturnTo as any,
+                        params: { quickEditOpen: 'true' },
+                    });
+                } else {
+                    router.back();
+                }
+                return;
+            }
             setIsSelectionMode(false);
             setSelectedExerciseKeys([]);
             router.back();
@@ -284,7 +337,7 @@ export default function AddExerciseScreen() {
         setIsSelectionMode(false);
         setSelectedExerciseKeys([]);
         router.back();
-    }, [addTarget, routeParams?.fromWorkout, router, selectedExercises]);
+    }, [addTarget, isFromWorkout, isFromQuickEdit, quickEditReturnTo, router, selectedExercises, setExercises]);
 
     useLayoutEffect(() => {
         navigation.setOptions({

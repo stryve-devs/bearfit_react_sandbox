@@ -38,9 +38,14 @@ export interface WorkoutContextType {
     currentRoutine: Routine | null;
     exercises: ExerciseLog[];
     elapsed: number;
+    isWorkoutActive: boolean;
+    runningTimedSet: { exerciseIndex: number; setIndex: number } | null;
     setCurrentRoutine: (routine: Routine | null) => void;
     setExercises: (exercises: ExerciseLog[]) => void;
     setElapsed: (elapsed: number) => void;
+    setRunningTimedSet: (value: { exerciseIndex: number; setIndex: number } | null) => void;
+    startWorkout: () => void;
+    stopWorkout: () => void;
     addExercise: (exercise: Exercise) => void;
     removeExercise: (exerciseIndex: number) => void;
     updateExerciseTarget: (
